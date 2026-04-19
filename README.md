@@ -16,6 +16,7 @@ The repository now has two layers:
 - `docs/SPECIFICATION.md`: saved product instruction
 - `docs/ARCHITECTURE.md`: architecture notes
 - `docs/GUI_TAURI.md`: GUI plan
+- `todo.md`: remaining project work by iteration
 
 ## Running The Working MVP
 

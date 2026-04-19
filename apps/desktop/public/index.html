@@ -20,6 +20,7 @@
       <section class="grid">
         <article class="card">
           <h2>Session Control</h2>
+          <p class="hint">This interface already drives the in-memory Rust session manager through Tauri commands.</p>
           <form id="session-form" class="form">
             <label>
               <span>Room</span>
@@ -34,11 +35,13 @@
               <input id="source" name="source" value="window selection pending" />
             </label>
             <div class="actions">
+              <button type="button" id="save-btn" class="secondary">Save Config</button>
               <button type="button" id="host-btn">Prepare Host</button>
               <button type="button" id="join-btn" class="secondary">Prepare Viewer</button>
               <button type="button" id="mock-btn" class="secondary">Mock Streaming</button>
               <button type="button" id="webrtc-btn" class="secondary">Plan WebRTC</button>
               <button type="button" id="stop-btn" class="ghost">Stop</button>
+              <button type="button" id="reset-btn" class="ghost">Reset</button>
             </div>
           </form>
           <p id="command-result" class="result">No command executed yet.</p>
@@ -46,6 +49,7 @@
 
         <article class="card">
           <h2>Status</h2>
+          <div id="runtime-badge" class="badge">Detecting runtime...</div>
           <dl id="status">
             <div><dt>Stage</dt><dd>loading...</dd></div>
             <div><dt>GUI</dt><dd>loading...</dd></div>
@@ -63,11 +67,18 @@
             <div><dt>Signaling</dt><dd>loading...</dd></div>
             <div><dt>Source</dt><dd>loading...</dd></div>
             <div><dt>Peer</dt><dd>loading...</dd></div>
+            <div><dt>Next Action</dt><dd>loading...</dd></div>
           </dl>
         </article>
 
         <article class="card wide">
-          <h2>Session Log</h2>
+          <div class="section-head">
+            <h2>Session Log</h2>
+            <div class="actions compact">
+              <button type="button" id="refresh-btn" class="ghost">Refresh</button>
+              <button type="button" id="clear-logs-btn" class="ghost">Clear Logs</button>
+            </div>
+          </div>
           <pre id="session-log">loading...</pre>
         </article>
 

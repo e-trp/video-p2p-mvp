@@ -40,6 +40,7 @@ pub struct SessionSnapshot {
     pub source_label: Option<String>,
     pub active_peer: Option<String>,
     pub logs: Vec<String>,
+    pub next_action: String,
 }
 
 #[derive(Debug, Default)]
@@ -130,10 +131,43 @@ impl SessionManager {
         self.snapshot()
     }
 
+    pub fn update_config(
+        &mut self,
+        room: Option<String>,
+        signaling_addr: Option<String>,
+        source_label: Option<String>,
+    ) -> SessionSnapshot {
+        if let Some(room) = room {
+            self.state.room = Some(room.clone());
+            self.push_log(format!("room updated to {room}"));
+        }
+        if let Some(signaling_addr) = signaling_addr {
+            self.state.signaling_addr = Some(signaling_addr.clone());
+            self.push_log(format!("signaling updated to {signaling_addr}"));
+        }
+        if let Some(source_label) = source_label {
+            self.state.source_label = Some(source_label.clone());
+            self.push_log(format!("source label updated to {source_label}"));
+        }
+        self.snapshot()
+    }
+
     pub fn stop(&mut self) -> SessionSnapshot {
         self.state.stage = SessionStage::Stopped;
         self.state.active_peer = None;
         self.push_log("session stopped".to_string());
+        self.snapshot()
+    }
+
+    pub fn clear_logs(&mut self) -> SessionSnapshot {
+        self.state.logs.clear();
+        self.push_log("session log cleared".to_string());
+        self.snapshot()
+    }
+
+    pub fn reset(&mut self) -> SessionSnapshot {
+        self.state = SessionState::default();
+        self.push_log("session reset to idle state".to_string());
         self.snapshot()
     }
 
@@ -147,6 +181,7 @@ impl SessionManager {
             source_label: self.state.source_label.clone(),
             active_peer: self.state.active_peer.clone(),
             logs: self.state.logs.clone(),
+            next_action: self.next_action().to_string(),
         }
     }
 
@@ -159,6 +194,26 @@ impl SessionManager {
         if self.state.logs.len() > 200 {
             let drain = self.state.logs.len() - 200;
             self.state.logs.drain(0..drain);
+        }
+    }
+
+    fn next_action(&self) -> &'static str {
+        match (self.state.mode, self.state.stage, self.state.transport) {
+            (SessionMode::Idle, _, _) => "configure host or viewer session",
+            (SessionMode::Host, SessionStage::Configured, SessionTransport::MockUdp) => {
+                "connect signaling and start preview stream"
+            }
+            (SessionMode::Viewer, SessionStage::AwaitingPeer, SessionTransport::MockUdp) => {
+                "wait for sender and open direct peer path"
+            }
+            (_, SessionStage::MockStreaming, SessionTransport::MockUdp) => {
+                "replace mock transport with WebRTC tracks"
+            }
+            (_, SessionStage::PlannedWebRtc, SessionTransport::PlannedWebRtc) => {
+                "implement SDP/ICE exchange and real media tracks"
+            }
+            (_, SessionStage::Stopped, _) => "restart or reset session",
+            _ => "continue integration",
         }
     }
 }
@@ -189,6 +244,7 @@ mod tests {
         assert_eq!(snapshot.transport, SessionTransport::MockUdp);
         assert_eq!(snapshot.room.as_deref(), Some("demo"));
         assert_eq!(snapshot.source_label.as_deref(), Some("vlc"));
+        assert_eq!(snapshot.next_action, "connect signaling and start preview stream");
     }
 
     #[test]
@@ -203,5 +259,16 @@ mod tests {
 
         assert_eq!(snapshot.stage, SessionStage::Stopped);
         assert!(snapshot.logs.iter().any(|line| line.contains("session stopped")));
+    }
+
+    #[test]
+    fn reset_returns_idle_state() {
+        let mut manager = SessionManager::new();
+        manager.mark_mock_streaming("127.0.0.1:9999".to_string());
+        let snapshot = manager.reset();
+
+        assert_eq!(snapshot.mode, SessionMode::Idle);
+        assert_eq!(snapshot.stage, SessionStage::Idle);
+        assert_eq!(snapshot.next_action, "configure host or viewer session");
     }
 }

@@ -22,6 +22,7 @@ struct SessionView {
     signaling_addr: Option<String>,
     source_label: Option<String>,
     active_peer: Option<String>,
+    next_action: String,
     logs: Vec<String>,
 }
 
@@ -96,6 +97,25 @@ fn join_room(
 }
 
 #[tauri::command]
+fn update_session_config(
+    room: Option<String>,
+    signaling_addr: Option<String>,
+    source_label: Option<String>,
+    state: tauri::State<'_, Mutex<SessionManager>>,
+) -> CommandResult {
+    let snapshot = state
+        .lock()
+        .expect("session state poisoned")
+        .update_config(room, signaling_addr, source_label);
+
+    CommandResult {
+        ok: true,
+        message: "session configuration updated".to_string(),
+        session: map_snapshot(snapshot),
+    }
+}
+
+#[tauri::command]
 fn mark_mock_streaming(
     peer: String,
     state: tauri::State<'_, Mutex<SessionManager>>,
@@ -143,6 +163,28 @@ fn session_logs(state: tauri::State<'_, Mutex<SessionManager>>) -> Vec<String> {
 }
 
 #[tauri::command]
+fn clear_session_logs(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+    let snapshot = state.lock().expect("session state poisoned").clear_logs();
+
+    CommandResult {
+        ok: true,
+        message: "session logs cleared".to_string(),
+        session: map_snapshot(snapshot),
+    }
+}
+
+#[tauri::command]
+fn reset_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+    let snapshot = state.lock().expect("session state poisoned").reset();
+
+    CommandResult {
+        ok: true,
+        message: "session reset to idle state".to_string(),
+        session: map_snapshot(snapshot),
+    }
+}
+
+#[tauri::command]
 fn specification_markdown() -> String {
     include_str!("../../../../docs/SPECIFICATION.md").to_string()
 }
@@ -155,10 +197,13 @@ fn main() {
             session_snapshot,
             start_host,
             join_room,
+            update_session_config,
             mark_mock_streaming,
             mark_webrtc_planned,
             stop_session,
             session_logs,
+            clear_session_logs,
+            reset_session,
             specification_markdown
         ])
         .run(tauri::generate_context!())
@@ -174,6 +219,7 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         signaling_addr: snapshot.signaling_addr,
         source_label: snapshot.source_label,
         active_peer: snapshot.active_peer,
+        next_action: snapshot.next_action,
         logs: snapshot.logs,
     }
 }

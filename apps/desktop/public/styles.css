@@ -65,6 +65,11 @@ h1 {
   color: var(--muted);
 }
 
+.hint {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -115,6 +120,17 @@ h1 {
   margin-top: 4px;
 }
 
+.actions.compact {
+  margin-top: 0;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 button {
   border: 0;
   border-radius: 999px;
@@ -138,6 +154,26 @@ button.ghost {
 .result {
   margin: 16px 0 0;
   color: var(--muted);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  margin-top: 18px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+}
+
+.badge.live {
+  background: rgba(35, 77, 74, 0.12);
+  color: #1e4b47;
+}
+
+.badge.preview {
+  background: rgba(196, 92, 45, 0.12);
+  color: #8b4928;
 }
 
 .card.wide {

@@ -17,6 +17,7 @@ The repository now includes a desktop scaffold in `apps/desktop`:
 - Tauri Rust shell in `apps/desktop/src-tauri`
 - initial commands for reading project status and the saved specification
 - session manager hooks for `host`, `join`, `stop`, `status`, and `logs`
+- UI controls for config save, host/viewer prep, mock stream stage, planned WebRTC stage, reset, refresh, and log clearing
 
 ## Intended GUI Responsibilities
 
@@ -46,6 +47,18 @@ It already models:
 - a rolling in-memory event log
 
 This gives the Tauri shell a stable API before the real transport and capture layers are connected.
+
+## Current User Interface
+
+The current Tauri UI is fully wired to the in-memory session manager and supports:
+
+- editing room, signaling, and source label fields
+- saving session configuration
+- preparing host or viewer session states
+- switching to mock streaming or planned WebRTC transport stages
+- stopping or resetting a session
+- viewing current session status and next action
+- viewing and clearing the rolling session log
 
 ## Important Note
 

@@ -5,8 +5,10 @@ async function invoke(command) {
   return window.__TAURI__.core.invoke(command);
 }
 
+const isTauri = Boolean(window.__TAURI__?.core?.invoke);
+
 async function invokeWithArgs(command, args = {}) {
-  if (!window.__TAURI__?.core?.invoke) {
+  if (!isTauri) {
     return null;
   }
   return window.__TAURI__.core.invoke(command, args);
@@ -31,8 +33,14 @@ function setSession(session) {
     <div><dt>Signaling</dt><dd>${session.signaling_addr ?? "n/a"}</dd></div>
     <div><dt>Source</dt><dd>${session.source_label ?? "n/a"}</dd></div>
     <div><dt>Peer</dt><dd>${session.active_peer ?? "n/a"}</dd></div>
+    <div><dt>Next Action</dt><dd>${session.next_action ?? "n/a"}</dd></div>
   `;
   document.getElementById("session-log").textContent = session.logs.join("\n");
+  document.getElementById("room").value = session.room ?? document.getElementById("room").value;
+  document.getElementById("signaling").value =
+    session.signaling_addr ?? document.getElementById("signaling").value;
+  document.getElementById("source").value =
+    session.source_label ?? document.getElementById("source").value;
 }
 
 function formValues() {
@@ -51,7 +59,11 @@ async function refresh() {
 
   if (status) {
     setStatus(status);
+    document.getElementById("runtime-badge").textContent = "Tauri runtime connected";
+    document.getElementById("runtime-badge").className = "badge live";
   } else {
+    document.getElementById("runtime-badge").textContent = "Browser preview";
+    document.getElementById("runtime-badge").className = "badge preview";
     document.getElementById("status").innerHTML = `
       <div><dt>Mode</dt><dd>Browser preview without Tauri runtime</dd></div>
     `;
@@ -66,6 +78,7 @@ async function refresh() {
       <div><dt>Signaling</dt><dd>n/a</dd></div>
       <div><dt>Source</dt><dd>n/a</dd></div>
       <div><dt>Peer</dt><dd>n/a</dd></div>
+      <div><dt>Next Action</dt><dd>run inside Tauri</dd></div>
     `;
     document.getElementById("session-log").textContent =
       "Run inside Tauri to drive the in-memory session manager.";
@@ -95,6 +108,11 @@ async function load() {
   document.getElementById("spec").textContent =
     specification ?? "Run inside Tauri to load the saved specification from the Rust backend.";
 
+  document.getElementById("save-btn").addEventListener("click", async () => {
+    const values = formValues();
+    await runCommand("update_session_config", values);
+  });
+
   document.getElementById("host-btn").addEventListener("click", async () => {
     const values = formValues();
     await runCommand("start_host", values);
@@ -102,7 +120,7 @@ async function load() {
 
   document.getElementById("join-btn").addEventListener("click", async () => {
     const { room, signaling_addr } = formValues();
-    await runCommand("join_room", { room, signalingAddr: signaling_addr });
+    await runCommand("join_room", { room, signaling_addr });
   });
 
   document.getElementById("mock-btn").addEventListener("click", async () => {
@@ -116,6 +134,20 @@ async function load() {
   document.getElementById("stop-btn").addEventListener("click", async () => {
     await runCommand("stop_session");
   });
+
+  document.getElementById("reset-btn").addEventListener("click", async () => {
+    await runCommand("reset_session");
+  });
+
+  document.getElementById("clear-logs-btn").addEventListener("click", async () => {
+    await runCommand("clear_session_logs");
+  });
+
+  document.getElementById("refresh-btn").addEventListener("click", refresh);
+
+  if (isTauri) {
+    window.setInterval(refresh, 3000);
+  }
 }
 
 load().catch((error) => {
