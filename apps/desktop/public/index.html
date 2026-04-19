@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video P2P MVP</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Rust + Tauri Desktop Shell</p>
+        <h1>Peer-to-peer window streaming</h1>
+        <p class="lead">
+          This GUI is the control surface for the future macOS/Linux application.
+          The current backend is still an MVP with signaling and mock media flow.
+        </p>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Status</h2>
+          <dl id="status">
+            <div><dt>Stage</dt><dd>loading...</dd></div>
+            <div><dt>GUI</dt><dd>loading...</dd></div>
+            <div><dt>Transport</dt><dd>loading...</dd></div>
+            <div><dt>macOS Capture</dt><dd>loading...</dd></div>
+            <div><dt>Linux Capture</dt><dd>loading...</dd></div>
+          </dl>
+        </article>
+
+        <article class="card">
+          <h2>Planned Flow</h2>
+          <ol>
+            <li>Pick a window in the desktop app.</li>
+            <li>Create or join a room.</li>
+            <li>Negotiate WebRTC with signaling.</li>
+            <li>Stream video and audio peer-to-peer.</li>
+          </ol>
+        </article>
+
+        <article class="card wide">
+          <h2>Saved Specification</h2>
+          <pre id="spec">loading...</pre>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+  </html>
