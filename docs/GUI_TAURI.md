@@ -56,8 +56,12 @@ The current Tauri UI is fully wired to the in-memory session manager and support
 - saving session configuration
 - preparing host or viewer session states
 - switching to mock streaming or planned WebRTC transport stages
+- creating a local offer
+- accepting a remote answer
+- adding a remote ICE candidate
 - stopping or resetting a session
 - viewing current session status and next action
+- viewing transport signaling state
 - viewing and clearing the rolling session log
 
 ## Important Note

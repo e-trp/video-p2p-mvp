@@ -33,9 +33,15 @@ function setSession(session) {
     <div><dt>Signaling</dt><dd>${session.signaling_addr ?? "n/a"}</dd></div>
     <div><dt>Source</dt><dd>${session.source_label ?? "n/a"}</dd></div>
     <div><dt>Peer</dt><dd>${session.active_peer ?? "n/a"}</dd></div>
+    <div><dt>Transport State</dt><dd>${session.transport_state ?? "n/a"}</dd></div>
+    <div><dt>Offer Ready</dt><dd>${String(session.local_offer_ready)}</dd></div>
+    <div><dt>Answer Ready</dt><dd>${String(session.remote_answer_ready)}</dd></div>
+    <div><dt>ICE Count</dt><dd>${session.remote_candidate_count ?? 0}</dd></div>
     <div><dt>Next Action</dt><dd>${session.next_action ?? "n/a"}</dd></div>
   `;
   document.getElementById("session-log").textContent = session.logs.join("\n");
+  document.getElementById("signal-preview").textContent =
+    session.last_signaling_message ?? "No signaling messages yet.";
   document.getElementById("room").value = session.room ?? document.getElementById("room").value;
   document.getElementById("signaling").value =
     session.signaling_addr ?? document.getElementById("signaling").value;
@@ -78,10 +84,16 @@ async function refresh() {
       <div><dt>Signaling</dt><dd>n/a</dd></div>
       <div><dt>Source</dt><dd>n/a</dd></div>
       <div><dt>Peer</dt><dd>n/a</dd></div>
+      <div><dt>Transport State</dt><dd>preview</dd></div>
+      <div><dt>Offer Ready</dt><dd>false</dd></div>
+      <div><dt>Answer Ready</dt><dd>false</dd></div>
+      <div><dt>ICE Count</dt><dd>0</dd></div>
       <div><dt>Next Action</dt><dd>run inside Tauri</dd></div>
     `;
     document.getElementById("session-log").textContent =
       "Run inside Tauri to drive the in-memory session manager.";
+    document.getElementById("signal-preview").textContent =
+      "Run inside Tauri to preview signaling state.";
   }
 }
 
@@ -129,6 +141,27 @@ async function load() {
 
   document.getElementById("webrtc-btn").addEventListener("click", async () => {
     await runCommand("mark_webrtc_planned");
+  });
+
+  document.getElementById("offer-btn").addEventListener("click", async () => {
+    await runCommand("create_local_offer");
+  });
+
+  document.getElementById("answer-btn").addEventListener("click", async () => {
+    const sdp = document.getElementById("remote-answer").value;
+    await runCommand("accept_remote_answer", { sdp });
+  });
+
+  document.getElementById("ice-btn").addEventListener("click", async () => {
+    const candidate = document.getElementById("ice-candidate").value;
+    const sdp_mid = document.getElementById("ice-mid").value.trim() || null;
+    const mlineRaw = document.getElementById("ice-mline").value.trim();
+    const sdp_mline_index = mlineRaw === "" ? null : Number.parseInt(mlineRaw, 10);
+    await runCommand("add_remote_ice_candidate", {
+      candidate,
+      sdp_mid,
+      sdp_mline_index: Number.isNaN(sdp_mline_index) ? null : sdp_mline_index,
+    });
   });
 
   document.getElementById("stop-btn").addEventListener("click", async () => {

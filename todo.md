@@ -2,12 +2,12 @@
 
 ## Iteration 1: Real WebRTC Transport
 
-1. Create a real `transport-webrtc` implementation crate.
-2. Define session-facing APIs for:
-   `create_offer`, `accept_offer`, `add_ice_candidate`, `connection_state`, `stats`.
-3. Replace mock UDP session transitions with real transport state transitions.
-4. Extend signaling protocol from simple room pairing to SDP/ICE exchange.
-5. Add integration tests for host/viewer negotiation state.
+1. Replace the current in-memory WebRTC state skeleton with a real `PeerConnection`.
+2. Map session-facing APIs onto actual transport actions:
+   `create_offer`, `accept_answer`, `add_ice_candidate`, `connection_state`, `stats`.
+3. Replace mock UDP and placeholder WebRTC transitions with real transport state transitions.
+4. Wire the signaling server to exchange SDP/ICE instead of only room pairing.
+5. Add integration tests for host/viewer negotiation state and signaling replay.
 
 ## Iteration 2: macOS Capture Backend
 

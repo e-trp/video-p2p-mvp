@@ -7,7 +7,7 @@ The repository is now a workspace-based scaffold with a future desktop GUI targe
 Components:
 
 - `crates/app-core`: shared protocol, CLI parsing, and mock media session logic
-- `crates/transport-webrtc`: planned WebRTC transport blueprint crate
+- `crates/transport-webrtc`: WebRTC session/state skeleton with SDP/ICE lifecycle modeling
 - `crates/capture-macos`: planned ScreenCaptureKit backend blueprint crate
 - `crates/capture-linux`: planned Linux capture backend blueprint crate
 - `crates/signaling-server`: TCP room coordination between exactly two peers
@@ -77,3 +77,12 @@ Cross-platform abstraction:
 - no media relay
 - no persistence layer
 - no encryption beyond what the transport would later provide
+
+## Current Signaling Progress
+
+The codebase now contains a minimal signaling model for future WebRTC:
+
+- session description messages for `offer` and `answer`
+- ICE candidate messages
+- in-memory transport session state for offer/answer/candidate lifecycle
+- Tauri commands that drive this state from the GUI

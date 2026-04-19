@@ -48,6 +48,36 @@
         </article>
 
         <article class="card">
+          <h2>WebRTC Signaling</h2>
+          <form class="form">
+            <label>
+              <span>Remote Answer SDP</span>
+              <textarea id="remote-answer" rows="5">v=0
+s=answer</textarea>
+            </label>
+            <label>
+              <span>Remote ICE Candidate</span>
+              <textarea id="ice-candidate" rows="4">candidate:1 1 udp 2122260223 127.0.0.1 5000 typ host</textarea>
+            </label>
+            <div class="inline-fields">
+              <label>
+                <span>SDP Mid</span>
+                <input id="ice-mid" value="0" />
+              </label>
+              <label>
+                <span>MLine</span>
+                <input id="ice-mline" value="0" />
+              </label>
+            </div>
+            <div class="actions">
+              <button type="button" id="offer-btn">Create Offer</button>
+              <button type="button" id="answer-btn" class="secondary">Accept Answer</button>
+              <button type="button" id="ice-btn" class="secondary">Add ICE</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="card">
           <h2>Status</h2>
           <div id="runtime-badge" class="badge">Detecting runtime...</div>
           <dl id="status">
@@ -67,6 +97,10 @@
             <div><dt>Signaling</dt><dd>loading...</dd></div>
             <div><dt>Source</dt><dd>loading...</dd></div>
             <div><dt>Peer</dt><dd>loading...</dd></div>
+            <div><dt>Transport State</dt><dd>loading...</dd></div>
+            <div><dt>Offer Ready</dt><dd>loading...</dd></div>
+            <div><dt>Answer Ready</dt><dd>loading...</dd></div>
+            <div><dt>ICE Count</dt><dd>loading...</dd></div>
             <div><dt>Next Action</dt><dd>loading...</dd></div>
           </dl>
         </article>
@@ -80,6 +114,11 @@
             </div>
           </div>
           <pre id="session-log">loading...</pre>
+        </article>
+
+        <article class="card wide">
+          <h2>Last Signaling Message</h2>
+          <pre id="signal-preview">loading...</pre>
         </article>
 
         <article class="card wide">

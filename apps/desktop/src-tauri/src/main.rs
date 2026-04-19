@@ -18,11 +18,16 @@ struct SessionView {
     mode: String,
     stage: String,
     transport: String,
+    transport_state: String,
     room: Option<String>,
     signaling_addr: Option<String>,
     source_label: Option<String>,
     active_peer: Option<String>,
     next_action: String,
+    local_offer_ready: bool,
+    remote_answer_ready: bool,
+    remote_candidate_count: usize,
+    last_signaling_message: Option<String>,
     logs: Vec<String>,
 }
 
@@ -147,6 +152,56 @@ fn mark_webrtc_planned(state: tauri::State<'_, Mutex<SessionManager>>) -> Comman
 }
 
 #[tauri::command]
+fn create_local_offer(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+    let snapshot = state
+        .lock()
+        .expect("session state poisoned")
+        .create_local_offer();
+
+    CommandResult {
+        ok: true,
+        message: "local SDP offer created".to_string(),
+        session: map_snapshot(snapshot),
+    }
+}
+
+#[tauri::command]
+fn accept_remote_answer(
+    sdp: String,
+    state: tauri::State<'_, Mutex<SessionManager>>,
+) -> CommandResult {
+    let snapshot = state
+        .lock()
+        .expect("session state poisoned")
+        .accept_remote_answer(sdp);
+
+    CommandResult {
+        ok: true,
+        message: "remote SDP answer accepted".to_string(),
+        session: map_snapshot(snapshot),
+    }
+}
+
+#[tauri::command]
+fn add_remote_ice_candidate(
+    candidate: String,
+    sdp_mid: Option<String>,
+    sdp_mline_index: Option<u16>,
+    state: tauri::State<'_, Mutex<SessionManager>>,
+) -> CommandResult {
+    let snapshot = state
+        .lock()
+        .expect("session state poisoned")
+        .add_remote_ice_candidate(candidate, sdp_mid, sdp_mline_index);
+
+    CommandResult {
+        ok: true,
+        message: "remote ICE candidate added".to_string(),
+        session: map_snapshot(snapshot),
+    }
+}
+
+#[tauri::command]
 fn stop_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state.lock().expect("session state poisoned").stop();
 
@@ -200,6 +255,9 @@ fn main() {
             update_session_config,
             mark_mock_streaming,
             mark_webrtc_planned,
+            create_local_offer,
+            accept_remote_answer,
+            add_remote_ice_candidate,
             stop_session,
             session_logs,
             clear_session_logs,
@@ -215,11 +273,16 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         mode: format_session_mode(snapshot.mode).to_string(),
         stage: format_session_stage(snapshot.stage).to_string(),
         transport: format_session_transport(snapshot.transport).to_string(),
+        transport_state: snapshot.transport_state,
         room: snapshot.room,
         signaling_addr: snapshot.signaling_addr,
         source_label: snapshot.source_label,
         active_peer: snapshot.active_peer,
         next_action: snapshot.next_action,
+        local_offer_ready: snapshot.local_offer_ready,
+        remote_answer_ready: snapshot.remote_answer_ready,
+        remote_candidate_count: snapshot.remote_candidate_count,
+        last_signaling_message: snapshot.last_signaling_message,
         logs: snapshot.logs,
     }
 }

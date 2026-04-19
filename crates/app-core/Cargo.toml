@@ -6,3 +6,6 @@ edition = "2024"
 [lib]
 name = "app_core"
 path = "src/lib.rs"
+
+[dependencies]
+transport-webrtc = { path = "../transport-webrtc" }

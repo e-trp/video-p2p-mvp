@@ -55,6 +55,9 @@ It now exposes commands for:
 
 - reading project and session status
 - preparing host and viewer sessions
+- creating local SDP offer state
+- accepting remote SDP answer state
+- adding remote ICE candidate state
 - stopping a session
 - reading session logs
 - showing the saved specification
@@ -67,7 +70,7 @@ This is not yet a real screen-sharing application. It does not currently include
 
 - ScreenCaptureKit integration
 - Portal/PipeWire integration
-- WebRTC transport
+- real WebRTC PeerConnection integration
 - real audio/video codecs
 - STUN/TURN
 - production GUI workflow
