@@ -16,6 +16,7 @@ The repository now includes a desktop scaffold in `apps/desktop`:
 - static frontend in `apps/desktop/public`
 - Tauri Rust shell in `apps/desktop/src-tauri`
 - initial commands for reading project status and the saved specification
+- session manager hooks for `host`, `join`, `stop`, `status`, and `logs`
 
 ## Intended GUI Responsibilities
 
@@ -32,6 +33,19 @@ The repository now includes a desktop scaffold in `apps/desktop`:
 - `capture-macos`: future ScreenCaptureKit bridge
 - `capture-linux`: future Portal + PipeWire integration
 - `desktop-app`: Tauri shell and user-facing commands
+
+## Session Management Layer
+
+The current GUI iteration is backed by an in-memory session manager in `app-core`.
+
+It already models:
+
+- idle / host / viewer roles
+- configured / awaiting peer / mock streaming / planned WebRTC / stopped stages
+- room and signaling metadata
+- a rolling in-memory event log
+
+This gives the Tauri shell a stable API before the real transport and capture layers are connected.
 
 ## Important Note
 

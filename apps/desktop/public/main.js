@@ -5,27 +5,117 @@ async function invoke(command) {
   return window.__TAURI__.core.invoke(command);
 }
 
-async function load() {
-  const status = await invoke("project_status");
-  const specification = await invoke("specification_markdown");
+async function invokeWithArgs(command, args = {}) {
+  if (!window.__TAURI__?.core?.invoke) {
+    return null;
+  }
+  return window.__TAURI__.core.invoke(command, args);
+}
+
+function setStatus(status) {
+  const container = document.getElementById("status");
+  container.innerHTML = `
+    <div><dt>Stage</dt><dd>${status.stage}</dd></div>
+    <div><dt>GUI</dt><dd>${status.gui}</dd></div>
+    <div><dt>Transport</dt><dd>${status.transport}</dd></div>
+    <div><dt>macOS Capture</dt><dd>${status.capture_macos}</dd></div>
+    <div><dt>Linux Capture</dt><dd>${status.capture_linux}</dd></div>
+  `;
+}
+
+function setSession(session) {
+  const container = document.getElementById("session");
+  container.innerHTML = `
+    <div><dt>Mode</dt><dd>${session.mode}</dd></div>
+    <div><dt>Room</dt><dd>${session.room ?? "n/a"}</dd></div>
+    <div><dt>Signaling</dt><dd>${session.signaling_addr ?? "n/a"}</dd></div>
+    <div><dt>Source</dt><dd>${session.source_label ?? "n/a"}</dd></div>
+    <div><dt>Peer</dt><dd>${session.active_peer ?? "n/a"}</dd></div>
+  `;
+  document.getElementById("session-log").textContent = session.logs.join("\n");
+}
+
+function formValues() {
+  return {
+    room: document.getElementById("room").value.trim(),
+    signaling_addr: document.getElementById("signaling").value.trim(),
+    source_label: document.getElementById("source").value.trim() || null,
+  };
+}
+
+async function refresh() {
+  const [status, session] = await Promise.all([
+    invoke("project_status"),
+    invoke("session_snapshot"),
+  ]);
 
   if (status) {
-    const container = document.getElementById("status");
-    container.innerHTML = `
-      <div><dt>Stage</dt><dd>${status.stage}</dd></div>
-      <div><dt>GUI</dt><dd>${status.gui}</dd></div>
-      <div><dt>Transport</dt><dd>${status.transport}</dd></div>
-      <div><dt>macOS Capture</dt><dd>${status.capture_macos}</dd></div>
-      <div><dt>Linux Capture</dt><dd>${status.capture_linux}</dd></div>
-    `;
+    setStatus(status);
   } else {
     document.getElementById("status").innerHTML = `
       <div><dt>Mode</dt><dd>Browser preview without Tauri runtime</dd></div>
     `;
   }
 
+  if (session) {
+    setSession(session);
+  } else {
+    document.getElementById("session").innerHTML = `
+      <div><dt>Mode</dt><dd>preview</dd></div>
+      <div><dt>Room</dt><dd>n/a</dd></div>
+      <div><dt>Signaling</dt><dd>n/a</dd></div>
+      <div><dt>Source</dt><dd>n/a</dd></div>
+      <div><dt>Peer</dt><dd>n/a</dd></div>
+    `;
+    document.getElementById("session-log").textContent =
+      "Run inside Tauri to drive the in-memory session manager.";
+  }
+}
+
+async function runCommand(command, args = {}) {
+  const result = await invokeWithArgs(command, args);
+  if (!result) {
+    document.getElementById("command-result").textContent =
+      `Preview mode: skipped ${command}`;
+    return;
+  }
+
+  document.getElementById("command-result").textContent = result.message;
+  setSession(result.session);
+  const status = await invoke("project_status");
+  if (status) {
+    setStatus(status);
+  }
+}
+
+async function load() {
+  const specification = await invoke("specification_markdown");
+  await refresh();
+
   document.getElementById("spec").textContent =
     specification ?? "Run inside Tauri to load the saved specification from the Rust backend.";
+
+  document.getElementById("host-btn").addEventListener("click", async () => {
+    const values = formValues();
+    await runCommand("start_host", values);
+  });
+
+  document.getElementById("join-btn").addEventListener("click", async () => {
+    const { room, signaling_addr } = formValues();
+    await runCommand("join_room", { room, signalingAddr: signaling_addr });
+  });
+
+  document.getElementById("mock-btn").addEventListener("click", async () => {
+    await runCommand("mark_mock_streaming", { peer: "pending-direct-peer" });
+  });
+
+  document.getElementById("webrtc-btn").addEventListener("click", async () => {
+    await runCommand("mark_webrtc_planned");
+  });
+
+  document.getElementById("stop-btn").addEventListener("click", async () => {
+    await runCommand("stop_session");
+  });
 }
 
 load().catch((error) => {

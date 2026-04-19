@@ -50,7 +50,15 @@ The desktop scaffold lives in `apps/desktop`.
 - frontend shell: `apps/desktop/public`
 - Tauri Rust shell: `apps/desktop/src-tauri`
 
-It currently exposes basic commands for reading project status and showing the saved specification. It is scaffolded for the next iteration, but not included in the default workspace build yet.
+It now exposes commands for:
+
+- reading project and session status
+- preparing host and viewer sessions
+- stopping a session
+- reading session logs
+- showing the saved specification
+
+The Tauri shell is still not included in the default workspace build yet.
 
 ## What Is Still Missing
 
