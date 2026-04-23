@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/app-core",
+    "crates/capture-core",
     "crates/capture-linux",
     "crates/capture-macos",
     "crates/signaling-server",
@@ -9,6 +10,7 @@ members = [
 ]
 default-members = [
     "crates/app-core",
+    "crates/capture-core",
     "crates/capture-linux",
     "crates/capture-macos",
     "crates/signaling-server",

@@ -7,6 +7,7 @@ The repository is now a workspace-based scaffold with a future desktop GUI targe
 Components:
 
 - `crates/app-core`: shared protocol, CLI parsing, live signaling client, and session orchestration
+- `crates/capture-core`: shared capture-domain types for source selection, permissions, audio buffers, and video frames
 - `crates/transport-webrtc`: real `RTCPeerConnection` bootstrap with attached host media tracks and control data channel
 - `crates/capture-macos`: planned ScreenCaptureKit backend blueprint crate
 - `crates/capture-linux`: planned Linux capture backend blueprint crate
@@ -43,12 +44,12 @@ The real product needs OS-specific capture and WebRTC integration. That is a muc
 
 ### `capture-core`
 
-Cross-platform abstraction:
+Cross-platform capture contracts that now exist in code:
 
-- list available sources
-- select one source
-- start and stop capture
-- surface audio and video sample callbacks
+- source and permission metadata
+- capture selection payloads
+- raw video frame and audio buffer shapes
+- a shared Rust model that macOS/Linux backends can target
 
 ### `capture-macos`
 
@@ -97,3 +98,4 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - a live signaling client in `app-core` used by CLI and Tauri session flow
 - a real `PeerConnection` bootstrap path with attached placeholder audio/video tracks, connection-state snapshots, and ICE gathering
 - Tauri commands and session snapshots that surface local media-track state and placeholder sample publish counters in the GUI
+- `capture-core` as the shared Rust-side model for future native capture backends

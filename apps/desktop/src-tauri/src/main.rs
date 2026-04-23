@@ -58,8 +58,8 @@ fn project_status(state: tauri::State<'_, Mutex<SessionManager>>) -> ProjectStat
         stage: format_session_stage(snapshot.stage).to_string(),
         gui: "tauri shell wired",
         transport: format_session_transport(snapshot.transport).to_string(),
-        capture_macos: "planned via ScreenCaptureKit bridge; host tracks are attached",
-        capture_linux: "planned via Portal + PipeWire; host tracks are attached",
+        capture_macos: "capture-core contracts ready; ScreenCaptureKit bridge still pending",
+        capture_linux: "capture-core contracts ready; Portal + PipeWire bridge still pending",
     }
 }
 

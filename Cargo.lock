@@ -220,12 +220,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
+name = "capture-core"
+version = "0.1.0"
+
+[[package]]
 name = "capture-linux"
 version = "0.1.0"
+dependencies = [
+ "capture-core",
+]
 
 [[package]]
 name = "capture-macos"
 version = "0.1.0"
+dependencies = [
+ "capture-core",
+]
 
 [[package]]
 name = "cbc"

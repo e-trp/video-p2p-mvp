@@ -33,6 +33,12 @@
 5. Capture available audio buffers and normalize them for transport.
 6. Feed captured samples into the WebRTC publishing pipeline.
 
+### Iteration 2 Progress
+
+- Done in part: `capture-core` now exists for shared source, permission, video-frame, and audio-buffer types
+- Done in part: `capture-macos` blueprint now uses shared capture contracts and exposes example source metadata
+- Still open: the actual ScreenCaptureKit bridge, permission flow, and live sample delivery
+
 ## Iteration 3: Linux Capture Backend
 
 1. Add Wayland path via `XDG Desktop Portal ScreenCast`.

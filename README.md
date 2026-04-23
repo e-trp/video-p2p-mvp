@@ -10,6 +10,7 @@ The repository now has two layers:
 ## Workspace Layout
 
 - `crates/app-core`: shared protocol and mock session logic
+- `crates/capture-core`: shared capture types for sources, permissions, video frames, and audio buffers
 - `crates/signaling-server`: standalone signaling binary
 - `apps/cli`: sender/receiver CLI for backend testing
 - `apps/desktop`: Tauri GUI scaffold
@@ -87,6 +88,7 @@ This is not yet a real screen-sharing application. It does not currently include
 
 - ScreenCaptureKit integration
 - Portal/PipeWire integration
+- real source enumeration from the operating system
 - real captured samples flowing through the attached tracks
 - real audio/video codecs
 - STUN/TURN
@@ -102,10 +104,11 @@ What changed relative to the earlier scaffold:
 - `transport-webrtc` now wraps a real `PeerConnection` with attached placeholder audio/video tracks, ICE gathering, and connection-state snapshots
 - session snapshots and the Tauri UI now expose local media-track attachment state
 - session manager and transport now expose placeholder media-sample publishing state
+- `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
 
 ## Recommended Next Build Steps
 
 1. Replace placeholder media samples with real captured audio/video input.
-2. Add `capture-macos` using ScreenCaptureKit.
+2. Implement the `capture-macos` ScreenCaptureKit bridge on top of `capture-core`.
 3. Replace the remaining manual/debug signaling fields in the Tauri GUI with production UX.
-4. Add Linux Wayland capture via Portal + PipeWire.
+4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.
