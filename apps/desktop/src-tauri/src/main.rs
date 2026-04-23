@@ -19,13 +19,19 @@ struct SessionView {
     stage: String,
     transport: String,
     transport_state: String,
+    signaling_connected: bool,
     room: Option<String>,
     signaling_addr: Option<String>,
     source_label: Option<String>,
     active_peer: Option<String>,
     next_action: String,
+    local_description_ready: bool,
+    local_description_kind: Option<String>,
+    remote_description_ready: bool,
+    remote_description_kind: Option<String>,
     local_offer_ready: bool,
     remote_answer_ready: bool,
+    local_candidate_count: usize,
     remote_candidate_count: usize,
     last_signaling_message: Option<String>,
     logs: Vec<String>,
@@ -52,7 +58,7 @@ fn project_status(state: tauri::State<'_, Mutex<SessionManager>>) -> ProjectStat
 
 #[tauri::command]
 fn session_snapshot(state: tauri::State<'_, Mutex<SessionManager>>) -> SessionView {
-    let snapshot = state.lock().expect("session state poisoned").snapshot();
+    let snapshot = state.lock().expect("session state poisoned").refresh();
     map_snapshot(snapshot)
 }
 
@@ -274,13 +280,19 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         stage: format_session_stage(snapshot.stage).to_string(),
         transport: format_session_transport(snapshot.transport).to_string(),
         transport_state: snapshot.transport_state,
+        signaling_connected: snapshot.signaling_connected,
         room: snapshot.room,
         signaling_addr: snapshot.signaling_addr,
         source_label: snapshot.source_label,
         active_peer: snapshot.active_peer,
         next_action: snapshot.next_action,
+        local_description_ready: snapshot.local_description_ready,
+        local_description_kind: snapshot.local_description_kind,
+        remote_description_ready: snapshot.remote_description_ready,
+        remote_description_kind: snapshot.remote_description_kind,
         local_offer_ready: snapshot.local_offer_ready,
         remote_answer_ready: snapshot.remote_answer_ready,
+        local_candidate_count: snapshot.local_candidate_count,
         remote_candidate_count: snapshot.remote_candidate_count,
         last_signaling_message: snapshot.last_signaling_message,
         logs: snapshot.logs,
@@ -301,7 +313,8 @@ fn format_session_stage(stage: SessionStage) -> &'static str {
         SessionStage::Configured => "configured",
         SessionStage::AwaitingPeer => "awaiting_peer",
         SessionStage::MockStreaming => "mock_streaming",
-        SessionStage::PlannedWebRtc => "planned_webrtc",
+        SessionStage::NegotiatingWebRtc => "negotiating_webrtc",
+        SessionStage::LiveWebRtc => "live_webrtc",
         SessionStage::Stopped => "stopped",
     }
 }
@@ -309,6 +322,6 @@ fn format_session_stage(stage: SessionStage) -> &'static str {
 fn format_session_transport(transport: SessionTransport) -> &'static str {
     match transport {
         SessionTransport::MockUdp => "mock_udp",
-        SessionTransport::PlannedWebRtc => "planned_webrtc",
+        SessionTransport::LiveWebRtc => "live_webrtc",
     }
 }

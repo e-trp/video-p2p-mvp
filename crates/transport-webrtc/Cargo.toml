@@ -6,3 +6,8 @@ edition = "2024"
 [lib]
 name = "transport_webrtc"
 path = "src/lib.rs"
+
+[dependencies]
+interceptor = "0.17.1"
+tokio = "1.52.1"
+webrtc = "0.17.1"

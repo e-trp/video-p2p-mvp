@@ -31,12 +31,14 @@ function setSession(session) {
     <div><dt>Mode</dt><dd>${session.mode}</dd></div>
     <div><dt>Room</dt><dd>${session.room ?? "n/a"}</dd></div>
     <div><dt>Signaling</dt><dd>${session.signaling_addr ?? "n/a"}</dd></div>
+    <div><dt>Signal Link</dt><dd>${String(session.signaling_connected)}</dd></div>
     <div><dt>Source</dt><dd>${session.source_label ?? "n/a"}</dd></div>
     <div><dt>Peer</dt><dd>${session.active_peer ?? "n/a"}</dd></div>
     <div><dt>Transport State</dt><dd>${session.transport_state ?? "n/a"}</dd></div>
-    <div><dt>Offer Ready</dt><dd>${String(session.local_offer_ready)}</dd></div>
-    <div><dt>Answer Ready</dt><dd>${String(session.remote_answer_ready)}</dd></div>
-    <div><dt>ICE Count</dt><dd>${session.remote_candidate_count ?? 0}</dd></div>
+    <div><dt>Local Desc</dt><dd>${session.local_description_kind ?? "n/a"} / ${String(session.local_description_ready)}</dd></div>
+    <div><dt>Remote Desc</dt><dd>${session.remote_description_kind ?? "n/a"} / ${String(session.remote_description_ready)}</dd></div>
+    <div><dt>Local ICE</dt><dd>${session.local_candidate_count ?? 0}</dd></div>
+    <div><dt>Remote ICE</dt><dd>${session.remote_candidate_count ?? 0}</dd></div>
     <div><dt>Next Action</dt><dd>${session.next_action ?? "n/a"}</dd></div>
   `;
   document.getElementById("session-log").textContent = session.logs.join("\n");
@@ -82,12 +84,14 @@ async function refresh() {
       <div><dt>Mode</dt><dd>preview</dd></div>
       <div><dt>Room</dt><dd>n/a</dd></div>
       <div><dt>Signaling</dt><dd>n/a</dd></div>
+      <div><dt>Signal Link</dt><dd>false</dd></div>
       <div><dt>Source</dt><dd>n/a</dd></div>
       <div><dt>Peer</dt><dd>n/a</dd></div>
       <div><dt>Transport State</dt><dd>preview</dd></div>
-      <div><dt>Offer Ready</dt><dd>false</dd></div>
-      <div><dt>Answer Ready</dt><dd>false</dd></div>
-      <div><dt>ICE Count</dt><dd>0</dd></div>
+      <div><dt>Local Desc</dt><dd>n/a / false</dd></div>
+      <div><dt>Remote Desc</dt><dd>n/a / false</dd></div>
+      <div><dt>Local ICE</dt><dd>0</dd></div>
+      <div><dt>Remote ICE</dt><dd>0</dd></div>
       <div><dt>Next Action</dt><dd>run inside Tauri</dd></div>
     `;
     document.getElementById("session-log").textContent =

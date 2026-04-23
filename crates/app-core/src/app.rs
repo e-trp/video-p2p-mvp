@@ -1,4 +1,5 @@
 use crate::mock_media::{ReceiverConfig, SenderConfig};
+use crate::session_flow::{WebRtcHostConfig, WebRtcViewerConfig};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
@@ -8,6 +9,8 @@ pub enum AppCommand {
     PrintSpec,
     Sender(SenderConfig),
     Receiver(ReceiverConfig),
+    WebRtcHost(WebRtcHostConfig),
+    WebRtcViewer(WebRtcViewerConfig),
 }
 
 #[derive(Debug)]
@@ -72,6 +75,39 @@ pub fn parse_cli_args(args: &[String]) -> Result<AppCommand, Box<dyn Error>> {
                 expected_frames,
             }))
         }
+        "webrtc-host" => {
+            let room = required_flag(&args[1..], "--room")?;
+            let signaling_addr = parse_flag(&args[1..], "--signal")?
+                .unwrap_or_else(|| "127.0.0.1:7000".to_string());
+            let source_label = parse_flag(&args[1..], "--source")?
+                .unwrap_or_else(|| "mock-window".to_string());
+            let timeout_ms = parse_flag(&args[1..], "--timeout-ms")?
+                .map(|value| value.parse())
+                .transpose()?
+                .unwrap_or(10_000);
+
+            Ok(AppCommand::WebRtcHost(WebRtcHostConfig {
+                room,
+                signaling_addr,
+                source_label,
+                timeout_ms,
+            }))
+        }
+        "webrtc-viewer" => {
+            let room = required_flag(&args[1..], "--room")?;
+            let signaling_addr = parse_flag(&args[1..], "--signal")?
+                .unwrap_or_else(|| "127.0.0.1:7000".to_string());
+            let timeout_ms = parse_flag(&args[1..], "--timeout-ms")?
+                .map(|value| value.parse())
+                .transpose()?
+                .unwrap_or(10_000);
+
+            Ok(AppCommand::WebRtcViewer(WebRtcViewerConfig {
+                room,
+                signaling_addr,
+                timeout_ms,
+            }))
+        }
         other => Err(Box::new(CliError(format!("unknown command: {other}")))),
     }
 }
@@ -104,8 +140,11 @@ Commands:
   spec
   sender --room demo --signal 127.0.0.1:7000 [--udp-bind 0.0.0.0:0] [--fps 10] [--frames 120] [--source mock-window]
   receiver --room demo --signal 127.0.0.1:7000 [--udp-bind 0.0.0.0:0] [--expected-frames 120]
+  webrtc-host --room demo --signal 127.0.0.1:7000 [--source mock-window] [--timeout-ms 10000]
+  webrtc-viewer --room demo --signal 127.0.0.1:7000 [--timeout-ms 10000]
 
 This MVP uses TCP for signaling and direct UDP for mock media packets.
-It is intentionally a scaffold for the real WebRTC + screen/audio capture implementation."
+It now also has a live WebRTC negotiation path that uses the same signaling server,
+but media capture and media tracks are still not attached yet."
     );
 }

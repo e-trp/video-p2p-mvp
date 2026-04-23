@@ -5,7 +5,7 @@ Workspace for a future Rust desktop application that will stream a chosen window
 The repository now has two layers:
 
 - a working backend MVP with signaling and direct UDP mock media flow
-- a Tauri desktop scaffold for the future GUI application
+- a Tauri desktop shell that can now drive live WebRTC negotiation state
 
 ## Workspace Layout
 
@@ -38,6 +38,18 @@ Start sender in a third terminal:
 cargo run -p p2p-cli -- sender --room demo --signal 127.0.0.1:7000 --frames 10 --fps 5
 ```
 
+Run the live WebRTC negotiation host:
+
+```bash
+cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000
+```
+
+Run the live WebRTC negotiation viewer:
+
+```bash
+cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
+```
+
 Print the saved project specification:
 
 ```bash
@@ -54,15 +66,17 @@ The desktop scaffold lives in `apps/desktop`.
 It now exposes commands for:
 
 - reading project and session status
-- preparing host and viewer sessions
-- creating local SDP offer state
-- accepting remote SDP answer state
-- adding remote ICE candidate state
+- preparing host and viewer sessions against the live signaling server
+- creating and sending a local SDP offer
+- polling signaling and auto-applying remote offer/answer/ICE state
+- accepting manual remote SDP answer state for debugging
+- adding manual remote ICE candidate state for debugging
 - stopping a session
 - reading session logs
 - showing the saved specification
 
-The signaling server now keeps a room alive after pairing and can relay validated SDP/ICE envelopes between peers, including replaying stored signaling history to a late joiner.
+The signaling server now keeps a room alive after pairing and relays validated SDP/ICE envelopes between peers, including replaying stored signaling history to a late joiner.
+`transport-webrtc` is no longer an in-memory lifecycle stub: it now creates a real `RTCPeerConnection`, bootstraps a data channel, gathers ICE candidates, and exposes real connection state.
 
 The Tauri shell is still not included in the default workspace build yet.
 
@@ -72,7 +86,7 @@ This is not yet a real screen-sharing application. It does not currently include
 
 - ScreenCaptureKit integration
 - Portal/PipeWire integration
-- real WebRTC PeerConnection integration
+- audio/video tracks attached to the PeerConnection
 - real audio/video codecs
 - STUN/TURN
 - production GUI workflow
@@ -82,11 +96,13 @@ What changed relative to the earlier scaffold:
 - shared signaling envelope encoding/decoding now exists in `app-core`
 - `signaling-server` relays `SIG|SDP|...` and `SIG|ICE|...` lines between peers
 - signaling history is replayed when the second peer joins late
-- `transport-webrtc` is still a lifecycle model, not a real `PeerConnection`
+- `app-core` now has a live signaling client used by CLI and Tauri session flow
+- CLI now has `webrtc-host` and `webrtc-viewer` commands for real negotiation
+- `transport-webrtc` now wraps a real `PeerConnection` with ICE gathering and connection-state snapshots
 
 ## Recommended Next Build Steps
 
-1. Add a real `transport-webrtc` crate.
+1. Attach real media tracks to the live WebRTC transport.
 2. Add `capture-macos` using ScreenCaptureKit.
-3. Connect the Tauri GUI to backend session management.
+3. Replace the remaining manual/debug signaling fields in the Tauri GUI with production UX.
 4. Add Linux Wayland capture via Portal + PipeWire.

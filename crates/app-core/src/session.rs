@@ -1,5 +1,9 @@
-use transport_webrtc::{TransportSession, WebRtcConfig};
+use crate::protocol::{IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage};
+use crate::signaling::{SignalingConnection, SignalingEvent};
 use std::time::{SystemTime, UNIX_EPOCH};
+use transport_webrtc::{
+    DescriptionKind, TransportSession, WebRtcConfig, WebRtcSignal,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionMode {
@@ -14,14 +18,15 @@ pub enum SessionStage {
     Configured,
     AwaitingPeer,
     MockStreaming,
-    PlannedWebRtc,
+    NegotiatingWebRtc,
+    LiveWebRtc,
     Stopped,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionTransport {
     MockUdp,
-    PlannedWebRtc,
+    LiveWebRtc,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,18 +48,23 @@ pub struct SessionSnapshot {
     pub logs: Vec<String>,
     pub next_action: String,
     pub transport_state: String,
+    pub signaling_connected: bool,
+    pub local_description_ready: bool,
+    pub local_description_kind: Option<String>,
+    pub remote_description_ready: bool,
+    pub remote_description_kind: Option<String>,
     pub local_offer_ready: bool,
     pub remote_answer_ready: bool,
+    pub local_candidate_count: usize,
     pub remote_candidate_count: usize,
     pub last_signaling_message: Option<String>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct SessionManager {
     state: SessionState,
 }
 
-#[derive(Debug)]
 struct SessionState {
     mode: SessionMode,
     stage: SessionStage,
@@ -65,6 +75,8 @@ struct SessionState {
     active_peer: Option<String>,
     logs: Vec<String>,
     webrtc: Option<TransportSession>,
+    signaling: Option<SignalingConnection>,
+    signaling_connected: bool,
     last_signaling_message: Option<String>,
 }
 
@@ -80,6 +92,8 @@ impl Default for SessionState {
             active_peer: None,
             logs: vec![stamp("session manager initialized")],
             webrtc: None,
+            signaling: None,
+            signaling_connected: false,
             last_signaling_message: None,
         }
     }
@@ -91,52 +105,39 @@ impl SessionManager {
     }
 
     pub fn start_host(&mut self, intent: SessionIntent) -> SessionSnapshot {
-        self.state.mode = SessionMode::Host;
-        self.state.stage = SessionStage::Configured;
-        self.state.transport = SessionTransport::MockUdp;
-        self.state.room = Some(intent.room.clone());
-        self.state.signaling_addr = Some(intent.signaling_addr.clone());
+        self.replace_state(
+            SessionMode::Host,
+            SessionStage::Configured,
+            SessionTransport::LiveWebRtc,
+            intent.clone(),
+        );
         self.state.source_label = Some(
             intent
                 .source_label
                 .unwrap_or_else(|| "window selection pending".to_string()),
         );
-        self.state.active_peer = None;
         self.push_log(format!(
             "host session configured for room={} signaling={}",
             intent.room, intent.signaling_addr
         ));
-        self.state.webrtc = Some(TransportSession::new(WebRtcConfig {
-            room: intent.room.clone(),
-            role: "host".to_string(),
-            signaling_url: intent.signaling_addr.clone(),
-            ice_servers: Vec::new(),
-        }));
-        self.state.last_signaling_message = None;
-        self.push_log("next step: create local signaling connection".to_string());
+        self.initialize_transport("host");
+        self.connect_signaling();
         self.snapshot()
     }
 
     pub fn start_viewer(&mut self, intent: SessionIntent) -> SessionSnapshot {
-        self.state.mode = SessionMode::Viewer;
-        self.state.stage = SessionStage::AwaitingPeer;
-        self.state.transport = SessionTransport::MockUdp;
-        self.state.room = Some(intent.room.clone());
-        self.state.signaling_addr = Some(intent.signaling_addr.clone());
-        self.state.source_label = None;
-        self.state.active_peer = None;
+        self.replace_state(
+            SessionMode::Viewer,
+            SessionStage::AwaitingPeer,
+            SessionTransport::LiveWebRtc,
+            intent.clone(),
+        );
         self.push_log(format!(
             "viewer session configured for room={} signaling={}",
             intent.room, intent.signaling_addr
         ));
-        self.state.webrtc = Some(TransportSession::new(WebRtcConfig {
-            room: intent.room.clone(),
-            role: "viewer".to_string(),
-            signaling_url: intent.signaling_addr.clone(),
-            ice_servers: Vec::new(),
-        }));
-        self.state.last_signaling_message = None;
-        self.push_log("next step: wait for sender and negotiate peer transport".to_string());
+        self.initialize_transport("viewer");
+        self.connect_signaling();
         self.snapshot()
     }
 
@@ -149,32 +150,48 @@ impl SessionManager {
     }
 
     pub fn mark_webrtc_ready(&mut self) -> SessionSnapshot {
-        self.state.stage = SessionStage::PlannedWebRtc;
-        self.state.transport = SessionTransport::PlannedWebRtc;
-        self.push_log("session moved to planned WebRTC transport stage".to_string());
+        self.state.stage = SessionStage::NegotiatingWebRtc;
+        self.state.transport = SessionTransport::LiveWebRtc;
+        self.push_log("session moved to live WebRTC negotiation stage".to_string());
         self.snapshot()
     }
 
     pub fn create_local_offer(&mut self) -> SessionSnapshot {
-        if let Some(webrtc) = self.state.webrtc.as_mut() {
-            let offer = webrtc.create_local_offer();
-            self.state.last_signaling_message = Some(format!("{offer:?}"));
-            self.state.transport = SessionTransport::PlannedWebRtc;
-            self.state.stage = SessionStage::PlannedWebRtc;
-            self.push_log("local SDP offer created".to_string());
-        } else {
-            self.push_log("cannot create offer before session is configured".to_string());
+        let offer = match self.state.webrtc.as_mut() {
+            Some(webrtc) => match webrtc.create_local_offer() {
+                Ok(signal) => Some(signal),
+                Err(error) => {
+                    self.push_log(format!("failed to create local offer: {error}"));
+                    None
+                }
+            },
+            None => {
+                self.push_log("cannot create offer before session is configured".to_string());
+                None
+            }
+        };
+
+        if let Some(signal) = offer {
+            self.state.transport = SessionTransport::LiveWebRtc;
+            self.state.stage = SessionStage::NegotiatingWebRtc;
+            self.send_transport_signal(signal);
+            self.flush_local_transport_signals();
+            self.push_log("local SDP offer created and sent".to_string());
         }
+
         self.snapshot()
     }
 
     pub fn accept_remote_answer(&mut self, sdp: String) -> SessionSnapshot {
         if let Some(webrtc) = self.state.webrtc.as_mut() {
-            webrtc.accept_remote_answer(sdp);
-            self.state.last_signaling_message = Some("remote answer accepted".to_string());
-            self.state.transport = SessionTransport::PlannedWebRtc;
-            self.state.stage = SessionStage::PlannedWebRtc;
-            self.push_log("remote SDP answer accepted".to_string());
+            if let Err(error) = webrtc.accept_remote_answer(sdp) {
+                self.push_log(format!("failed to accept remote answer: {error}"));
+            } else {
+                self.state.stage = SessionStage::NegotiatingWebRtc;
+                self.state.transport = SessionTransport::LiveWebRtc;
+                self.state.last_signaling_message = Some("remote answer accepted".to_string());
+                self.push_log("remote SDP answer accepted".to_string());
+            }
         } else {
             self.push_log("cannot accept answer before session is configured".to_string());
         }
@@ -188,11 +205,14 @@ impl SessionManager {
         sdp_mline_index: Option<u16>,
     ) -> SessionSnapshot {
         if let Some(webrtc) = self.state.webrtc.as_mut() {
-            webrtc.add_remote_ice_candidate(candidate, sdp_mid, sdp_mline_index);
-            self.state.last_signaling_message = Some("remote ICE candidate added".to_string());
-            self.state.transport = SessionTransport::PlannedWebRtc;
-            self.state.stage = SessionStage::PlannedWebRtc;
-            self.push_log("remote ICE candidate registered".to_string());
+            if let Err(error) = webrtc.add_remote_ice_candidate(candidate, sdp_mid, sdp_mline_index) {
+                self.push_log(format!("failed to add remote ICE candidate: {error}"));
+            } else {
+                self.state.stage = SessionStage::NegotiatingWebRtc;
+                self.state.transport = SessionTransport::LiveWebRtc;
+                self.state.last_signaling_message = Some("remote ICE candidate added".to_string());
+                self.push_log("remote ICE candidate registered".to_string());
+            }
         } else {
             self.push_log("cannot add ICE candidate before session is configured".to_string());
         }
@@ -220,10 +240,24 @@ impl SessionManager {
         self.snapshot()
     }
 
+    pub fn refresh(&mut self) -> SessionSnapshot {
+        self.process_signaling_events();
+        self.flush_local_transport_signals();
+        self.update_stage_from_transport();
+        self.snapshot()
+    }
+
     pub fn stop(&mut self) -> SessionSnapshot {
+        if let Some(webrtc) = self.state.webrtc.as_mut() {
+            if let Err(error) = webrtc.close() {
+                self.push_log(format!("failed to close WebRTC transport: {error}"));
+            }
+        }
         self.state.stage = SessionStage::Stopped;
         self.state.active_peer = None;
         self.state.last_signaling_message = None;
+        self.state.signaling = None;
+        self.state.signaling_connected = false;
         self.push_log("session stopped".to_string());
         self.snapshot()
     }
@@ -235,6 +269,9 @@ impl SessionManager {
     }
 
     pub fn reset(&mut self) -> SessionSnapshot {
+        if let Some(webrtc) = self.state.webrtc.as_mut() {
+            let _ = webrtc.close();
+        }
         self.state = SessionState::default();
         self.push_log("session reset to idle state".to_string());
         self.snapshot()
@@ -242,6 +279,16 @@ impl SessionManager {
 
     pub fn snapshot(&self) -> SessionSnapshot {
         let transport_snapshot = self.state.webrtc.as_ref().map(|session| session.snapshot());
+        let (local_description_kind, remote_description_kind) = transport_snapshot
+            .as_ref()
+            .map(|snapshot| {
+                (
+                    snapshot.local_description_kind.map(format_description_kind),
+                    snapshot.remote_description_kind.map(format_description_kind),
+                )
+            })
+            .unwrap_or((None, None));
+
         SessionSnapshot {
             mode: self.state.mode,
             stage: self.state.stage,
@@ -254,16 +301,31 @@ impl SessionManager {
             next_action: self.next_action().to_string(),
             transport_state: transport_snapshot
                 .as_ref()
-                .map(|snapshot| format_transport_stage(snapshot.stage))
+                .map(|snapshot| snapshot.connection_state.clone())
                 .unwrap_or_else(|| "not_initialized".to_string()),
+            signaling_connected: self.state.signaling_connected,
+            local_description_ready: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.local_description_ready)
+                .unwrap_or(false),
+            local_description_kind,
+            remote_description_ready: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.remote_description_ready)
+                .unwrap_or(false),
+            remote_description_kind,
             local_offer_ready: transport_snapshot
                 .as_ref()
-                .map(|snapshot| snapshot.local_offer_ready)
+                .map(|snapshot| snapshot.local_description_kind == Some(DescriptionKind::Offer))
                 .unwrap_or(false),
             remote_answer_ready: transport_snapshot
                 .as_ref()
-                .map(|snapshot| snapshot.remote_answer_ready)
+                .map(|snapshot| snapshot.remote_description_kind == Some(DescriptionKind::Answer))
                 .unwrap_or(false),
+            local_candidate_count: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.local_candidate_count)
+                .unwrap_or(0),
             remote_candidate_count: transport_snapshot
                 .as_ref()
                 .map(|snapshot| snapshot.remote_candidate_count)
@@ -276,6 +338,213 @@ impl SessionManager {
         self.state.logs.clone()
     }
 
+    fn replace_state(
+        &mut self,
+        mode: SessionMode,
+        stage: SessionStage,
+        transport: SessionTransport,
+        intent: SessionIntent,
+    ) {
+        self.state.mode = mode;
+        self.state.stage = stage;
+        self.state.transport = transport;
+        self.state.room = Some(intent.room);
+        self.state.signaling_addr = Some(intent.signaling_addr);
+        self.state.source_label = intent.source_label;
+        self.state.active_peer = None;
+        self.state.webrtc = None;
+        self.state.signaling = None;
+        self.state.signaling_connected = false;
+        self.state.last_signaling_message = None;
+    }
+
+    fn initialize_transport(&mut self, role: &str) {
+        let room = self.state.room.clone().unwrap_or_default();
+        let signaling_addr = self.state.signaling_addr.clone().unwrap_or_default();
+        match TransportSession::new(WebRtcConfig {
+            room,
+            role: role.to_string(),
+            signaling_url: signaling_addr,
+            ice_servers: Vec::new(),
+        }) {
+            Ok(session) => {
+                self.state.webrtc = Some(session);
+                self.push_log("real WebRTC PeerConnection initialized".to_string());
+            }
+            Err(error) => {
+                self.state.webrtc = None;
+                self.push_log(format!("failed to initialize WebRTC transport: {error}"));
+            }
+        }
+    }
+
+    fn connect_signaling(&mut self) {
+        let Some(signaling_addr) = self.state.signaling_addr.clone() else {
+            return;
+        };
+        let Some(room) = self.state.room.clone() else {
+            return;
+        };
+        let role = match self.state.mode {
+            SessionMode::Host => Role::Sender,
+            SessionMode::Viewer => Role::Receiver,
+            SessionMode::Idle => return,
+        };
+
+        match SignalingConnection::connect(&signaling_addr, &room, role, 0) {
+            Ok(connection) => {
+                self.state.signaling = Some(connection);
+                self.state.signaling_connected = true;
+                self.push_log("connected to signaling server".to_string());
+                self.process_signaling_events();
+            }
+            Err(error) => {
+                self.state.signaling = None;
+                self.state.signaling_connected = false;
+                self.push_log(format!("failed to connect signaling server: {error}"));
+            }
+        }
+    }
+
+    fn process_signaling_events(&mut self) {
+        let events = match self.state.signaling.as_mut() {
+            Some(connection) => match connection.poll() {
+                Ok(events) => events,
+                Err(error) => {
+                    self.state.signaling_connected = false;
+                    self.push_log(format!("signaling poll error: {error}"));
+                    return;
+                }
+            },
+            None => return,
+        };
+
+        for event in events {
+            match event {
+                SignalingEvent::Waiting => {
+                    self.state.last_signaling_message = Some("waiting for peer".to_string());
+                    self.push_log("signaling server is waiting for the second peer".to_string());
+                }
+                SignalingEvent::Peer(peer) => {
+                    self.handle_peer_announcement(peer);
+                }
+                SignalingEvent::Message(message) => {
+                    self.handle_signaling_message(message);
+                }
+            }
+        }
+    }
+
+    fn handle_peer_announcement(&mut self, peer: PeerAnnouncement) {
+        self.state.active_peer = Some(peer.addr.to_string());
+        self.state.stage = SessionStage::NegotiatingWebRtc;
+        self.state.last_signaling_message =
+            Some(format!("peer announced: role={} addr={}", peer.role, peer.addr));
+        self.push_log(format!("peer discovered via signaling: {}", peer.addr));
+    }
+
+    fn handle_signaling_message(&mut self, message: SignalingMessage) {
+        match message {
+            SignalingMessage::SessionDescription(description) => match description.sdp_type {
+                SdpType::Offer => {
+                    self.state.last_signaling_message = Some("remote SDP offer received".to_string());
+                    self.push_log("remote SDP offer received".to_string());
+                    let answer = match self.state.webrtc.as_mut() {
+                        Some(webrtc) => match webrtc.accept_remote_offer(description.sdp) {
+                            Ok(signal) => Some(signal),
+                            Err(error) => {
+                                self.push_log(format!("failed to accept remote offer: {error}"));
+                                None
+                            }
+                        },
+                        None => {
+                            self.push_log("cannot process remote offer without transport".to_string());
+                            None
+                        }
+                    };
+                    if let Some(answer) = answer {
+                        self.send_transport_signal(answer);
+                        self.flush_local_transport_signals();
+                        self.state.stage = SessionStage::NegotiatingWebRtc;
+                        self.push_log("local SDP answer created and sent".to_string());
+                    }
+                }
+                SdpType::Answer => {
+                    if let Some(webrtc) = self.state.webrtc.as_mut() {
+                        if let Err(error) = webrtc.accept_remote_answer(description.sdp) {
+                            self.push_log(format!("failed to accept remote answer: {error}"));
+                        } else {
+                            self.state.last_signaling_message =
+                                Some("remote SDP answer received".to_string());
+                            self.state.stage = SessionStage::NegotiatingWebRtc;
+                            self.push_log("remote SDP answer received and applied".to_string());
+                        }
+                    }
+                }
+            },
+            SignalingMessage::IceCandidate(candidate) => {
+                if let Some(webrtc) = self.state.webrtc.as_mut() {
+                    if let Err(error) = webrtc.add_remote_ice_candidate(
+                        candidate.candidate,
+                        candidate.sdp_mid,
+                        candidate.sdp_mline_index,
+                    ) {
+                        self.push_log(format!("failed to apply remote ICE candidate: {error}"));
+                    } else {
+                        self.state.last_signaling_message =
+                            Some("remote ICE candidate received".to_string());
+                        self.state.stage = SessionStage::NegotiatingWebRtc;
+                        self.push_log("remote ICE candidate applied".to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    fn flush_local_transport_signals(&mut self) {
+        let signals = match self.state.webrtc.as_mut() {
+            Some(webrtc) => webrtc.drain_local_signals(),
+            None => return,
+        };
+
+        for signal in signals {
+            self.send_transport_signal(signal);
+        }
+    }
+
+    fn send_transport_signal(&mut self, signal: WebRtcSignal) {
+        let message = map_transport_signal(signal.clone());
+        match self.state.signaling.as_mut() {
+            Some(connection) => match connection.send(&message) {
+                Ok(()) => {
+                    self.state.last_signaling_message = Some(describe_outgoing_signal(&signal));
+                }
+                Err(error) => {
+                    self.state.signaling_connected = false;
+                    self.push_log(format!("failed to send signaling message: {error}"));
+                }
+            },
+            None => {
+                self.push_log("cannot send signaling message before signaling is connected".to_string());
+            }
+        }
+    }
+
+    fn update_stage_from_transport(&mut self) {
+        let Some(snapshot) = self.state.webrtc.as_ref().map(|session| session.snapshot()) else {
+            return;
+        };
+
+        if snapshot.connection_state == "connected" {
+            self.state.stage = SessionStage::LiveWebRtc;
+            self.state.transport = SessionTransport::LiveWebRtc;
+        } else if self.state.transport == SessionTransport::LiveWebRtc
+            && snapshot.local_description_ready
+        {
+            self.state.stage = SessionStage::NegotiatingWebRtc;
+        }
+    }
+
     fn push_log(&mut self, message: String) {
         self.state.logs.push(stamp(&message));
         if self.state.logs.len() > 200 {
@@ -285,34 +554,84 @@ impl SessionManager {
     }
 
     fn next_action(&self) -> &'static str {
+        let transport_snapshot = self.state.webrtc.as_ref().map(|session| session.snapshot());
+        let connected = transport_snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.connection_state == "connected")
+            .unwrap_or(false);
+        let local_description_ready = transport_snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.local_description_ready)
+            .unwrap_or(false);
+        let remote_description_ready = transport_snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.remote_description_ready)
+            .unwrap_or(false);
+
         match (self.state.mode, self.state.stage, self.state.transport) {
             (SessionMode::Idle, _, _) => "configure host or viewer session",
-            (SessionMode::Host, SessionStage::Configured, SessionTransport::MockUdp) => {
-                "connect signaling and start preview stream"
-            }
-            (SessionMode::Viewer, SessionStage::AwaitingPeer, SessionTransport::MockUdp) => {
-                "wait for sender and open direct peer path"
-            }
-            (_, SessionStage::MockStreaming, SessionTransport::MockUdp) => {
-                "replace mock transport with WebRTC tracks"
-            }
-            (_, SessionStage::PlannedWebRtc, SessionTransport::PlannedWebRtc) => {
-                "create offer, accept answer, add ICE candidates, then attach media tracks"
-            }
+            (_, _, SessionTransport::MockUdp) => "legacy mock UDP mode is still available for media scaffold work",
             (_, SessionStage::Stopped, _) => "restart or reset session",
-            _ => "continue integration",
+            (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
+                "peer connection is live; next step is attaching capture tracks"
+            }
+            (SessionMode::Host, _, SessionTransport::LiveWebRtc) if !self.state.signaling_connected => {
+                "start signaling server or fix the signaling address"
+            }
+            (SessionMode::Host, _, SessionTransport::LiveWebRtc) if !local_description_ready => {
+                "create and send the local offer"
+            }
+            (SessionMode::Host, _, SessionTransport::LiveWebRtc) if !remote_description_ready => {
+                "wait for viewer answer and keep refreshing signaling"
+            }
+            (SessionMode::Viewer, _, SessionTransport::LiveWebRtc) if !self.state.signaling_connected => {
+                "start signaling server or fix the signaling address"
+            }
+            (SessionMode::Viewer, _, SessionTransport::LiveWebRtc) if !remote_description_ready => {
+                "wait for host offer and keep refreshing signaling"
+            }
+            _ => "keep refreshing signaling until the peer connection is connected",
         }
     }
 }
 
-fn format_transport_stage(stage: transport_webrtc::TransportStage) -> String {
-    match stage {
-        transport_webrtc::TransportStage::Planned => "planned",
-        transport_webrtc::TransportStage::SignalingReady => "signaling_ready",
-        transport_webrtc::TransportStage::PeerConnecting => "peer_connecting",
-        transport_webrtc::TransportStage::OfferCreated => "offer_created",
-        transport_webrtc::TransportStage::AnswerAccepted => "answer_accepted",
-        transport_webrtc::TransportStage::Streaming => "streaming",
+fn map_transport_signal(signal: WebRtcSignal) -> SignalingMessage {
+    match signal {
+        WebRtcSignal::SessionDescription { kind, sdp } => {
+            SignalingMessage::SessionDescription(SessionDescription {
+                sdp_type: match kind {
+                    DescriptionKind::Offer => SdpType::Offer,
+                    DescriptionKind::Answer => SdpType::Answer,
+                },
+                sdp,
+            })
+        }
+        WebRtcSignal::IceCandidate {
+            candidate,
+            sdp_mid,
+            sdp_mline_index,
+        } => SignalingMessage::IceCandidate(IceCandidate {
+            candidate,
+            sdp_mid,
+            sdp_mline_index,
+        }),
+    }
+}
+
+fn describe_outgoing_signal(signal: &WebRtcSignal) -> String {
+    match signal {
+        WebRtcSignal::SessionDescription { kind, .. } => match kind {
+            DescriptionKind::Offer => "local SDP offer sent".to_string(),
+            DescriptionKind::Answer => "local SDP answer sent".to_string(),
+        },
+        WebRtcSignal::IceCandidate { .. } => "local ICE candidate sent".to_string(),
+    }
+}
+
+fn format_description_kind(kind: DescriptionKind) -> String {
+    match kind {
+        DescriptionKind::Offer => "offer",
+        DescriptionKind::Answer => "answer",
     }
     .to_string()
 }
@@ -340,11 +659,10 @@ mod tests {
 
         assert_eq!(snapshot.mode, SessionMode::Host);
         assert_eq!(snapshot.stage, SessionStage::Configured);
-        assert_eq!(snapshot.transport, SessionTransport::MockUdp);
+        assert_eq!(snapshot.transport, SessionTransport::LiveWebRtc);
         assert_eq!(snapshot.room.as_deref(), Some("demo"));
         assert_eq!(snapshot.source_label.as_deref(), Some("vlc"));
-        assert_eq!(snapshot.next_action, "connect signaling and start preview stream");
-        assert_eq!(snapshot.transport_state, "signaling_ready");
+        assert!(snapshot.transport_state == "new" || snapshot.transport_state == "not_initialized");
     }
 
     #[test]
@@ -370,21 +688,5 @@ mod tests {
         assert_eq!(snapshot.mode, SessionMode::Idle);
         assert_eq!(snapshot.stage, SessionStage::Idle);
         assert_eq!(snapshot.next_action, "configure host or viewer session");
-    }
-
-    #[test]
-    fn webrtc_state_is_exposed_after_offer_and_answer() {
-        let mut manager = SessionManager::new();
-        manager.start_host(SessionIntent {
-            room: "demo".to_string(),
-            signaling_addr: "ws://localhost:7000/ws".to_string(),
-            source_label: Some("mpv".to_string()),
-        });
-        manager.create_local_offer();
-        let snapshot = manager.accept_remote_answer("v=0\ns=answer".to_string());
-
-        assert!(snapshot.local_offer_ready);
-        assert!(snapshot.remote_answer_ready);
-        assert_eq!(snapshot.transport, SessionTransport::PlannedWebRtc);
     }
 }

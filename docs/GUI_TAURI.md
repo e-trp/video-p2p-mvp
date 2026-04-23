@@ -23,7 +23,8 @@ The backend around the GUI has moved one step forward:
 
 - `signaling-server` can now relay validated SDP/ICE envelopes between peers
 - stored signaling messages are replayed to a late joiner in the same room
-- the GUI still drives only the in-memory session manager and does not yet use the signaling server end-to-end
+- the GUI now refreshes through a live signaling path and a real `PeerConnection`
+- manual answer/ICE text fields remain only as debugging controls
 
 ## Intended GUI Responsibilities
 
@@ -56,20 +57,23 @@ This gives the Tauri shell a stable API before the real transport and capture la
 
 ## Current User Interface
 
-The current Tauri UI is fully wired to the in-memory session manager and supports:
+The current Tauri UI is wired to the session manager and supports:
 
 - editing room, signaling, and source label fields
 - saving session configuration
-- preparing host or viewer session states
-- switching to mock streaming or planned WebRTC transport stages
-- creating a local offer
+- preparing host or viewer session states with a live signaling connection
+- switching to mock streaming or live WebRTC transport stages
+- creating and sending a local offer
+- polling signaling through repeated snapshot refresh
+- auto-applying remote offer/answer/ICE during refresh
 - accepting a remote answer
 - adding a remote ICE candidate
 - stopping or resetting a session
 - viewing current session status and next action
-- viewing transport signaling state
+- viewing transport connection state, local/remote description kind, and ICE counters
 - viewing and clearing the rolling session log
 
 ## Important Note
 
 The Tauri shell is scaffolded but not included in the default workspace build yet. This avoids making the entire repo dependent on downloading Tauri crates and installing platform prerequisites before the core architecture is in place.
+It is now configured so `apps/desktop/src-tauri` can also be checked standalone without adding it to the root workspace default build.

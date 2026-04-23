@@ -1,4 +1,7 @@
-use app_core::{AppCommand, parse_cli_args, print_help, run_receiver, run_sender};
+use app_core::{
+    AppCommand, parse_cli_args, print_help, run_receiver, run_sender, run_webrtc_host,
+    run_webrtc_viewer,
+};
 use std::error::Error;
 
 fn main() {
@@ -21,5 +24,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
         AppCommand::Sender(config) => run_sender(config),
         AppCommand::Receiver(config) => run_receiver(config),
+        AppCommand::WebRtcHost(config) => run_webrtc_host(config),
+        AppCommand::WebRtcViewer(config) => run_webrtc_viewer(config),
     }
 }

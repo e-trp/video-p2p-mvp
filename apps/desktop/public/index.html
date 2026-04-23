@@ -13,14 +13,15 @@
         <h1>Peer-to-peer window streaming</h1>
         <p class="lead">
           This GUI is the control surface for the future macOS/Linux application.
-          The current backend is still an MVP with signaling and mock media flow.
+          The current backend can now drive a live WebRTC negotiation path over the project signaling server,
+          while capture and media tracks are still pending.
         </p>
       </section>
 
       <section class="grid">
         <article class="card">
           <h2>Session Control</h2>
-          <p class="hint">This interface already drives the in-memory Rust session manager through Tauri commands.</p>
+          <p class="hint">This interface now drives the Rust session manager, signaling TCP link, and real PeerConnection bootstrap path through Tauri commands.</p>
           <form id="session-form" class="form">
             <label>
               <span>Room</span>
@@ -39,7 +40,7 @@
               <button type="button" id="host-btn">Prepare Host</button>
               <button type="button" id="join-btn" class="secondary">Prepare Viewer</button>
               <button type="button" id="mock-btn" class="secondary">Mock Streaming</button>
-              <button type="button" id="webrtc-btn" class="secondary">Plan WebRTC</button>
+              <button type="button" id="webrtc-btn" class="secondary">Arm WebRTC</button>
               <button type="button" id="stop-btn" class="ghost">Stop</button>
               <button type="button" id="reset-btn" class="ghost">Reset</button>
             </div>
@@ -49,6 +50,7 @@
 
         <article class="card">
           <h2>WebRTC Signaling</h2>
+          <p class="hint">Offer/answer now flows automatically through the signaling server on refresh. The manual fields below remain as a debugging escape hatch.</p>
           <form class="form">
             <label>
               <span>Remote Answer SDP</span>
@@ -95,12 +97,14 @@ s=answer</textarea>
             <div><dt>Mode</dt><dd>loading...</dd></div>
             <div><dt>Room</dt><dd>loading...</dd></div>
             <div><dt>Signaling</dt><dd>loading...</dd></div>
+            <div><dt>Signal Link</dt><dd>loading...</dd></div>
             <div><dt>Source</dt><dd>loading...</dd></div>
             <div><dt>Peer</dt><dd>loading...</dd></div>
             <div><dt>Transport State</dt><dd>loading...</dd></div>
-            <div><dt>Offer Ready</dt><dd>loading...</dd></div>
-            <div><dt>Answer Ready</dt><dd>loading...</dd></div>
-            <div><dt>ICE Count</dt><dd>loading...</dd></div>
+            <div><dt>Local Desc</dt><dd>loading...</dd></div>
+            <div><dt>Remote Desc</dt><dd>loading...</dd></div>
+            <div><dt>Local ICE</dt><dd>loading...</dd></div>
+            <div><dt>Remote ICE</dt><dd>loading...</dd></div>
             <div><dt>Next Action</dt><dd>loading...</dd></div>
           </dl>
         </article>

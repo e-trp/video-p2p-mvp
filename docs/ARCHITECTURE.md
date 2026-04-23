@@ -6,8 +6,8 @@ The repository is now a workspace-based scaffold with a future desktop GUI targe
 
 Components:
 
-- `crates/app-core`: shared protocol, CLI parsing, and mock media session logic
-- `crates/transport-webrtc`: WebRTC session/state skeleton with SDP/ICE lifecycle modeling
+- `crates/app-core`: shared protocol, CLI parsing, live signaling client, and session orchestration
+- `crates/transport-webrtc`: real `RTCPeerConnection` bootstrap with data-channel-first negotiation
 - `crates/capture-macos`: planned ScreenCaptureKit backend blueprint crate
 - `crates/capture-linux`: planned Linux capture backend blueprint crate
 - `crates/signaling-server`: TCP room coordination between exactly two peers
@@ -17,10 +17,11 @@ Components:
 ## Current Data Flow
 
 1. `signaling-server` starts and listens on a TCP port.
-2. `apps/cli receiver` joins a room and exposes its UDP port.
-3. `apps/cli sender` joins the same room and exposes its UDP port.
-4. The signaling server exchanges peer endpoints.
-5. The sender sends UDP packets directly to the receiver.
+2. A host/viewer session joins a room through `app-core::SignalingConnection`.
+3. `transport-webrtc` creates a real `PeerConnection` and bootstrap data channel.
+4. Local SDP/ICE is encoded through shared protocol messages and sent through `signaling-server`.
+5. The peer receives signaling messages, applies them, and returns answer/ICE through the same path.
+6. Mock UDP sender/receiver flow still exists separately for the old media scaffold.
 
 The current signaling server also accepts future WebRTC signaling envelopes after pairing:
 
@@ -92,5 +93,6 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - ICE candidate messages
 - signaling server relay for validated SDP/ICE envelopes between room participants
 - signaling history replay for a late-joining peer in the same room
-- in-memory transport session state for offer/answer/candidate lifecycle
+- a live signaling client in `app-core` used by CLI and Tauri session flow
+- a real `PeerConnection` bootstrap path with connection-state snapshots and ICE gathering
 - Tauri commands that drive this state from the GUI
