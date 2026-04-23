@@ -7,7 +7,16 @@
    `create_offer`, `accept_answer`, `add_ice_candidate`, `connection_state`, `stats`.
 3. Replace mock UDP and placeholder WebRTC transitions with real transport state transitions.
 4. Wire the signaling server to exchange SDP/ICE instead of only room pairing.
+   Current state: room relay and signaling replay are implemented; real clients and GUI still need to use this path end-to-end.
 5. Add integration tests for host/viewer negotiation state and signaling replay.
+
+### Iteration 1 Progress
+
+- Done in part: protocol envelopes for SDP/ICE in `app-core`
+- Done in part: signaling relay and replay in `signaling-server`
+- Still open: real WebRTC peer transport instead of lifecycle stubs
+- Still open: CLI and Tauri integration with the live signaling path
+- Still open: negotiation integration tests above the pure unit-test level
 
 ## Iteration 2: macOS Capture Backend
 

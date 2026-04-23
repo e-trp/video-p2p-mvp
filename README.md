@@ -62,6 +62,8 @@ It now exposes commands for:
 - reading session logs
 - showing the saved specification
 
+The signaling server now keeps a room alive after pairing and can relay validated SDP/ICE envelopes between peers, including replaying stored signaling history to a late joiner.
+
 The Tauri shell is still not included in the default workspace build yet.
 
 ## What Is Still Missing
@@ -74,6 +76,13 @@ This is not yet a real screen-sharing application. It does not currently include
 - real audio/video codecs
 - STUN/TURN
 - production GUI workflow
+
+What changed relative to the earlier scaffold:
+
+- shared signaling envelope encoding/decoding now exists in `app-core`
+- `signaling-server` relays `SIG|SDP|...` and `SIG|ICE|...` lines between peers
+- signaling history is replayed when the second peer joins late
+- `transport-webrtc` is still a lifecycle model, not a real `PeerConnection`
 
 ## Recommended Next Build Steps
 

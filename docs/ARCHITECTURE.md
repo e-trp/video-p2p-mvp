@@ -22,6 +22,12 @@ Components:
 4. The signaling server exchanges peer endpoints.
 5. The sender sends UDP packets directly to the receiver.
 
+The current signaling server also accepts future WebRTC signaling envelopes after pairing:
+
+- `SIG|SDP|...` session descriptions
+- `SIG|ICE|...` ICE candidates
+- replay of stored signaling messages to a late-joining room participant
+
 ## Why This MVP Exists
 
 The real product needs OS-specific capture and WebRTC integration. That is a much larger step than simple project scaffolding. This MVP isolates the parts that are stable today:
@@ -84,5 +90,7 @@ The codebase now contains a minimal signaling model for future WebRTC:
 
 - session description messages for `offer` and `answer`
 - ICE candidate messages
+- signaling server relay for validated SDP/ICE envelopes between room participants
+- signaling history replay for a late-joining peer in the same room
 - in-memory transport session state for offer/answer/candidate lifecycle
 - Tauri commands that drive this state from the GUI

@@ -19,6 +19,12 @@ The repository now includes a desktop scaffold in `apps/desktop`:
 - session manager hooks for `host`, `join`, `stop`, `status`, and `logs`
 - UI controls for config save, host/viewer prep, mock stream stage, planned WebRTC stage, reset, refresh, and log clearing
 
+The backend around the GUI has moved one step forward:
+
+- `signaling-server` can now relay validated SDP/ICE envelopes between peers
+- stored signaling messages are replayed to a late joiner in the same room
+- the GUI still drives only the in-memory session manager and does not yet use the signaling server end-to-end
+
 ## Intended GUI Responsibilities
 
 1. Window/source selection
