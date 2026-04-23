@@ -49,6 +49,29 @@
         </article>
 
         <article class="card">
+          <h2>Capture Source</h2>
+          <p class="hint">The current picker uses platform-specific blueprint sources through `capture-core`. It is the contract that the future native bridge will fill with real OS data.</p>
+          <form class="form">
+            <label>
+              <span>Available Source</span>
+              <select id="source-picker"></select>
+            </label>
+            <label class="toggle">
+              <input id="source-audio" type="checkbox" checked />
+              <span>Include Audio</span>
+            </label>
+            <div class="actions">
+              <button type="button" id="source-select-btn">Use Source</button>
+            </div>
+          </form>
+          <dl id="capture-catalog">
+            <div><dt>Backend</dt><dd>loading...</dd></div>
+            <div><dt>Permission</dt><dd>loading...</dd></div>
+            <div><dt>Sources</dt><dd>loading...</dd></div>
+          </dl>
+        </article>
+
+        <article class="card">
           <h2>WebRTC Signaling</h2>
           <p class="hint">Offer/answer now flows automatically through the signaling server on refresh. The manual fields below remain as a debugging escape hatch.</p>
           <form class="form">
@@ -100,6 +123,9 @@ s=answer</textarea>
             <div><dt>Signaling</dt><dd>loading...</dd></div>
             <div><dt>Signal Link</dt><dd>loading...</dd></div>
             <div><dt>Source</dt><dd>loading...</dd></div>
+            <div><dt>Selected Source</dt><dd>loading...</dd></div>
+            <div><dt>Capture Backend</dt><dd>loading...</dd></div>
+            <div><dt>Permission</dt><dd>loading...</dd></div>
             <div><dt>Peer</dt><dd>loading...</dd></div>
             <div><dt>Transport State</dt><dd>loading...</dd></div>
             <div><dt>Media Tracks</dt><dd>loading...</dd></div>

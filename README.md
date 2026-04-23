@@ -15,6 +15,7 @@ The repository now has two layers:
 - `apps/cli`: sender/receiver CLI for backend testing
 - `apps/desktop`: Tauri GUI scaffold
 - `docs/SPECIFICATION.md`: saved product instruction
+- `docs/USER_GUIDE.md`: how to run the Tauri GUI and what works today
 - `docs/ARCHITECTURE.md`: architecture notes
 - `docs/GUI_TAURI.md`: GUI plan
 - `todo.md`: remaining project work by iteration
@@ -67,6 +68,7 @@ The desktop scaffold lives in `apps/desktop`.
 It now exposes commands for:
 
 - reading project and session status
+- listing current capture sources and selecting one in-session
 - preparing host and viewer sessions against the live signaling server
 - creating and sending a local SDP offer
 - publishing placeholder audio/video samples into the attached host tracks for smoke testing
@@ -105,6 +107,7 @@ What changed relative to the earlier scaffold:
 - session snapshots and the Tauri UI now expose local media-track attachment state
 - session manager and transport now expose placeholder media-sample publishing state
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
+- the Tauri shell now exposes capture backend, permission state, and source selection from `app-core`
 
 ## Recommended Next Build Steps
 

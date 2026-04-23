@@ -37,6 +37,7 @@
 
 - Done in part: `capture-core` now exists for shared source, permission, video-frame, and audio-buffer types
 - Done in part: `capture-macos` blueprint now uses shared capture contracts and exposes example source metadata
+- Done in part: Tauri/app-core now surface the current platform capture catalog and selected source metadata
 - Still open: the actual ScreenCaptureKit bridge, permission flow, and live sample delivery
 
 ## Iteration 3: Linux Capture Backend
@@ -55,6 +56,12 @@
 4. Add connection diagnostics:
    transport state, RTT, bitrate, packet loss, ICE path.
 5. Add start, stop, reconnect and recovery states in the GUI.
+
+### Iteration 4 Progress
+
+- Done in part: GUI session actions already drive real signaling, negotiation, and placeholder media publishing
+- Done in part: source picker UI now exists, backed by the current platform capture catalog blueprint data
+- Still open: replace blueprint sources with real OS enumeration and remove the remaining debug-only signaling controls
 
 ## Iteration 5: Audio/Video Pipeline Hardening
 

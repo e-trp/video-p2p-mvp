@@ -113,6 +113,16 @@ h1 {
   font: inherit;
 }
 
+.form select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--ink);
+  font: inherit;
+}
+
 .form textarea {
   width: 100%;
   padding: 12px 14px;
@@ -122,6 +132,22 @@ h1 {
   color: var(--ink);
   font: inherit;
   resize: vertical;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toggle input {
+  width: auto;
+  margin: 0;
+}
+
+.toggle span {
+  font-size: 0.84rem;
+  letter-spacing: 0.08em;
 }
 
 .inline-fields {

@@ -25,6 +25,46 @@ function setStatus(status) {
   `;
 }
 
+function setCaptureCatalog(catalog) {
+  const container = document.getElementById("capture-catalog");
+  container.innerHTML = `
+    <div><dt>Backend</dt><dd>${catalog.backend}</dd></div>
+    <div><dt>Permission</dt><dd>${catalog.permission_state}</dd></div>
+    <div><dt>Sources</dt><dd>${catalog.sources.length}</dd></div>
+  `;
+
+  const picker = document.getElementById("source-picker");
+  picker.innerHTML = catalog.sources
+    .map(
+      (source) =>
+        `<option value="${source.id}">${source.label} (${source.kind}${source.has_audio ? ", audio" : ""})</option>`,
+    )
+    .join("");
+
+  if (catalog.selected_source_id) {
+    picker.value = catalog.selected_source_id;
+  } else if (catalog.sources[0]) {
+    picker.value = catalog.sources[0].id;
+  }
+
+  syncCaptureAudioState(catalog);
+  picker.disabled = catalog.sources.length === 0;
+  document.getElementById("source-select-btn").disabled = catalog.sources.length === 0;
+}
+
+function syncCaptureAudioState(catalog) {
+  const picker = document.getElementById("source-picker");
+  const audioToggle = document.getElementById("source-audio");
+  const selected = catalog.sources.find((source) => source.id === picker.value) ?? catalog.sources[0];
+
+  audioToggle.disabled = !selected || !selected.has_audio;
+  if (catalog.selected_source_id === picker.value) {
+    audioToggle.checked = Boolean(catalog.selected_source_audio);
+  } else {
+    audioToggle.checked = Boolean(selected?.has_audio);
+  }
+}
+
 function setSession(session) {
   const container = document.getElementById("session");
   container.innerHTML = `
@@ -33,6 +73,9 @@ function setSession(session) {
     <div><dt>Signaling</dt><dd>${session.signaling_addr ?? "n/a"}</dd></div>
     <div><dt>Signal Link</dt><dd>${String(session.signaling_connected)}</dd></div>
     <div><dt>Source</dt><dd>${session.source_label ?? "n/a"}</dd></div>
+    <div><dt>Selected Source</dt><dd>${session.selected_source_id ?? "n/a"} / ${String(session.selected_source_audio)}</dd></div>
+    <div><dt>Capture Backend</dt><dd>${session.capture_backend ?? "n/a"}</dd></div>
+    <div><dt>Permission</dt><dd>${session.capture_permission_state ?? "n/a"}</dd></div>
     <div><dt>Peer</dt><dd>${session.active_peer ?? "n/a"}</dd></div>
     <div><dt>Transport State</dt><dd>${session.transport_state ?? "n/a"}</dd></div>
     <div><dt>Media Tracks</dt><dd>${session.local_media_track_count ?? 0}</dd></div>
@@ -65,9 +108,10 @@ function formValues() {
 }
 
 async function refresh() {
-  const [status, session] = await Promise.all([
+  const [status, session, captureCatalog] = await Promise.all([
     invoke("project_status"),
     invoke("session_snapshot"),
+    invoke("capture_catalog"),
   ]);
 
   if (status) {
@@ -91,6 +135,9 @@ async function refresh() {
       <div><dt>Signaling</dt><dd>n/a</dd></div>
       <div><dt>Signal Link</dt><dd>false</dd></div>
       <div><dt>Source</dt><dd>n/a</dd></div>
+      <div><dt>Selected Source</dt><dd>n/a / false</dd></div>
+      <div><dt>Capture Backend</dt><dd>preview</dd></div>
+      <div><dt>Permission</dt><dd>unknown</dd></div>
       <div><dt>Peer</dt><dd>n/a</dd></div>
       <div><dt>Transport State</dt><dd>preview</dd></div>
       <div><dt>Media Tracks</dt><dd>0</dd></div>
@@ -108,6 +155,19 @@ async function refresh() {
       "Run inside Tauri to drive the in-memory session manager.";
     document.getElementById("signal-preview").textContent =
       "Run inside Tauri to preview signaling state.";
+  }
+
+  if (captureCatalog) {
+    setCaptureCatalog(captureCatalog);
+  } else {
+    document.getElementById("capture-catalog").innerHTML = `
+      <div><dt>Backend</dt><dd>preview</dd></div>
+      <div><dt>Permission</dt><dd>unknown</dd></div>
+      <div><dt>Sources</dt><dd>0</dd></div>
+    `;
+    document.getElementById("source-picker").innerHTML = "";
+    document.getElementById("source-picker").disabled = true;
+    document.getElementById("source-select-btn").disabled = true;
   }
 }
 
@@ -147,6 +207,20 @@ async function load() {
   document.getElementById("join-btn").addEventListener("click", async () => {
     const { room, signaling_addr } = formValues();
     await runCommand("join_room", { room, signaling_addr });
+  });
+
+  document.getElementById("source-select-btn").addEventListener("click", async () => {
+    const source_id = document.getElementById("source-picker").value;
+    const include_audio = document.getElementById("source-audio").checked;
+    await runCommand("select_capture_source", { source_id, include_audio });
+    await refresh();
+  });
+
+  document.getElementById("source-picker").addEventListener("change", async () => {
+    const catalog = await invoke("capture_catalog");
+    if (catalog) {
+      syncCaptureAudioState(catalog);
+    }
   });
 
   document.getElementById("mock-btn").addEventListener("click", async () => {

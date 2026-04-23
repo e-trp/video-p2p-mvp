@@ -1,6 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use app_core::{SessionIntent, SessionManager, SessionMode, SessionSnapshot, SessionStage, SessionTransport};
+use app_core::{
+    CaptureCatalogSnapshot, SessionIntent, SessionManager, SessionMode, SessionSnapshot,
+    SessionStage, SessionTransport,
+};
 use serde::Serialize;
 use std::sync::Mutex;
 
@@ -23,6 +26,11 @@ struct SessionView {
     room: Option<String>,
     signaling_addr: Option<String>,
     source_label: Option<String>,
+    selected_source_id: Option<String>,
+    selected_source_audio: bool,
+    capture_backend: String,
+    capture_permission_state: String,
+    available_source_count: usize,
     active_peer: Option<String>,
     next_action: String,
     local_description_ready: bool,
@@ -51,6 +59,24 @@ struct CommandResult {
     session: SessionView,
 }
 
+#[derive(Serialize)]
+struct CaptureSourceView {
+    id: String,
+    kind: String,
+    label: String,
+    app_name: Option<String>,
+    has_audio: bool,
+}
+
+#[derive(Serialize)]
+struct CaptureCatalogView {
+    backend: String,
+    permission_state: String,
+    selected_source_id: Option<String>,
+    selected_source_audio: bool,
+    sources: Vec<CaptureSourceView>,
+}
+
 #[tauri::command]
 fn project_status(state: tauri::State<'_, Mutex<SessionManager>>) -> ProjectStatus {
     let snapshot = state.lock().expect("session state poisoned").snapshot();
@@ -67,6 +93,14 @@ fn project_status(state: tauri::State<'_, Mutex<SessionManager>>) -> ProjectStat
 fn session_snapshot(state: tauri::State<'_, Mutex<SessionManager>>) -> SessionView {
     let snapshot = state.lock().expect("session state poisoned").refresh();
     map_snapshot(snapshot)
+}
+
+#[tauri::command]
+fn capture_catalog(state: tauri::State<'_, Mutex<SessionManager>>) -> CaptureCatalogView {
+    let state = state.lock().expect("session state poisoned");
+    let catalog = state.capture_catalog();
+    let snapshot = state.snapshot();
+    map_capture_catalog(catalog, snapshot)
 }
 
 #[tauri::command]
@@ -179,6 +213,24 @@ fn create_local_offer(state: tauri::State<'_, Mutex<SessionManager>>) -> Command
 }
 
 #[tauri::command]
+fn select_capture_source(
+    source_id: String,
+    include_audio: bool,
+    state: tauri::State<'_, Mutex<SessionManager>>,
+) -> CommandResult {
+    let snapshot = state
+        .lock()
+        .expect("session state poisoned")
+        .select_capture_source(source_id.clone(), include_audio);
+
+    CommandResult {
+        ok: true,
+        message: format!("capture source selected: {source_id}"),
+        session: map_snapshot(snapshot),
+    }
+}
+
+#[tauri::command]
 fn publish_placeholder_media(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state
         .lock()
@@ -277,12 +329,14 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             project_status,
             session_snapshot,
+            capture_catalog,
             start_host,
             join_room,
             update_session_config,
             mark_mock_streaming,
             mark_webrtc_planned,
             create_local_offer,
+            select_capture_source,
             publish_placeholder_media,
             accept_remote_answer,
             add_remote_ice_candidate,
@@ -306,6 +360,11 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         room: snapshot.room,
         signaling_addr: snapshot.signaling_addr,
         source_label: snapshot.source_label,
+        selected_source_id: snapshot.selected_source_id,
+        selected_source_audio: snapshot.selected_source_audio,
+        capture_backend: snapshot.capture_backend,
+        capture_permission_state: snapshot.capture_permission_state,
+        available_source_count: snapshot.available_source_count,
         active_peer: snapshot.active_peer,
         next_action: snapshot.next_action,
         local_description_ready: snapshot.local_description_ready,
@@ -325,6 +384,26 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         remote_candidate_count: snapshot.remote_candidate_count,
         last_signaling_message: snapshot.last_signaling_message,
         logs: snapshot.logs,
+    }
+}
+
+fn map_capture_catalog(catalog: CaptureCatalogSnapshot, snapshot: SessionSnapshot) -> CaptureCatalogView {
+    CaptureCatalogView {
+        backend: catalog.backend,
+        permission_state: snapshot.capture_permission_state,
+        selected_source_id: snapshot.selected_source_id,
+        selected_source_audio: snapshot.selected_source_audio,
+        sources: catalog
+            .sources
+            .into_iter()
+            .map(|source| CaptureSourceView {
+                id: source.id.clone(),
+                kind: format!("{:?}", source.kind).to_lowercase(),
+                label: source.label(),
+                app_name: source.app_name,
+                has_audio: source.has_audio,
+            })
+            .collect(),
     }
 }
 

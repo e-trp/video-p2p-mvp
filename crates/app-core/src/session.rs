@@ -1,5 +1,10 @@
+use crate::capture_catalog::{
+    CaptureCatalogSnapshot, current_capture_catalog, describe_permission_state,
+    selected_source_label,
+};
 use crate::protocol::{IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage};
 use crate::signaling::{SignalingConnection, SignalingEvent};
+use capture_core::CaptureSelection;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use transport_webrtc::{
@@ -45,6 +50,11 @@ pub struct SessionSnapshot {
     pub room: Option<String>,
     pub signaling_addr: Option<String>,
     pub source_label: Option<String>,
+    pub selected_source_id: Option<String>,
+    pub selected_source_audio: bool,
+    pub capture_backend: String,
+    pub capture_permission_state: String,
+    pub available_source_count: usize,
     pub active_peer: Option<String>,
     pub logs: Vec<String>,
     pub next_action: String,
@@ -80,6 +90,8 @@ struct SessionState {
     room: Option<String>,
     signaling_addr: Option<String>,
     source_label: Option<String>,
+    capture_catalog: CaptureCatalogSnapshot,
+    capture_selection: Option<CaptureSelection>,
     active_peer: Option<String>,
     logs: Vec<String>,
     webrtc: Option<TransportSession>,
@@ -97,6 +109,8 @@ impl Default for SessionState {
             room: None,
             signaling_addr: None,
             source_label: None,
+            capture_catalog: current_capture_catalog(),
+            capture_selection: None,
             active_peer: None,
             logs: vec![stamp("session manager initialized")],
             webrtc: None,
@@ -113,6 +127,10 @@ impl SessionManager {
     }
 
     pub fn start_host(&mut self, intent: SessionIntent) -> SessionSnapshot {
+        let selected_source_label = selected_source_label(
+            &self.state.capture_catalog,
+            self.state.capture_selection.as_ref(),
+        );
         self.replace_state(
             SessionMode::Host,
             SessionStage::Configured,
@@ -122,6 +140,8 @@ impl SessionManager {
         self.state.source_label = Some(
             intent
                 .source_label
+                .clone()
+                .or(selected_source_label)
                 .unwrap_or_else(|| "window selection pending".to_string()),
         );
         self.push_log(format!(
@@ -248,6 +268,40 @@ impl SessionManager {
         self.snapshot()
     }
 
+    pub fn capture_catalog(&self) -> CaptureCatalogSnapshot {
+        self.state.capture_catalog.clone()
+    }
+
+    pub fn select_capture_source(
+        &mut self,
+        source_id: String,
+        include_audio: bool,
+    ) -> SessionSnapshot {
+        let Some(source) = self
+            .state
+            .capture_catalog
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .cloned()
+        else {
+            self.push_log(format!("capture source not found: {source_id}"));
+            return self.snapshot();
+        };
+
+        let include_audio = include_audio && source.has_audio;
+        self.state.capture_selection = Some(CaptureSelection {
+            source_id: source.id.clone(),
+            include_audio,
+        });
+        self.state.source_label = Some(source.label());
+        self.push_log(format!(
+            "capture source selected: id={} include_audio={}",
+            source.id, include_audio
+        ));
+        self.snapshot()
+    }
+
     pub fn refresh(&mut self) -> SessionSnapshot {
         self.process_signaling_events();
         self.flush_local_transport_signals();
@@ -333,6 +387,23 @@ impl SessionManager {
             room: self.state.room.clone(),
             signaling_addr: self.state.signaling_addr.clone(),
             source_label: self.state.source_label.clone(),
+            selected_source_id: self
+                .state
+                .capture_selection
+                .as_ref()
+                .map(|selection| selection.source_id.clone()),
+            selected_source_audio: self
+                .state
+                .capture_selection
+                .as_ref()
+                .map(|selection| selection.include_audio)
+                .unwrap_or(false),
+            capture_backend: self.state.capture_catalog.backend.clone(),
+            capture_permission_state: describe_permission_state(
+                self.state.capture_catalog.permission_state,
+            )
+            .to_string(),
+            available_source_count: self.state.capture_catalog.sources.len(),
             active_peer: self.state.active_peer.clone(),
             logs: self.state.logs.clone(),
             next_action: self.next_action().to_string(),
@@ -640,6 +711,12 @@ impl SessionManager {
             (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
                 "peer connection is live; feed capture samples into the attached tracks or push placeholder samples for transport smoke testing"
             }
+            (SessionMode::Host, _, SessionTransport::LiveWebRtc)
+                if self.state.capture_selection.is_none()
+                    && !self.state.capture_catalog.sources.is_empty() =>
+            {
+                "choose a capture source before starting the host workflow"
+            }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc) if !self.state.signaling_connected => {
                 "start signaling server or fix the signaling address"
             }
@@ -746,10 +823,29 @@ mod tests {
         assert_eq!(snapshot.transport, SessionTransport::LiveWebRtc);
         assert_eq!(snapshot.room.as_deref(), Some("demo"));
         assert_eq!(snapshot.source_label.as_deref(), Some("vlc"));
+        assert_eq!(snapshot.capture_permission_state, "required");
+        assert!(snapshot.available_source_count >= 1);
         assert_eq!(snapshot.local_media_track_count, 2);
         assert!(snapshot.local_video_track_attached);
         assert!(snapshot.local_audio_track_attached);
         assert!(snapshot.transport_state == "new" || snapshot.transport_state == "not_initialized");
+    }
+
+    #[test]
+    fn selecting_capture_source_updates_source_label() {
+        let mut manager = SessionManager::new();
+        let source = manager
+            .capture_catalog()
+            .sources
+            .first()
+            .cloned()
+            .expect("at least one source");
+
+        let snapshot = manager.select_capture_source(source.id.clone(), source.has_audio);
+        let label = source.label();
+        assert_eq!(snapshot.selected_source_id.as_deref(), Some(source.id.as_str()));
+        assert_eq!(snapshot.selected_source_audio, source.has_audio);
+        assert_eq!(snapshot.source_label.as_deref(), Some(label.as_str()));
     }
 
     #[test]

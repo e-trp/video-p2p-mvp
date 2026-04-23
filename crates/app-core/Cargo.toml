@@ -8,4 +8,7 @@ name = "app_core"
 path = "src/lib.rs"
 
 [dependencies]
+capture-core = { path = "../capture-core" }
+capture-linux = { path = "../capture-linux" }
+capture-macos = { path = "../capture-macos" }
 transport-webrtc = { path = "../transport-webrtc" }
