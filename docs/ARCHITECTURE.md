@@ -7,7 +7,7 @@ The repository is now a workspace-based scaffold with a future desktop GUI targe
 Components:
 
 - `crates/app-core`: shared protocol, CLI parsing, live signaling client, and session orchestration
-- `crates/transport-webrtc`: real `RTCPeerConnection` bootstrap with data-channel-first negotiation
+- `crates/transport-webrtc`: real `RTCPeerConnection` bootstrap with attached host media tracks and control data channel
 - `crates/capture-macos`: planned ScreenCaptureKit backend blueprint crate
 - `crates/capture-linux`: planned Linux capture backend blueprint crate
 - `crates/signaling-server`: TCP room coordination between exactly two peers
@@ -18,7 +18,7 @@ Components:
 
 1. `signaling-server` starts and listens on a TCP port.
 2. A host/viewer session joins a room through `app-core::SignalingConnection`.
-3. `transport-webrtc` creates a real `PeerConnection` and bootstrap data channel.
+3. `transport-webrtc` creates a real `PeerConnection`, attaches placeholder host audio/video tracks, and keeps a bootstrap data channel for control flow.
 4. Local SDP/ICE is encoded through shared protocol messages and sent through `signaling-server`.
 5. The peer receives signaling messages, applies them, and returns answer/ICE through the same path.
 6. Mock UDP sender/receiver flow still exists separately for the old media scaffold.
@@ -94,5 +94,5 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - signaling server relay for validated SDP/ICE envelopes between room participants
 - signaling history replay for a late-joining peer in the same room
 - a live signaling client in `app-core` used by CLI and Tauri session flow
-- a real `PeerConnection` bootstrap path with connection-state snapshots and ICE gathering
-- Tauri commands that drive this state from the GUI
+- a real `PeerConnection` bootstrap path with attached placeholder audio/video tracks, connection-state snapshots, and ICE gathering
+- Tauri commands and session snapshots that surface local media-track state in the GUI

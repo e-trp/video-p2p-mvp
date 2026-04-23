@@ -24,6 +24,7 @@ The backend around the GUI has moved one step forward:
 - `signaling-server` can now relay validated SDP/ICE envelopes between peers
 - stored signaling messages are replayed to a late joiner in the same room
 - the GUI now refreshes through a live signaling path and a real `PeerConnection`
+- host-side placeholder audio/video tracks are attached before offer creation and shown in the session snapshot
 - manual answer/ICE text fields remain only as debugging controls
 
 ## Intended GUI Responsibilities
@@ -49,7 +50,7 @@ The current GUI iteration is backed by an in-memory session manager in `app-core
 It already models:
 
 - idle / host / viewer roles
-- configured / awaiting peer / mock streaming / planned WebRTC / stopped stages
+- configured / awaiting peer / negotiating WebRTC / live WebRTC / mock streaming / stopped stages
 - room and signaling metadata
 - a rolling in-memory event log
 
@@ -70,7 +71,7 @@ The current Tauri UI is wired to the session manager and supports:
 - adding a remote ICE candidate
 - stopping or resetting a session
 - viewing current session status and next action
-- viewing transport connection state, local/remote description kind, and ICE counters
+- viewing transport connection state, local audio/video track attachment, local/remote description kind, and ICE counters
 - viewing and clearing the rolling session log
 
 ## Important Note

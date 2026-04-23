@@ -35,6 +35,9 @@ function setSession(session) {
     <div><dt>Source</dt><dd>${session.source_label ?? "n/a"}</dd></div>
     <div><dt>Peer</dt><dd>${session.active_peer ?? "n/a"}</dd></div>
     <div><dt>Transport State</dt><dd>${session.transport_state ?? "n/a"}</dd></div>
+    <div><dt>Media Tracks</dt><dd>${session.local_media_track_count ?? 0}</dd></div>
+    <div><dt>Video Track</dt><dd>${String(session.local_video_track_attached)}</dd></div>
+    <div><dt>Audio Track</dt><dd>${String(session.local_audio_track_attached)}</dd></div>
     <div><dt>Local Desc</dt><dd>${session.local_description_kind ?? "n/a"} / ${String(session.local_description_ready)}</dd></div>
     <div><dt>Remote Desc</dt><dd>${session.remote_description_kind ?? "n/a"} / ${String(session.remote_description_ready)}</dd></div>
     <div><dt>Local ICE</dt><dd>${session.local_candidate_count ?? 0}</dd></div>
@@ -88,6 +91,9 @@ async function refresh() {
       <div><dt>Source</dt><dd>n/a</dd></div>
       <div><dt>Peer</dt><dd>n/a</dd></div>
       <div><dt>Transport State</dt><dd>preview</dd></div>
+      <div><dt>Media Tracks</dt><dd>0</dd></div>
+      <div><dt>Video Track</dt><dd>false</dd></div>
+      <div><dt>Audio Track</dt><dd>false</dd></div>
       <div><dt>Local Desc</dt><dd>n/a / false</dd></div>
       <div><dt>Remote Desc</dt><dd>n/a / false</dd></div>
       <div><dt>Local ICE</dt><dd>0</dd></div>

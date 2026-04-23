@@ -5,7 +5,7 @@ Workspace for a future Rust desktop application that will stream a chosen window
 The repository now has two layers:
 
 - a working backend MVP with signaling and direct UDP mock media flow
-- a Tauri desktop shell that can now drive live WebRTC negotiation state
+- a Tauri desktop shell that can now drive live WebRTC negotiation state with attached host media tracks
 
 ## Workspace Layout
 
@@ -76,7 +76,7 @@ It now exposes commands for:
 - showing the saved specification
 
 The signaling server now keeps a room alive after pairing and relays validated SDP/ICE envelopes between peers, including replaying stored signaling history to a late joiner.
-`transport-webrtc` is no longer an in-memory lifecycle stub: it now creates a real `RTCPeerConnection`, bootstraps a data channel, gathers ICE candidates, and exposes real connection state.
+`transport-webrtc` is no longer an in-memory lifecycle stub: it now creates a real `RTCPeerConnection`, attaches placeholder host-side audio/video tracks, keeps a bootstrap data channel for control traffic, gathers ICE candidates, and exposes real connection state.
 
 The Tauri shell is still not included in the default workspace build yet.
 
@@ -86,7 +86,7 @@ This is not yet a real screen-sharing application. It does not currently include
 
 - ScreenCaptureKit integration
 - Portal/PipeWire integration
-- audio/video tracks attached to the PeerConnection
+- real captured samples flowing through the attached tracks
 - real audio/video codecs
 - STUN/TURN
 - production GUI workflow
@@ -98,11 +98,12 @@ What changed relative to the earlier scaffold:
 - signaling history is replayed when the second peer joins late
 - `app-core` now has a live signaling client used by CLI and Tauri session flow
 - CLI now has `webrtc-host` and `webrtc-viewer` commands for real negotiation
-- `transport-webrtc` now wraps a real `PeerConnection` with ICE gathering and connection-state snapshots
+- `transport-webrtc` now wraps a real `PeerConnection` with attached placeholder audio/video tracks, ICE gathering, and connection-state snapshots
+- session snapshots and the Tauri UI now expose local media-track attachment state
 
 ## Recommended Next Build Steps
 
-1. Attach real media tracks to the live WebRTC transport.
+1. Feed captured samples into the attached host media tracks.
 2. Add `capture-macos` using ScreenCaptureKit.
 3. Replace the remaining manual/debug signaling fields in the Tauri GUI with production UX.
 4. Add Linux Wayland capture via Portal + PipeWire.

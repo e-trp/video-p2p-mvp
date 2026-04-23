@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use tokio::runtime::Runtime;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
-use webrtc::api::media_engine::MediaEngine;
+use webrtc::api::media_engine::{MIME_TYPE_OPUS, MIME_TYPE_VP8, MediaEngine};
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::peer_connection::RTCPeerConnection;
@@ -13,6 +13,9 @@ use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::sdp_type::RTCSdpType;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
+use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
+use webrtc::track::track_local::TrackLocal;
+use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransportStage {
@@ -71,6 +74,7 @@ pub struct TransportSession {
     config: WebRtcConfig,
     runtime: Runtime,
     peer_connection: Arc<RTCPeerConnection>,
+    local_media_tracks: Option<LocalMediaTracks>,
     shared: Arc<Mutex<SharedState>>,
 }
 
@@ -87,6 +91,9 @@ pub struct TransportSnapshot {
     pub remote_description_ready: bool,
     pub local_candidate_count: usize,
     pub remote_candidate_count: usize,
+    pub local_media_track_count: usize,
+    pub local_video_track_attached: bool,
+    pub local_audio_track_attached: bool,
     pub local_data_channel_ready: bool,
     pub stats_report_count: usize,
     pub notes: Vec<String>,
@@ -102,6 +109,11 @@ struct SharedState {
     remote_candidate_count: usize,
     local_data_channel_ready: bool,
     stats_report_count: usize,
+}
+
+struct LocalMediaTracks {
+    video: Arc<TrackLocalStaticSample>,
+    audio: Arc<TrackLocalStaticSample>,
 }
 
 #[derive(Debug)]
@@ -123,9 +135,10 @@ pub fn blueprint(config: WebRtcConfig) -> TransportBlueprint {
         stage: TransportStage::Planned,
         notes: vec![
             "peer connection is created eagerly with real ICE gathering",
+            "host role now attaches placeholder audio/video sample tracks before offer creation",
             "a bootstrap data channel keeps negotiation real before media tracks land",
             "signaling exchange still runs through the project signaling server",
-            "future capture backends should replace the bootstrap data channel with media tracks",
+            "future capture backends should feed encoded samples into the attached tracks",
         ],
     }
 }
@@ -163,6 +176,12 @@ impl TransportSession {
 
         install_callbacks(&peer_connection, &shared);
 
+        let local_media_tracks = if role_is_offerer(&config.role) {
+            Some(attach_local_media_tracks(&runtime, &peer_connection, &config)?)
+        } else {
+            None
+        };
+
         if role_is_offerer(&config.role) {
             let data_channel = runtime
                 .block_on(peer_connection.create_data_channel("bootstrap-control", None))
@@ -174,6 +193,7 @@ impl TransportSession {
             config,
             runtime,
             peer_connection,
+            local_media_tracks,
             shared,
         })
     }
@@ -299,6 +319,24 @@ impl TransportSession {
         } else {
             notes.push("bootstrap data channel not open yet".to_string());
         }
+        let (local_media_track_count, local_video_track_attached, local_audio_track_attached) =
+            self.local_media_tracks.as_ref().map_or((0, false, false), |tracks| {
+                let video_attached = !tracks.video.id().is_empty();
+                let audio_attached = !tracks.audio.id().is_empty();
+                (
+                    usize::from(video_attached as u8) + usize::from(audio_attached as u8),
+                    video_attached,
+                    audio_attached,
+                )
+            });
+        if local_media_track_count > 0 {
+            notes.push(format!(
+                "local media tracks attached: video={} audio={}",
+                local_video_track_attached, local_audio_track_attached
+            ));
+        } else {
+            notes.push("local media tracks not attached for this role".to_string());
+        }
 
         TransportSnapshot {
             room: self.config.room.clone(),
@@ -312,6 +350,9 @@ impl TransportSession {
             remote_description_ready: shared.remote_description_kind.is_some(),
             local_candidate_count: shared.local_candidates.len(),
             remote_candidate_count: shared.remote_candidate_count,
+            local_media_track_count,
+            local_video_track_attached,
+            local_audio_track_attached,
             local_data_channel_ready: shared.local_data_channel_ready,
             stats_report_count: shared.stats_report_count,
             notes,
@@ -331,6 +372,44 @@ impl TransportSession {
 
 fn tokio_runtime() -> TransportResult<Runtime> {
     Runtime::new().map_err(|error| TransportError(format!("failed to create tokio runtime: {error}")))
+}
+
+fn attach_local_media_tracks(
+    runtime: &Runtime,
+    peer_connection: &Arc<RTCPeerConnection>,
+    config: &WebRtcConfig,
+) -> TransportResult<LocalMediaTracks> {
+    let stream_id = format!("desktop-room-{}", config.room);
+    let video = Arc::new(TrackLocalStaticSample::new(
+        RTCRtpCodecCapability {
+            mime_type: MIME_TYPE_VP8.to_owned(),
+            ..Default::default()
+        },
+        "screen-video".to_string(),
+        stream_id.clone(),
+    ));
+    let audio = Arc::new(TrackLocalStaticSample::new(
+        RTCRtpCodecCapability {
+            mime_type: MIME_TYPE_OPUS.to_owned(),
+            ..Default::default()
+        },
+        "system-audio".to_string(),
+        stream_id,
+    ));
+
+    runtime.block_on(async {
+        peer_connection
+            .add_track(Arc::clone(&video) as Arc<dyn TrackLocal + Send + Sync>)
+            .await
+            .map_err(map_webrtc_error)?;
+        peer_connection
+            .add_track(Arc::clone(&audio) as Arc<dyn TrackLocal + Send + Sync>)
+            .await
+            .map_err(map_webrtc_error)?;
+        Ok::<(), TransportError>(())
+    })?;
+
+    Ok(LocalMediaTracks { video, audio })
 }
 
 fn rtc_configuration(config: &WebRtcConfig) -> RTCConfiguration {
@@ -421,5 +500,42 @@ impl From<RTCSdpType> for DescriptionKind {
             RTCSdpType::Answer => DescriptionKind::Answer,
             _ => DescriptionKind::Offer,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TransportSession, WebRtcConfig};
+
+    #[test]
+    fn host_role_attaches_placeholder_audio_and_video_tracks() {
+        let session = TransportSession::new(WebRtcConfig {
+            room: "demo".to_string(),
+            role: "host".to_string(),
+            signaling_url: "127.0.0.1:7000".to_string(),
+            ice_servers: Vec::new(),
+        })
+        .expect("host transport session");
+
+        let snapshot = session.snapshot();
+        assert_eq!(snapshot.local_media_track_count, 2);
+        assert!(snapshot.local_video_track_attached);
+        assert!(snapshot.local_audio_track_attached);
+    }
+
+    #[test]
+    fn viewer_role_starts_without_local_media_publishers() {
+        let session = TransportSession::new(WebRtcConfig {
+            room: "demo".to_string(),
+            role: "viewer".to_string(),
+            signaling_url: "127.0.0.1:7000".to_string(),
+            ice_servers: Vec::new(),
+        })
+        .expect("viewer transport session");
+
+        let snapshot = session.snapshot();
+        assert_eq!(snapshot.local_media_track_count, 0);
+        assert!(!snapshot.local_video_track_attached);
+        assert!(!snapshot.local_audio_track_attached);
     }
 }

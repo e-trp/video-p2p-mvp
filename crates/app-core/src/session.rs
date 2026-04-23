@@ -53,6 +53,9 @@ pub struct SessionSnapshot {
     pub local_description_kind: Option<String>,
     pub remote_description_ready: bool,
     pub remote_description_kind: Option<String>,
+    pub local_media_track_count: usize,
+    pub local_video_track_attached: bool,
+    pub local_audio_track_attached: bool,
     pub local_offer_ready: bool,
     pub remote_answer_ready: bool,
     pub local_candidate_count: usize,
@@ -314,6 +317,18 @@ impl SessionManager {
                 .map(|snapshot| snapshot.remote_description_ready)
                 .unwrap_or(false),
             remote_description_kind,
+            local_media_track_count: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.local_media_track_count)
+                .unwrap_or(0),
+            local_video_track_attached: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.local_video_track_attached)
+                .unwrap_or(false),
+            local_audio_track_attached: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.local_audio_track_attached)
+                .unwrap_or(false),
             local_offer_ready: transport_snapshot
                 .as_ref()
                 .map(|snapshot| snapshot.local_description_kind == Some(DescriptionKind::Offer))
@@ -573,10 +588,19 @@ impl SessionManager {
             (_, _, SessionTransport::MockUdp) => "legacy mock UDP mode is still available for media scaffold work",
             (_, SessionStage::Stopped, _) => "restart or reset session",
             (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
-                "peer connection is live; next step is attaching capture tracks"
+                "peer connection is live; next step is feeding capture samples into the attached tracks"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc) if !self.state.signaling_connected => {
                 "start signaling server or fix the signaling address"
+            }
+            (SessionMode::Host, _, SessionTransport::LiveWebRtc)
+                if transport_snapshot
+                    .as_ref()
+                    .map(|snapshot| snapshot.local_media_track_count)
+                    .unwrap_or(0)
+                    == 0 =>
+            {
+                "attach local media tracks before creating the offer"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc) if !local_description_ready => {
                 "create and send the local offer"
@@ -647,6 +671,16 @@ fn stamp(message: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{SessionIntent, SessionManager, SessionMode, SessionStage, SessionTransport};
+    use crate::protocol::{
+        PeerAnnouncement, Role, decode_signaling_message, encode_peer, encode_waiting,
+        parse_join_request,
+    };
+    use std::collections::HashMap;
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::{SocketAddr, TcpListener, TcpStream};
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+    use std::time::{Duration, Instant};
 
     #[test]
     fn host_session_updates_state() {
@@ -662,6 +696,9 @@ mod tests {
         assert_eq!(snapshot.transport, SessionTransport::LiveWebRtc);
         assert_eq!(snapshot.room.as_deref(), Some("demo"));
         assert_eq!(snapshot.source_label.as_deref(), Some("vlc"));
+        assert_eq!(snapshot.local_media_track_count, 2);
+        assert!(snapshot.local_video_track_attached);
+        assert!(snapshot.local_audio_track_attached);
         assert!(snapshot.transport_state == "new" || snapshot.transport_state == "not_initialized");
     }
 
@@ -688,5 +725,291 @@ mod tests {
         assert_eq!(snapshot.mode, SessionMode::Idle);
         assert_eq!(snapshot.stage, SessionStage::Idle);
         assert_eq!(snapshot.next_action, "configure host or viewer session");
+    }
+
+    #[test]
+    fn late_join_replay_drives_host_and_viewer_to_live_webrtc() {
+        let server = TestSignalingServer::spawn();
+
+        let mut host = SessionManager::new();
+        let host_start = host.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: server.addr(),
+            source_label: Some("vlc".to_string()),
+        });
+        assert!(host_start.signaling_connected);
+
+        let host_offer = host.create_local_offer();
+        assert!(host_offer.local_offer_ready);
+        assert_eq!(host_offer.local_description_kind.as_deref(), Some("offer"));
+
+        thread::sleep(Duration::from_millis(150));
+
+        let mut viewer = SessionManager::new();
+        let viewer_start = viewer.start_viewer(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: server.addr(),
+            source_label: None,
+        });
+        assert!(viewer_start.signaling_connected);
+
+        let (host_snapshot, viewer_snapshot) =
+            drive_sessions_until_connected(&mut host, &mut viewer, Duration::from_secs(10));
+
+        assert_eq!(host_snapshot.stage, SessionStage::LiveWebRtc);
+        assert_eq!(viewer_snapshot.stage, SessionStage::LiveWebRtc);
+        assert_eq!(host_snapshot.transport_state, "connected");
+        assert_eq!(viewer_snapshot.transport_state, "connected");
+        assert_eq!(host_snapshot.local_media_track_count, 2);
+        assert_eq!(viewer_snapshot.local_media_track_count, 0);
+        assert_eq!(host_snapshot.remote_description_kind.as_deref(), Some("answer"));
+        assert_eq!(viewer_snapshot.remote_description_kind.as_deref(), Some("offer"));
+        assert!(
+            viewer_snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("remote SDP offer received"))
+        );
+        assert!(
+            host_snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("remote SDP answer received and applied"))
+        );
+    }
+
+    fn drive_sessions_until_connected(
+        host: &mut SessionManager,
+        viewer: &mut SessionManager,
+        timeout: Duration,
+    ) -> (super::SessionSnapshot, super::SessionSnapshot) {
+        let started = Instant::now();
+        loop {
+            let host_snapshot = host.refresh();
+            let viewer_snapshot = viewer.refresh();
+
+            if host_snapshot.transport_state == "connected"
+                && viewer_snapshot.transport_state == "connected"
+            {
+                return (host_snapshot, viewer_snapshot);
+            }
+
+            assert!(
+                started.elapsed() < timeout,
+                "timed out waiting for host/viewer connection.\nhost={host_snapshot:#?}\nviewer={viewer_snapshot:#?}"
+            );
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    #[derive(Clone)]
+    struct TestParticipant {
+        role: Role,
+        addr: SocketAddr,
+        writer: Arc<Mutex<TcpStream>>,
+    }
+
+    #[derive(Clone)]
+    struct StoredSignal {
+        from_role: Role,
+        message: String,
+    }
+
+    #[derive(Default)]
+    struct TestRoom {
+        sender: Option<TestParticipant>,
+        receiver: Option<TestParticipant>,
+        signaling_history: Vec<StoredSignal>,
+    }
+
+    type SharedRooms = Arc<Mutex<HashMap<String, TestRoom>>>;
+
+    struct TestSignalingServer {
+        addr: String,
+        _accept_thread: thread::JoinHandle<()>,
+    }
+
+    impl TestSignalingServer {
+        fn spawn() -> Self {
+            let listener = TcpListener::bind("127.0.0.1:0").expect("bind test signaling server");
+            let addr = listener.local_addr().expect("listener addr").to_string();
+            let rooms = Arc::new(Mutex::new(HashMap::<String, TestRoom>::new()));
+            let accept_thread = thread::spawn(move || {
+                for stream in listener.incoming() {
+                    let Ok(stream) = stream else {
+                        break;
+                    };
+                    let rooms = Arc::clone(&rooms);
+                    thread::spawn(move || {
+                        handle_test_client(stream, rooms);
+                    });
+                }
+            });
+
+            Self {
+                addr,
+                _accept_thread: accept_thread,
+            }
+        }
+
+        fn addr(&self) -> String {
+            self.addr.clone()
+        }
+    }
+
+    fn handle_test_client(stream: TcpStream, rooms: SharedRooms) {
+        let peer_addr = stream.peer_addr().expect("peer addr");
+        let mut reader = BufReader::new(stream.try_clone().expect("clone stream"));
+        let mut first_line = String::new();
+        reader.read_line(&mut first_line).expect("read join request");
+        let request = parse_join_request(first_line.trim()).expect("valid join request");
+
+        let room_name = request.room.clone();
+        let participant = TestParticipant {
+            role: request.role,
+            addr: SocketAddr::new(peer_addr.ip(), request.udp_port),
+            writer: Arc::new(Mutex::new(stream)),
+        };
+        register_test_participant(&room_name, participant.clone(), &rooms);
+
+        loop {
+            let mut line = String::new();
+            let bytes = match reader.read_line(&mut line) {
+                Ok(bytes) => bytes,
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::ConnectionReset
+                            | std::io::ErrorKind::UnexpectedEof
+                            | std::io::ErrorKind::BrokenPipe
+                    ) =>
+                {
+                    unregister_test_participant(&room_name, participant.role, &rooms);
+                    return;
+                }
+                Err(error) => panic!("read signaling line: {error}"),
+            };
+            if bytes == 0 {
+                unregister_test_participant(&room_name, participant.role, &rooms);
+                return;
+            }
+
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            decode_signaling_message(trimmed).expect("valid signaling message");
+            relay_test_signaling_message(&room_name, participant.role, normalize_message(&line), &rooms);
+        }
+    }
+
+    fn register_test_participant(room_name: &str, participant: TestParticipant, rooms: &SharedRooms) {
+        let mut writes = Vec::new();
+        {
+            let mut rooms = rooms.lock().expect("rooms poisoned");
+            let room = rooms.entry(room_name.to_string()).or_default();
+            let slot = participant_slot(room, participant.role);
+            assert!(slot.is_none(), "role already occupied in room");
+            *slot = Some(participant.clone());
+
+            if let Some(opposite) = participant_for_role(room, participant.role.opposite()).cloned() {
+                writes.push((
+                    participant.writer.clone(),
+                    encode_peer(&PeerAnnouncement {
+                        role: opposite.role,
+                        addr: opposite.addr,
+                    }),
+                ));
+                writes.push((
+                    opposite.writer.clone(),
+                    encode_peer(&PeerAnnouncement {
+                        role: participant.role,
+                        addr: participant.addr,
+                    }),
+                ));
+
+                for stored in room
+                    .signaling_history
+                    .iter()
+                    .filter(|stored| stored.from_role == participant.role.opposite())
+                {
+                    writes.push((participant.writer.clone(), stored.message.clone()));
+                }
+            } else {
+                writes.push((participant.writer.clone(), encode_waiting()));
+            }
+        }
+
+        apply_test_writes(writes);
+    }
+
+    fn relay_test_signaling_message(
+        room_name: &str,
+        from_role: Role,
+        message: String,
+        rooms: &SharedRooms,
+    ) {
+        let mut writes = Vec::new();
+        {
+            let mut rooms = rooms.lock().expect("rooms poisoned");
+            let room = rooms.get_mut(room_name).expect("room must exist");
+            room.signaling_history.push(StoredSignal {
+                from_role,
+                message: message.clone(),
+            });
+
+            if let Some(participant) = participant_for_role(room, from_role.opposite()) {
+                writes.push((participant.writer.clone(), message));
+            }
+        }
+
+        apply_test_writes(writes);
+    }
+
+    fn unregister_test_participant(room_name: &str, role: Role, rooms: &SharedRooms) {
+        let mut rooms = rooms.lock().expect("rooms poisoned");
+        let Some(room) = rooms.get_mut(room_name) else {
+            return;
+        };
+
+        *participant_slot(room, role) = None;
+        room.signaling_history
+            .retain(|stored| stored.from_role != role);
+        if room.sender.is_none() && room.receiver.is_none() {
+            rooms.remove(room_name);
+        }
+    }
+
+    fn participant_slot(room: &mut TestRoom, role: Role) -> &mut Option<TestParticipant> {
+        match role {
+            Role::Sender => &mut room.sender,
+            Role::Receiver => &mut room.receiver,
+        }
+    }
+
+    fn participant_for_role(room: &TestRoom, role: Role) -> Option<&TestParticipant> {
+        match role {
+            Role::Sender => room.sender.as_ref(),
+            Role::Receiver => room.receiver.as_ref(),
+        }
+    }
+
+    fn apply_test_writes(writes: Vec<(Arc<Mutex<TcpStream>>, String)>) {
+        for (writer, message) in writes {
+            let mut writer = writer.lock().expect("writer poisoned");
+            writer
+                .write_all(message.as_bytes())
+                .expect("write signaling message");
+            writer.flush().expect("flush signaling message");
+        }
+    }
+
+    fn normalize_message(message: &str) -> String {
+        if message.ends_with('\n') {
+            message.to_string()
+        } else {
+            format!("{message}\n")
+        }
     }
 }

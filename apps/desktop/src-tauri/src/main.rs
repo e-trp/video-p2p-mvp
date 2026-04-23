@@ -29,6 +29,9 @@ struct SessionView {
     local_description_kind: Option<String>,
     remote_description_ready: bool,
     remote_description_kind: Option<String>,
+    local_media_track_count: usize,
+    local_video_track_attached: bool,
+    local_audio_track_attached: bool,
     local_offer_ready: bool,
     remote_answer_ready: bool,
     local_candidate_count: usize,
@@ -51,8 +54,8 @@ fn project_status(state: tauri::State<'_, Mutex<SessionManager>>) -> ProjectStat
         stage: format_session_stage(snapshot.stage).to_string(),
         gui: "tauri shell wired",
         transport: format_session_transport(snapshot.transport).to_string(),
-        capture_macos: "planned via ScreenCaptureKit bridge",
-        capture_linux: "planned via Portal + PipeWire",
+        capture_macos: "planned via ScreenCaptureKit bridge; host tracks are attached",
+        capture_linux: "planned via Portal + PipeWire; host tracks are attached",
     }
 }
 
@@ -290,6 +293,9 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         local_description_kind: snapshot.local_description_kind,
         remote_description_ready: snapshot.remote_description_ready,
         remote_description_kind: snapshot.remote_description_kind,
+        local_media_track_count: snapshot.local_media_track_count,
+        local_video_track_attached: snapshot.local_video_track_attached,
+        local_audio_track_attached: snapshot.local_audio_track_attached,
         local_offer_ready: snapshot.local_offer_ready,
         remote_answer_ready: snapshot.remote_answer_ready,
         local_candidate_count: snapshot.local_candidate_count,
