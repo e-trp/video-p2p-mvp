@@ -38,6 +38,8 @@ function setSession(session) {
     <div><dt>Media Tracks</dt><dd>${session.local_media_track_count ?? 0}</dd></div>
     <div><dt>Video Track</dt><dd>${String(session.local_video_track_attached)}</dd></div>
     <div><dt>Audio Track</dt><dd>${String(session.local_audio_track_attached)}</dd></div>
+    <div><dt>Video Samples</dt><dd>${session.published_video_sample_count ?? 0} / ${session.last_video_sample_bytes ?? 0}B</dd></div>
+    <div><dt>Audio Samples</dt><dd>${session.published_audio_sample_count ?? 0} / ${session.last_audio_sample_bytes ?? 0}B</dd></div>
     <div><dt>Local Desc</dt><dd>${session.local_description_kind ?? "n/a"} / ${String(session.local_description_ready)}</dd></div>
     <div><dt>Remote Desc</dt><dd>${session.remote_description_kind ?? "n/a"} / ${String(session.remote_description_ready)}</dd></div>
     <div><dt>Local ICE</dt><dd>${session.local_candidate_count ?? 0}</dd></div>
@@ -94,6 +96,8 @@ async function refresh() {
       <div><dt>Media Tracks</dt><dd>0</dd></div>
       <div><dt>Video Track</dt><dd>false</dd></div>
       <div><dt>Audio Track</dt><dd>false</dd></div>
+      <div><dt>Video Samples</dt><dd>0 / 0B</dd></div>
+      <div><dt>Audio Samples</dt><dd>0 / 0B</dd></div>
       <div><dt>Local Desc</dt><dd>n/a / false</dd></div>
       <div><dt>Remote Desc</dt><dd>n/a / false</dd></div>
       <div><dt>Local ICE</dt><dd>0</dd></div>
@@ -155,6 +159,10 @@ async function load() {
 
   document.getElementById("offer-btn").addEventListener("click", async () => {
     await runCommand("create_local_offer");
+  });
+
+  document.getElementById("publish-media-btn").addEventListener("click", async () => {
+    await runCommand("publish_placeholder_media");
   });
 
   document.getElementById("answer-btn").addEventListener("click", async () => {

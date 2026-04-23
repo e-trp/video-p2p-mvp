@@ -1,5 +1,6 @@
 use crate::protocol::{IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage};
 use crate::signaling::{SignalingConnection, SignalingEvent};
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use transport_webrtc::{
     DescriptionKind, TransportSession, WebRtcConfig, WebRtcSignal,
@@ -56,6 +57,10 @@ pub struct SessionSnapshot {
     pub local_media_track_count: usize,
     pub local_video_track_attached: bool,
     pub local_audio_track_attached: bool,
+    pub published_video_sample_count: usize,
+    pub published_audio_sample_count: usize,
+    pub last_video_sample_bytes: usize,
+    pub last_audio_sample_bytes: usize,
     pub local_offer_ready: bool,
     pub remote_answer_ready: bool,
     pub local_candidate_count: usize,
@@ -250,6 +255,35 @@ impl SessionManager {
         self.snapshot()
     }
 
+    pub fn publish_placeholder_media(&mut self) -> SessionSnapshot {
+        if let Some(webrtc) = self.state.webrtc.as_mut() {
+            let video = webrtc.publish_video_sample(
+                vec![0x90, 0x90, 0x90, 0x01],
+                Duration::from_millis(33),
+            );
+            let audio =
+                webrtc.publish_audio_sample(vec![0xF8, 0xFF, 0xFE, 0x00], Duration::from_millis(20));
+
+            match (video, audio) {
+                (Ok(()), Ok(())) => {
+                    self.push_log("placeholder audio/video samples published to local tracks".to_string());
+                }
+                (video_result, audio_result) => {
+                    if let Err(error) = video_result {
+                        self.push_log(format!("failed to publish placeholder video sample: {error}"));
+                    }
+                    if let Err(error) = audio_result {
+                        self.push_log(format!("failed to publish placeholder audio sample: {error}"));
+                    }
+                }
+            }
+        } else {
+            self.push_log("cannot publish media before session is configured".to_string());
+        }
+
+        self.snapshot()
+    }
+
     pub fn stop(&mut self) -> SessionSnapshot {
         if let Some(webrtc) = self.state.webrtc.as_mut() {
             if let Err(error) = webrtc.close() {
@@ -329,6 +363,22 @@ impl SessionManager {
                 .as_ref()
                 .map(|snapshot| snapshot.local_audio_track_attached)
                 .unwrap_or(false),
+            published_video_sample_count: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.published_video_sample_count)
+                .unwrap_or(0),
+            published_audio_sample_count: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.published_audio_sample_count)
+                .unwrap_or(0),
+            last_video_sample_bytes: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.last_video_sample_bytes)
+                .unwrap_or(0),
+            last_audio_sample_bytes: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.last_audio_sample_bytes)
+                .unwrap_or(0),
             local_offer_ready: transport_snapshot
                 .as_ref()
                 .map(|snapshot| snapshot.local_description_kind == Some(DescriptionKind::Offer))
@@ -588,7 +638,7 @@ impl SessionManager {
             (_, _, SessionTransport::MockUdp) => "legacy mock UDP mode is still available for media scaffold work",
             (_, SessionStage::Stopped, _) => "restart or reset session",
             (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
-                "peer connection is live; next step is feeding capture samples into the attached tracks"
+                "peer connection is live; feed capture samples into the attached tracks or push placeholder samples for transport smoke testing"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc) if !self.state.signaling_connected => {
                 "start signaling server or fix the signaling address"
@@ -714,6 +764,22 @@ mod tests {
 
         assert_eq!(snapshot.stage, SessionStage::Stopped);
         assert!(snapshot.logs.iter().any(|line| line.contains("session stopped")));
+    }
+
+    #[test]
+    fn host_session_can_publish_placeholder_media() {
+        let mut manager = SessionManager::new();
+        manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: Some("vlc".to_string()),
+        });
+
+        let snapshot = manager.publish_placeholder_media();
+        assert_eq!(snapshot.published_video_sample_count, 1);
+        assert_eq!(snapshot.published_audio_sample_count, 1);
+        assert_eq!(snapshot.last_video_sample_bytes, 4);
+        assert_eq!(snapshot.last_audio_sample_bytes, 4);
     }
 
     #[test]

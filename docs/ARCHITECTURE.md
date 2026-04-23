@@ -67,6 +67,7 @@ Cross-platform abstraction:
 
 - peer connection lifecycle
 - audio/video track publishing
+- encoded sample injection into attached local tracks
 - ICE candidate exchange
 - statistics and reconnect handling
 
@@ -95,4 +96,4 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - signaling history replay for a late-joining peer in the same room
 - a live signaling client in `app-core` used by CLI and Tauri session flow
 - a real `PeerConnection` bootstrap path with attached placeholder audio/video tracks, connection-state snapshots, and ICE gathering
-- Tauri commands and session snapshots that surface local media-track state in the GUI
+- Tauri commands and session snapshots that surface local media-track state and placeholder sample publish counters in the GUI

@@ -32,6 +32,10 @@ struct SessionView {
     local_media_track_count: usize,
     local_video_track_attached: bool,
     local_audio_track_attached: bool,
+    published_video_sample_count: usize,
+    published_audio_sample_count: usize,
+    last_video_sample_bytes: usize,
+    last_audio_sample_bytes: usize,
     local_offer_ready: bool,
     remote_answer_ready: bool,
     local_candidate_count: usize,
@@ -175,6 +179,20 @@ fn create_local_offer(state: tauri::State<'_, Mutex<SessionManager>>) -> Command
 }
 
 #[tauri::command]
+fn publish_placeholder_media(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+    let snapshot = state
+        .lock()
+        .expect("session state poisoned")
+        .publish_placeholder_media();
+
+    CommandResult {
+        ok: true,
+        message: "placeholder media samples published".to_string(),
+        session: map_snapshot(snapshot),
+    }
+}
+
+#[tauri::command]
 fn accept_remote_answer(
     sdp: String,
     state: tauri::State<'_, Mutex<SessionManager>>,
@@ -265,6 +283,7 @@ fn main() {
             mark_mock_streaming,
             mark_webrtc_planned,
             create_local_offer,
+            publish_placeholder_media,
             accept_remote_answer,
             add_remote_ice_candidate,
             stop_session,
@@ -296,6 +315,10 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         local_media_track_count: snapshot.local_media_track_count,
         local_video_track_attached: snapshot.local_video_track_attached,
         local_audio_track_attached: snapshot.local_audio_track_attached,
+        published_video_sample_count: snapshot.published_video_sample_count,
+        published_audio_sample_count: snapshot.published_audio_sample_count,
+        last_video_sample_bytes: snapshot.last_video_sample_bytes,
+        last_audio_sample_bytes: snapshot.last_audio_sample_bytes,
         local_offer_ready: snapshot.local_offer_ready,
         remote_answer_ready: snapshot.remote_answer_ready,
         local_candidate_count: snapshot.local_candidate_count,

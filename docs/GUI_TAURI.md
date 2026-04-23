@@ -25,6 +25,7 @@ The backend around the GUI has moved one step forward:
 - stored signaling messages are replayed to a late joiner in the same room
 - the GUI now refreshes through a live signaling path and a real `PeerConnection`
 - host-side placeholder audio/video tracks are attached before offer creation and shown in the session snapshot
+- a debug command can now push placeholder audio/video samples into those attached tracks
 - manual answer/ICE text fields remain only as debugging controls
 
 ## Intended GUI Responsibilities
@@ -65,13 +66,14 @@ The current Tauri UI is wired to the session manager and supports:
 - preparing host or viewer session states with a live signaling connection
 - switching to mock streaming or live WebRTC transport stages
 - creating and sending a local offer
+- publishing placeholder audio/video samples into the attached host tracks
 - polling signaling through repeated snapshot refresh
 - auto-applying remote offer/answer/ICE during refresh
 - accepting a remote answer
 - adding a remote ICE candidate
 - stopping or resetting a session
 - viewing current session status and next action
-- viewing transport connection state, local audio/video track attachment, local/remote description kind, and ICE counters
+- viewing transport connection state, local audio/video track attachment, sample counters, local/remote description kind, and ICE counters
 - viewing and clearing the rolling session log
 
 ## Important Note

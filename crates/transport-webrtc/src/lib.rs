@@ -1,7 +1,10 @@
+use bytes::Bytes;
 use interceptor::registry::Registry;
+use media::Sample;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::runtime::Runtime;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
@@ -94,6 +97,10 @@ pub struct TransportSnapshot {
     pub local_media_track_count: usize,
     pub local_video_track_attached: bool,
     pub local_audio_track_attached: bool,
+    pub published_video_sample_count: usize,
+    pub published_audio_sample_count: usize,
+    pub last_video_sample_bytes: usize,
+    pub last_audio_sample_bytes: usize,
     pub local_data_channel_ready: bool,
     pub stats_report_count: usize,
     pub notes: Vec<String>,
@@ -108,6 +115,10 @@ struct SharedState {
     local_candidates: Vec<WebRtcSignal>,
     remote_candidate_count: usize,
     local_data_channel_ready: bool,
+    published_video_sample_count: usize,
+    published_audio_sample_count: usize,
+    last_video_sample_bytes: usize,
+    last_audio_sample_bytes: usize,
     stats_report_count: usize,
 }
 
@@ -302,6 +313,56 @@ impl TransportSession {
         shared.local_candidates.drain(..).collect()
     }
 
+    pub fn publish_video_sample(
+        &mut self,
+        data: Vec<u8>,
+        duration: Duration,
+    ) -> TransportResult<()> {
+        let track = self
+            .local_media_tracks
+            .as_ref()
+            .map(|tracks| Arc::clone(&tracks.video))
+            .ok_or_else(|| TransportError("video track is not attached for this role".to_string()))?;
+        let sample_len = data.len();
+        self.runtime
+            .block_on(track.write_sample(&Sample {
+                data: Bytes::from(data),
+                duration,
+                ..Default::default()
+            }))
+            .map_err(map_webrtc_error)?;
+
+        let mut shared = self.shared.lock().expect("transport shared state poisoned");
+        shared.published_video_sample_count += 1;
+        shared.last_video_sample_bytes = sample_len;
+        Ok(())
+    }
+
+    pub fn publish_audio_sample(
+        &mut self,
+        data: Vec<u8>,
+        duration: Duration,
+    ) -> TransportResult<()> {
+        let track = self
+            .local_media_tracks
+            .as_ref()
+            .map(|tracks| Arc::clone(&tracks.audio))
+            .ok_or_else(|| TransportError("audio track is not attached for this role".to_string()))?;
+        let sample_len = data.len();
+        self.runtime
+            .block_on(track.write_sample(&Sample {
+                data: Bytes::from(data),
+                duration,
+                ..Default::default()
+            }))
+            .map_err(map_webrtc_error)?;
+
+        let mut shared = self.shared.lock().expect("transport shared state poisoned");
+        shared.published_audio_sample_count += 1;
+        shared.last_audio_sample_bytes = sample_len;
+        Ok(())
+    }
+
     pub fn snapshot(&self) -> TransportSnapshot {
         let stats_report_count = self
             .runtime
@@ -334,6 +395,13 @@ impl TransportSession {
                 "local media tracks attached: video={} audio={}",
                 local_video_track_attached, local_audio_track_attached
             ));
+            notes.push(format!(
+                "published samples: video={} (last={}B) audio={} (last={}B)",
+                shared.published_video_sample_count,
+                shared.last_video_sample_bytes,
+                shared.published_audio_sample_count,
+                shared.last_audio_sample_bytes
+            ));
         } else {
             notes.push("local media tracks not attached for this role".to_string());
         }
@@ -353,6 +421,10 @@ impl TransportSession {
             local_media_track_count,
             local_video_track_attached,
             local_audio_track_attached,
+            published_video_sample_count: shared.published_video_sample_count,
+            published_audio_sample_count: shared.published_audio_sample_count,
+            last_video_sample_bytes: shared.last_video_sample_bytes,
+            last_audio_sample_bytes: shared.last_audio_sample_bytes,
             local_data_channel_ready: shared.local_data_channel_ready,
             stats_report_count: shared.stats_report_count,
             notes,
@@ -506,6 +578,7 @@ impl From<RTCSdpType> for DescriptionKind {
 #[cfg(test)]
 mod tests {
     use super::{TransportSession, WebRtcConfig};
+    use std::time::Duration;
 
     #[test]
     fn host_role_attaches_placeholder_audio_and_video_tracks() {
@@ -537,5 +610,29 @@ mod tests {
         assert_eq!(snapshot.local_media_track_count, 0);
         assert!(!snapshot.local_video_track_attached);
         assert!(!snapshot.local_audio_track_attached);
+    }
+
+    #[test]
+    fn host_role_can_publish_placeholder_audio_and_video_samples() {
+        let mut session = TransportSession::new(WebRtcConfig {
+            room: "demo".to_string(),
+            role: "host".to_string(),
+            signaling_url: "127.0.0.1:7000".to_string(),
+            ice_servers: Vec::new(),
+        })
+        .expect("host transport session");
+
+        session
+            .publish_video_sample(vec![0x11, 0x22, 0x33], Duration::from_millis(33))
+            .expect("publish video sample");
+        session
+            .publish_audio_sample(vec![0x44, 0x55], Duration::from_millis(20))
+            .expect("publish audio sample");
+
+        let snapshot = session.snapshot();
+        assert_eq!(snapshot.published_video_sample_count, 1);
+        assert_eq!(snapshot.published_audio_sample_count, 1);
+        assert_eq!(snapshot.last_video_sample_bytes, 3);
+        assert_eq!(snapshot.last_audio_sample_bytes, 2);
     }
 }

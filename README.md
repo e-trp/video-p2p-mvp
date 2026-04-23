@@ -68,6 +68,7 @@ It now exposes commands for:
 - reading project and session status
 - preparing host and viewer sessions against the live signaling server
 - creating and sending a local SDP offer
+- publishing placeholder audio/video samples into the attached host tracks for smoke testing
 - polling signaling and auto-applying remote offer/answer/ICE state
 - accepting manual remote SDP answer state for debugging
 - adding manual remote ICE candidate state for debugging
@@ -100,10 +101,11 @@ What changed relative to the earlier scaffold:
 - CLI now has `webrtc-host` and `webrtc-viewer` commands for real negotiation
 - `transport-webrtc` now wraps a real `PeerConnection` with attached placeholder audio/video tracks, ICE gathering, and connection-state snapshots
 - session snapshots and the Tauri UI now expose local media-track attachment state
+- session manager and transport now expose placeholder media-sample publishing state
 
 ## Recommended Next Build Steps
 
-1. Feed captured samples into the attached host media tracks.
+1. Replace placeholder media samples with real captured audio/video input.
 2. Add `capture-macos` using ScreenCaptureKit.
 3. Replace the remaining manual/debug signaling fields in the Tauri GUI with production UX.
 4. Add Linux Wayland capture via Portal + PipeWire.

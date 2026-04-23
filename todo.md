@@ -6,7 +6,7 @@
    Current state: done for bootstrap negotiation; a real `PeerConnection` and data channel are created in `transport-webrtc`.
 2. Map session-facing APIs onto actual transport actions:
    `create_offer`, `accept_answer`, `add_ice_candidate`, `connection_state`, `stats`.
-   Current state: done for offer/answer/ICE and connection-state snapshots; placeholder host audio/video tracks are attached, while media sample publishing APIs are still pending.
+   Current state: done for offer/answer/ICE, connection-state snapshots, and placeholder media sample publishing into attached host audio/video tracks.
 3. Replace mock UDP and placeholder WebRTC transitions with real transport state transitions.
    Current state: session manager, CLI, and Tauri now use live signaling and transport negotiation; mock UDP still exists as a separate legacy media scaffold.
 4. Wire the signaling server to exchange SDP/ICE instead of only room pairing.
@@ -21,6 +21,7 @@
 - Done in part: CLI and Tauri integration with the live signaling path
 - Done in part: integration-style coverage for late-join signaling replay and host/viewer WebRTC negotiation in `app-core`
 - Done in part: host-side placeholder audio/video tracks are attached to the `PeerConnection`
+- Done in part: session-facing placeholder sample publishing now exists above the transport
 - Still open: feeding real captured samples into the attached tracks and retiring the bootstrap-only path
 
 ## Iteration 2: macOS Capture Backend
