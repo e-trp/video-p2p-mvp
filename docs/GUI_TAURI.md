@@ -29,6 +29,7 @@ The backend around the GUI has moved one step forward:
 - a debug command can now push placeholder audio/video samples into those attached tracks
 - the GUI now shows a platform capture catalog and allows selecting a source in-session
 - host startup now defaults to the first available capture source when the user has not selected one explicitly
+- capture picker and audio-toggle changes now apply immediately without a separate confirmation button
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
 - manual answer/ICE text fields remain only as debugging controls under an explicit debug section
 
@@ -67,6 +68,7 @@ The current Tauri UI is wired to the session manager and supports:
 
 - editing room and signaling fields
 - selecting a platform blueprint source and audio preference
+- applying capture-source changes immediately from the picker state
 - saving session configuration
 - preparing host or viewer session states with a live signaling connection
 - switching to mock streaming or live WebRTC transport stages

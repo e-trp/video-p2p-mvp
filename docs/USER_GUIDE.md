@@ -62,9 +62,9 @@ This launches the desktop shell from `apps/desktop`.
 
 - `Available Source`: current platform blueprint source list
 - `Include Audio`: stores whether the chosen source should include audio when capture is wired for real
-- `Use Source`: selects the source and updates the host-side capture selection explicitly
+- changing the picker or audio toggle applies the host-side capture selection immediately
 
-If you do not press `Use Source` before starting a host session, the first available source is selected automatically.
+If you never touch the picker before starting a host session, the first available source is selected automatically.
 
 Today this picker is backed by example sources from the platform blueprint crates:
 

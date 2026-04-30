@@ -52,7 +52,7 @@
 
         <article class="card">
           <h2>Capture Source</h2>
-          <p class="hint">The current picker uses platform-specific blueprint sources through `capture-core`. If you start a host session without choosing one explicitly, the first available source is used by default.</p>
+          <p class="hint">The current picker uses platform-specific blueprint sources through `capture-core`. Changes apply immediately, and a host session falls back to the first available source if you never choose one explicitly.</p>
           <form class="form">
             <label>
               <span>Available Source</span>
@@ -62,9 +62,6 @@
               <input id="source-audio" type="checkbox" checked />
               <span>Include Audio</span>
             </label>
-            <div class="actions">
-              <button type="button" id="source-select-btn">Use Source</button>
-            </div>
           </form>
           <dl id="capture-catalog">
             <div><dt>Backend</dt><dd>loading...</dd></div>

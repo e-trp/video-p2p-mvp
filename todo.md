@@ -64,6 +64,7 @@
 - Done in part: GUI now surfaces transport-stage, data-channel, and transport-note diagnostics from the live WebRTC layer
 - Done in part: host session flow now auto-creates and sends its first local offer once signaling is connected
 - Done in part: host session flow now defaults to the first available capture source when none was selected explicitly
+- Done in part: capture-source picker changes now apply immediately without a separate confirmation button
 - Still open: replace blueprint sources with real OS enumeration and remove the remaining debug-only signaling controls
 
 ## Iteration 5: Audio/Video Pipeline Hardening

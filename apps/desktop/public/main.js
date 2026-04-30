@@ -49,7 +49,6 @@ function setCaptureCatalog(catalog) {
 
   syncCaptureAudioState(catalog);
   picker.disabled = catalog.sources.length === 0;
-  document.getElementById("source-select-btn").disabled = catalog.sources.length === 0;
 }
 
 function syncCaptureAudioState(catalog) {
@@ -184,7 +183,6 @@ async function refresh() {
     `;
     document.getElementById("source-picker").innerHTML = "";
     document.getElementById("source-picker").disabled = true;
-    document.getElementById("source-select-btn").disabled = true;
   }
 }
 
@@ -202,6 +200,21 @@ async function runCommand(command, args = {}) {
   if (status) {
     setStatus(status);
   }
+}
+
+async function applySelectedSource() {
+  if (!isTauri) {
+    return;
+  }
+
+  const source_id = document.getElementById("source-picker").value;
+  const include_audio = document.getElementById("source-audio").checked;
+  if (!source_id) {
+    return;
+  }
+
+  await runCommand("select_capture_source", { source_id, include_audio });
+  await refresh();
 }
 
 async function load() {
@@ -226,19 +239,15 @@ async function load() {
     await runCommand("join_room", { room, signaling_addr });
   });
 
-  document.getElementById("source-select-btn").addEventListener("click", async () => {
-    const source_id = document.getElementById("source-picker").value;
-    const include_audio = document.getElementById("source-audio").checked;
-    await runCommand("select_capture_source", { source_id, include_audio });
-    await refresh();
-  });
-
   document.getElementById("source-picker").addEventListener("change", async () => {
     const catalog = await invoke("capture_catalog");
     if (catalog) {
       syncCaptureAudioState(catalog);
     }
+    await applySelectedSource();
   });
+
+  document.getElementById("source-audio").addEventListener("change", applySelectedSource);
 
   document.getElementById("mock-btn").addEventListener("click", async () => {
     await runCommand("mark_mock_streaming", { peer: "pending-direct-peer" });
