@@ -31,10 +31,6 @@
               <span>Signaling</span>
               <input id="signaling" name="signaling" value="127.0.0.1:7000" />
             </label>
-            <label>
-              <span>Source Label</span>
-              <input id="source" name="source" value="window selection pending" />
-            </label>
             <div class="actions">
               <button type="button" id="save-btn" class="secondary">Save Config</button>
               <button type="button" id="host-btn">Prepare Host</button>
@@ -56,7 +52,7 @@
 
         <article class="card">
           <h2>Capture Source</h2>
-          <p class="hint">The current picker uses platform-specific blueprint sources through `capture-core`. It is the contract that the future native bridge will fill with real OS data.</p>
+          <p class="hint">The current picker uses platform-specific blueprint sources through `capture-core`. If you start a host session without choosing one explicitly, the first available source is used by default.</p>
           <form class="form">
             <label>
               <span>Available Source</span>

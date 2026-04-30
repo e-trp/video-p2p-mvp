@@ -133,6 +133,7 @@ impl SessionManager {
     }
 
     pub fn start_host(&mut self, intent: SessionIntent) -> SessionSnapshot {
+        self.ensure_default_host_capture_selection();
         let selected_source_label = selected_source_label(
             &self.state.capture_catalog,
             self.state.capture_selection.as_ref(),
@@ -523,6 +524,26 @@ impl SessionManager {
         }
     }
 
+    fn ensure_default_host_capture_selection(&mut self) {
+        if self.state.capture_selection.is_some() {
+            return;
+        }
+
+        let Some(source) = self.state.capture_catalog.sources.first().cloned() else {
+            return;
+        };
+
+        let include_audio = source.has_audio;
+        self.state.capture_selection = Some(CaptureSelection {
+            source_id: source.id.clone(),
+            include_audio,
+        });
+        self.push_log(format!(
+            "default capture source selected for host: id={} include_audio={}",
+            source.id, include_audio
+        ));
+    }
+
     fn ensure_host_offer(&mut self, success_message: &str) {
         if self.state.mode != SessionMode::Host || !self.state.signaling_connected {
             return;
@@ -910,6 +931,33 @@ mod tests {
         assert!(snapshot.local_video_track_attached);
         assert!(snapshot.local_audio_track_attached);
         assert!(snapshot.transport_state == "new" || snapshot.transport_state == "not_initialized");
+    }
+
+    #[test]
+    fn host_start_auto_selects_default_capture_source_when_none_chosen() {
+        let mut manager = SessionManager::new();
+        let first_source = manager
+            .capture_catalog()
+            .sources
+            .first()
+            .cloned()
+            .expect("at least one source");
+
+        let snapshot = manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: None,
+        });
+
+        assert_eq!(
+            snapshot.selected_source_id.as_deref(),
+            Some(first_source.id.as_str())
+        );
+        assert_eq!(snapshot.selected_source_audio, first_source.has_audio);
+        assert_eq!(snapshot.source_label.as_deref(), Some(first_source.label().as_str()));
+        assert!(snapshot.logs.iter().any(|line| line.contains(
+            "default capture source selected for host"
+        )));
     }
 
     #[test]

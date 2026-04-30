@@ -105,15 +105,12 @@ function setSession(session) {
   document.getElementById("room").value = session.room ?? document.getElementById("room").value;
   document.getElementById("signaling").value =
     session.signaling_addr ?? document.getElementById("signaling").value;
-  document.getElementById("source").value =
-    session.source_label ?? document.getElementById("source").value;
 }
 
 function formValues() {
   return {
     room: document.getElementById("room").value.trim(),
     signaling_addr: document.getElementById("signaling").value.trim(),
-    source_label: document.getElementById("source").value.trim() || null,
   };
 }
 

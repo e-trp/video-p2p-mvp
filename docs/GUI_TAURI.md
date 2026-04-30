@@ -28,6 +28,7 @@ The backend around the GUI has moved one step forward:
 - host preparation now auto-creates and sends the first local SDP offer once signaling is connected
 - a debug command can now push placeholder audio/video samples into those attached tracks
 - the GUI now shows a platform capture catalog and allows selecting a source in-session
+- host startup now defaults to the first available capture source when the user has not selected one explicitly
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
 - manual answer/ICE text fields remain only as debugging controls under an explicit debug section
 
@@ -64,7 +65,7 @@ This gives the Tauri shell a stable API before the real transport and capture la
 
 The current Tauri UI is wired to the session manager and supports:
 
-- editing room, signaling, and source label fields
+- editing room and signaling fields
 - selecting a platform blueprint source and audio preference
 - saving session configuration
 - preparing host or viewer session states with a live signaling connection

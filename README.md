@@ -69,6 +69,7 @@ It now exposes commands for:
 
 - reading project and session status
 - listing current capture sources and selecting one in-session
+- defaulting the host session to the first available capture source when none was selected explicitly
 - preparing host and viewer sessions against the live signaling server
 - auto-creating and sending the first local SDP offer from the host once signaling is connected
 - publishing placeholder audio/video samples into the attached host tracks for smoke testing
