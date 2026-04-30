@@ -199,6 +199,21 @@ button.ghost {
   color: var(--muted);
 }
 
+.debug-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.debug-panel summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -261,6 +276,10 @@ pre {
   font-family: "SFMono-Regular", "Menlo", monospace;
   font-size: 0.88rem;
   line-height: 1.4;
+}
+
+#transport-notes {
+  min-height: 180px;
 }
 
 @media (max-width: 800px) {

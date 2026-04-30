@@ -27,7 +27,8 @@ The backend around the GUI has moved one step forward:
 - host-side placeholder audio/video tracks are attached before offer creation and shown in the session snapshot
 - a debug command can now push placeholder audio/video samples into those attached tracks
 - the GUI now shows a platform capture catalog and allows selecting a source in-session
-- manual answer/ICE text fields remain only as debugging controls
+- transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
+- manual answer/ICE text fields remain only as debugging controls under an explicit debug section
 
 ## Intended GUI Responsibilities
 
@@ -75,7 +76,7 @@ The current Tauri UI is wired to the session manager and supports:
 - adding a remote ICE candidate
 - stopping or resetting a session
 - viewing current session status and next action
-- viewing transport connection state, local audio/video track attachment, sample counters, local/remote description kind, and ICE counters
+- viewing transport connection state, transport stage, bootstrap data-channel readiness, transport notes, local audio/video track attachment, sample counters, local/remote description kind, and ICE counters
 - viewing and clearing the rolling session log
 
 ## Important Note

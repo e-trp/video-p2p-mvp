@@ -73,6 +73,7 @@ It now exposes commands for:
 - creating and sending a local SDP offer
 - publishing placeholder audio/video samples into the attached host tracks for smoke testing
 - polling signaling and auto-applying remote offer/answer/ICE state
+- surfacing live transport diagnostics from the `PeerConnection` snapshot
 - accepting manual remote SDP answer state for debugging
 - adding manual remote ICE candidate state for debugging
 - stopping a session
@@ -106,6 +107,7 @@ What changed relative to the earlier scaffold:
 - `transport-webrtc` now wraps a real `PeerConnection` with attached placeholder audio/video tracks, ICE gathering, and connection-state snapshots
 - session snapshots and the Tauri UI now expose local media-track attachment state
 - session manager and transport now expose placeholder media-sample publishing state
+- session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
 - the Tauri shell now exposes capture backend, permission state, and source selection from `app-core`
 

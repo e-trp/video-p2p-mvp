@@ -39,12 +39,18 @@
               <button type="button" id="save-btn" class="secondary">Save Config</button>
               <button type="button" id="host-btn">Prepare Host</button>
               <button type="button" id="join-btn" class="secondary">Prepare Viewer</button>
-              <button type="button" id="mock-btn" class="secondary">Mock Streaming</button>
-              <button type="button" id="webrtc-btn" class="secondary">Arm WebRTC</button>
               <button type="button" id="stop-btn" class="ghost">Stop</button>
               <button type="button" id="reset-btn" class="ghost">Reset</button>
             </div>
           </form>
+          <details class="debug-panel">
+            <summary>Debug Controls</summary>
+            <p class="hint">These controls keep the old mock/manual path available while the production capture pipeline is still being wired.</p>
+            <div class="actions">
+              <button type="button" id="mock-btn" class="secondary">Mock Streaming</button>
+              <button type="button" id="webrtc-btn" class="secondary">Arm WebRTC</button>
+            </div>
+          </details>
           <p id="command-result" class="result">No command executed yet.</p>
         </article>
 
@@ -72,8 +78,19 @@
         </article>
 
         <article class="card">
-          <h2>WebRTC Signaling</h2>
-          <p class="hint">Offer/answer now flows automatically through the signaling server on refresh. The manual fields below remain as a debugging escape hatch.</p>
+          <h2>Transport Diagnostics</h2>
+          <p class="hint">This panel surfaces the current peer-connection stage, bootstrap data channel state, and transport-side notes from the Rust WebRTC layer.</p>
+          <dl id="transport-diagnostics">
+            <div><dt>Transport Stage</dt><dd>loading...</dd></div>
+            <div><dt>Data Channel</dt><dd>loading...</dd></div>
+            <div><dt>Stats Reports</dt><dd>loading...</dd></div>
+          </dl>
+          <pre id="transport-notes">loading...</pre>
+        </article>
+
+        <article class="card">
+          <h2>WebRTC Debug Signaling</h2>
+          <p class="hint">Offer/answer and ICE already flow automatically through the signaling server during refresh. The controls below remain only as a manual escape hatch.</p>
           <form class="form">
             <label>
               <span>Remote Answer SDP</span>
@@ -128,9 +145,12 @@ s=answer</textarea>
             <div><dt>Permission</dt><dd>loading...</dd></div>
             <div><dt>Peer</dt><dd>loading...</dd></div>
             <div><dt>Transport State</dt><dd>loading...</dd></div>
+            <div><dt>Transport Stage</dt><dd>loading...</dd></div>
             <div><dt>Media Tracks</dt><dd>loading...</dd></div>
             <div><dt>Video Track</dt><dd>loading...</dd></div>
             <div><dt>Audio Track</dt><dd>loading...</dd></div>
+            <div><dt>Data Channel</dt><dd>loading...</dd></div>
+            <div><dt>Stats Reports</dt><dd>loading...</dd></div>
             <div><dt>Video Samples</dt><dd>loading...</dd></div>
             <div><dt>Audio Samples</dt><dd>loading...</dd></div>
             <div><dt>Local Desc</dt><dd>loading...</dd></div>

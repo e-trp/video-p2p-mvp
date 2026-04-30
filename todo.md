@@ -61,6 +61,7 @@
 
 - Done in part: GUI session actions already drive real signaling, negotiation, and placeholder media publishing
 - Done in part: source picker UI now exists, backed by the current platform capture catalog blueprint data
+- Done in part: GUI now surfaces transport-stage, data-channel, and transport-note diagnostics from the live WebRTC layer
 - Still open: replace blueprint sources with real OS enumeration and remove the remaining debug-only signaling controls
 
 ## Iteration 5: Audio/Video Pipeline Hardening

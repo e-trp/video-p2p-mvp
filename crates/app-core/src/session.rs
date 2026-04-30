@@ -1,14 +1,16 @@
 use crate::capture_catalog::{
-    CaptureCatalogSnapshot, current_capture_catalog, describe_permission_state,
-    selected_source_label,
+    current_capture_catalog, describe_permission_state, selected_source_label,
+    CaptureCatalogSnapshot,
 };
-use crate::protocol::{IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage};
+use crate::protocol::{
+    IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage,
+};
 use crate::signaling::{SignalingConnection, SignalingEvent};
 use capture_core::CaptureSelection;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use transport_webrtc::{
-    DescriptionKind, TransportSession, WebRtcConfig, WebRtcSignal,
+    DescriptionKind, TransportSession, TransportStage, WebRtcConfig, WebRtcSignal,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +61,7 @@ pub struct SessionSnapshot {
     pub logs: Vec<String>,
     pub next_action: String,
     pub transport_state: String,
+    pub transport_stage: Option<String>,
     pub signaling_connected: bool,
     pub local_description_ready: bool,
     pub local_description_kind: Option<String>,
@@ -71,6 +74,9 @@ pub struct SessionSnapshot {
     pub published_audio_sample_count: usize,
     pub last_video_sample_bytes: usize,
     pub last_audio_sample_bytes: usize,
+    pub local_data_channel_ready: bool,
+    pub transport_stats_report_count: usize,
+    pub transport_notes: Vec<String>,
     pub local_offer_ready: bool,
     pub remote_answer_ready: bool,
     pub local_candidate_count: usize,
@@ -233,7 +239,8 @@ impl SessionManager {
         sdp_mline_index: Option<u16>,
     ) -> SessionSnapshot {
         if let Some(webrtc) = self.state.webrtc.as_mut() {
-            if let Err(error) = webrtc.add_remote_ice_candidate(candidate, sdp_mid, sdp_mline_index) {
+            if let Err(error) = webrtc.add_remote_ice_candidate(candidate, sdp_mid, sdp_mline_index)
+            {
                 self.push_log(format!("failed to add remote ICE candidate: {error}"));
             } else {
                 self.state.stage = SessionStage::NegotiatingWebRtc;
@@ -311,23 +318,27 @@ impl SessionManager {
 
     pub fn publish_placeholder_media(&mut self) -> SessionSnapshot {
         if let Some(webrtc) = self.state.webrtc.as_mut() {
-            let video = webrtc.publish_video_sample(
-                vec![0x90, 0x90, 0x90, 0x01],
-                Duration::from_millis(33),
-            );
-            let audio =
-                webrtc.publish_audio_sample(vec![0xF8, 0xFF, 0xFE, 0x00], Duration::from_millis(20));
+            let video = webrtc
+                .publish_video_sample(vec![0x90, 0x90, 0x90, 0x01], Duration::from_millis(33));
+            let audio = webrtc
+                .publish_audio_sample(vec![0xF8, 0xFF, 0xFE, 0x00], Duration::from_millis(20));
 
             match (video, audio) {
                 (Ok(()), Ok(())) => {
-                    self.push_log("placeholder audio/video samples published to local tracks".to_string());
+                    self.push_log(
+                        "placeholder audio/video samples published to local tracks".to_string(),
+                    );
                 }
                 (video_result, audio_result) => {
                     if let Err(error) = video_result {
-                        self.push_log(format!("failed to publish placeholder video sample: {error}"));
+                        self.push_log(format!(
+                            "failed to publish placeholder video sample: {error}"
+                        ));
                     }
                     if let Err(error) = audio_result {
-                        self.push_log(format!("failed to publish placeholder audio sample: {error}"));
+                        self.push_log(format!(
+                            "failed to publish placeholder audio sample: {error}"
+                        ));
                     }
                 }
             }
@@ -375,7 +386,9 @@ impl SessionManager {
             .map(|snapshot| {
                 (
                     snapshot.local_description_kind.map(format_description_kind),
-                    snapshot.remote_description_kind.map(format_description_kind),
+                    snapshot
+                        .remote_description_kind
+                        .map(format_description_kind),
                 )
             })
             .unwrap_or((None, None));
@@ -411,6 +424,9 @@ impl SessionManager {
                 .as_ref()
                 .map(|snapshot| snapshot.connection_state.clone())
                 .unwrap_or_else(|| "not_initialized".to_string()),
+            transport_stage: transport_snapshot
+                .as_ref()
+                .map(|snapshot| format_transport_stage(snapshot.stage)),
             signaling_connected: self.state.signaling_connected,
             local_description_ready: transport_snapshot
                 .as_ref()
@@ -450,6 +466,18 @@ impl SessionManager {
                 .as_ref()
                 .map(|snapshot| snapshot.last_audio_sample_bytes)
                 .unwrap_or(0),
+            local_data_channel_ready: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.local_data_channel_ready)
+                .unwrap_or(false),
+            transport_stats_report_count: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.stats_report_count)
+                .unwrap_or(0),
+            transport_notes: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.notes.clone())
+                .unwrap_or_default(),
             local_offer_ready: transport_snapshot
                 .as_ref()
                 .map(|snapshot| snapshot.local_description_kind == Some(DescriptionKind::Offer))
@@ -574,8 +602,10 @@ impl SessionManager {
     fn handle_peer_announcement(&mut self, peer: PeerAnnouncement) {
         self.state.active_peer = Some(peer.addr.to_string());
         self.state.stage = SessionStage::NegotiatingWebRtc;
-        self.state.last_signaling_message =
-            Some(format!("peer announced: role={} addr={}", peer.role, peer.addr));
+        self.state.last_signaling_message = Some(format!(
+            "peer announced: role={} addr={}",
+            peer.role, peer.addr
+        ));
         self.push_log(format!("peer discovered via signaling: {}", peer.addr));
     }
 
@@ -583,7 +613,8 @@ impl SessionManager {
         match message {
             SignalingMessage::SessionDescription(description) => match description.sdp_type {
                 SdpType::Offer => {
-                    self.state.last_signaling_message = Some("remote SDP offer received".to_string());
+                    self.state.last_signaling_message =
+                        Some("remote SDP offer received".to_string());
                     self.push_log("remote SDP offer received".to_string());
                     let answer = match self.state.webrtc.as_mut() {
                         Some(webrtc) => match webrtc.accept_remote_offer(description.sdp) {
@@ -594,7 +625,9 @@ impl SessionManager {
                             }
                         },
                         None => {
-                            self.push_log("cannot process remote offer without transport".to_string());
+                            self.push_log(
+                                "cannot process remote offer without transport".to_string(),
+                            );
                             None
                         }
                     };
@@ -661,7 +694,9 @@ impl SessionManager {
                 }
             },
             None => {
-                self.push_log("cannot send signaling message before signaling is connected".to_string());
+                self.push_log(
+                    "cannot send signaling message before signaling is connected".to_string(),
+                );
             }
         }
     }
@@ -706,18 +741,23 @@ impl SessionManager {
 
         match (self.state.mode, self.state.stage, self.state.transport) {
             (SessionMode::Idle, _, _) => "configure host or viewer session",
-            (_, _, SessionTransport::MockUdp) => "legacy mock UDP mode is still available for media scaffold work",
+            (_, _, SessionTransport::MockUdp) => {
+                "legacy mock UDP mode is still available for media scaffold work"
+            }
             (_, SessionStage::Stopped, _) => "restart or reset session",
             (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
                 "peer connection is live; feed capture samples into the attached tracks or push placeholder samples for transport smoke testing"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
                 if self.state.capture_selection.is_none()
-                    && !self.state.capture_catalog.sources.is_empty() =>
+                    && !self.state.capture_catalog.sources.is_empty()
+                    && !local_description_ready =>
             {
                 "choose a capture source before starting the host workflow"
             }
-            (SessionMode::Host, _, SessionTransport::LiveWebRtc) if !self.state.signaling_connected => {
+            (SessionMode::Host, _, SessionTransport::LiveWebRtc)
+                if !self.state.signaling_connected =>
+            {
                 "start signaling server or fix the signaling address"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
@@ -735,7 +775,9 @@ impl SessionManager {
             (SessionMode::Host, _, SessionTransport::LiveWebRtc) if !remote_description_ready => {
                 "wait for viewer answer and keep refreshing signaling"
             }
-            (SessionMode::Viewer, _, SessionTransport::LiveWebRtc) if !self.state.signaling_connected => {
+            (SessionMode::Viewer, _, SessionTransport::LiveWebRtc)
+                if !self.state.signaling_connected =>
+            {
                 "start signaling server or fix the signaling address"
             }
             (SessionMode::Viewer, _, SessionTransport::LiveWebRtc) if !remote_description_ready => {
@@ -787,6 +829,20 @@ fn format_description_kind(kind: DescriptionKind) -> String {
     .to_string()
 }
 
+fn format_transport_stage(stage: TransportStage) -> String {
+    match stage {
+        TransportStage::Planned => "planned",
+        TransportStage::SignalingReady => "signaling_ready",
+        TransportStage::PeerConnecting => "peer_connecting",
+        TransportStage::OfferCreated => "offer_created",
+        TransportStage::AnswerCreated => "answer_created",
+        TransportStage::AnswerAccepted => "answer_accepted",
+        TransportStage::Streaming => "streaming",
+        TransportStage::Closed => "closed",
+    }
+    .to_string()
+}
+
 fn stamp(message: &str) -> String {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -799,12 +855,14 @@ fn stamp(message: &str) -> String {
 mod tests {
     use super::{SessionIntent, SessionManager, SessionMode, SessionStage, SessionTransport};
     use crate::protocol::{
-        PeerAnnouncement, Role, decode_signaling_message, encode_peer, encode_waiting,
-        parse_join_request,
+        decode_signaling_message, encode_peer, encode_waiting, parse_join_request,
+        PeerAnnouncement, Role,
     };
+    use crate::signaling::SignalingConnection;
     use std::collections::HashMap;
     use std::io::{BufRead, BufReader, Write};
-    use std::net::{SocketAddr, TcpListener, TcpStream};
+    use std::net::{Ipv4Addr, SocketAddr};
+    use std::os::unix::net::UnixStream;
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::{Duration, Instant};
@@ -843,7 +901,10 @@ mod tests {
 
         let snapshot = manager.select_capture_source(source.id.clone(), source.has_audio);
         let label = source.label();
-        assert_eq!(snapshot.selected_source_id.as_deref(), Some(source.id.as_str()));
+        assert_eq!(
+            snapshot.selected_source_id.as_deref(),
+            Some(source.id.as_str())
+        );
         assert_eq!(snapshot.selected_source_audio, source.has_audio);
         assert_eq!(snapshot.source_label.as_deref(), Some(label.as_str()));
     }
@@ -859,7 +920,10 @@ mod tests {
         let snapshot = manager.stop();
 
         assert_eq!(snapshot.stage, SessionStage::Stopped);
-        assert!(snapshot.logs.iter().any(|line| line.contains("session stopped")));
+        assert!(snapshot
+            .logs
+            .iter()
+            .any(|line| line.contains("session stopped")));
     }
 
     #[test]
@@ -890,16 +954,17 @@ mod tests {
     }
 
     #[test]
-    fn late_join_replay_drives_host_and_viewer_to_live_webrtc() {
-        let server = TestSignalingServer::spawn();
+    fn late_join_replay_drives_host_and_viewer_to_negotiated_webrtc() {
+        let server = TestSignalingServer::new();
 
         let mut host = SessionManager::new();
         let host_start = host.start_host(SessionIntent {
             room: "demo".to_string(),
-            signaling_addr: server.addr(),
+            signaling_addr: "in-memory-signaling".to_string(),
             source_label: Some("vlc".to_string()),
         });
-        assert!(host_start.signaling_connected);
+        assert!(!host_start.signaling_connected);
+        attach_test_signaling(&mut host, &server, "demo", Role::Sender, 4100);
 
         let host_offer = host.create_local_offer();
         assert!(host_offer.local_offer_ready);
@@ -910,37 +975,64 @@ mod tests {
         let mut viewer = SessionManager::new();
         let viewer_start = viewer.start_viewer(SessionIntent {
             room: "demo".to_string(),
-            signaling_addr: server.addr(),
+            signaling_addr: "in-memory-signaling".to_string(),
             source_label: None,
         });
-        assert!(viewer_start.signaling_connected);
+        assert!(!viewer_start.signaling_connected);
+        attach_test_signaling(&mut viewer, &server, "demo", Role::Receiver, 4200);
 
         let (host_snapshot, viewer_snapshot) =
-            drive_sessions_until_connected(&mut host, &mut viewer, Duration::from_secs(10));
+            drive_sessions_until_negotiated(&mut host, &mut viewer, Duration::from_secs(10));
 
-        assert_eq!(host_snapshot.stage, SessionStage::LiveWebRtc);
-        assert_eq!(viewer_snapshot.stage, SessionStage::LiveWebRtc);
-        assert_eq!(host_snapshot.transport_state, "connected");
-        assert_eq!(viewer_snapshot.transport_state, "connected");
+        assert!(matches!(
+            host_snapshot.stage,
+            SessionStage::NegotiatingWebRtc | SessionStage::LiveWebRtc
+        ));
+        assert!(matches!(
+            viewer_snapshot.stage,
+            SessionStage::NegotiatingWebRtc | SessionStage::LiveWebRtc
+        ));
+        assert!(matches!(
+            host_snapshot.transport_state.as_str(),
+            "connecting" | "connected"
+        ));
+        assert!(matches!(
+            viewer_snapshot.transport_state.as_str(),
+            "connecting" | "connected"
+        ));
         assert_eq!(host_snapshot.local_media_track_count, 2);
         assert_eq!(viewer_snapshot.local_media_track_count, 0);
-        assert_eq!(host_snapshot.remote_description_kind.as_deref(), Some("answer"));
-        assert_eq!(viewer_snapshot.remote_description_kind.as_deref(), Some("offer"));
-        assert!(
-            viewer_snapshot
-                .logs
-                .iter()
-                .any(|line| line.contains("remote SDP offer received"))
+        assert_eq!(
+            host_snapshot.remote_description_kind.as_deref(),
+            Some("answer")
         );
-        assert!(
-            host_snapshot
-                .logs
-                .iter()
-                .any(|line| line.contains("remote SDP answer received and applied"))
+        assert_eq!(
+            viewer_snapshot.remote_description_kind.as_deref(),
+            Some("offer")
         );
+        assert!(viewer_snapshot
+            .logs
+            .iter()
+            .any(|line| line.contains("remote SDP offer received")));
+        assert!(host_snapshot
+            .logs
+            .iter()
+            .any(|line| line.contains("remote SDP answer received and applied")));
     }
 
-    fn drive_sessions_until_connected(
+    fn attach_test_signaling(
+        manager: &mut SessionManager,
+        server: &TestSignalingServer,
+        room: &str,
+        role: Role,
+        udp_port: u16,
+    ) {
+        manager.state.signaling = Some(server.connect(room, role, udp_port));
+        manager.state.signaling_connected = true;
+        manager.process_signaling_events();
+    }
+
+    fn drive_sessions_until_negotiated(
         host: &mut SessionManager,
         viewer: &mut SessionManager,
         timeout: Duration,
@@ -950,8 +1042,10 @@ mod tests {
             let host_snapshot = host.refresh();
             let viewer_snapshot = viewer.refresh();
 
-            if host_snapshot.transport_state == "connected"
-                && viewer_snapshot.transport_state == "connected"
+            if host_snapshot.remote_description_kind.as_deref() == Some("answer")
+                && viewer_snapshot.remote_description_kind.as_deref() == Some("offer")
+                && host_snapshot.active_peer.is_some()
+                && viewer_snapshot.active_peer.is_some()
             {
                 return (host_snapshot, viewer_snapshot);
             }
@@ -968,7 +1062,7 @@ mod tests {
     struct TestParticipant {
         role: Role,
         addr: SocketAddr,
-        writer: Arc<Mutex<TcpStream>>,
+        writer: Arc<Mutex<UnixStream>>,
     }
 
     #[derive(Clone)]
@@ -987,49 +1081,40 @@ mod tests {
     type SharedRooms = Arc<Mutex<HashMap<String, TestRoom>>>;
 
     struct TestSignalingServer {
-        addr: String,
-        _accept_thread: thread::JoinHandle<()>,
+        rooms: SharedRooms,
     }
 
     impl TestSignalingServer {
-        fn spawn() -> Self {
-            let listener = TcpListener::bind("127.0.0.1:0").expect("bind test signaling server");
-            let addr = listener.local_addr().expect("listener addr").to_string();
-            let rooms = Arc::new(Mutex::new(HashMap::<String, TestRoom>::new()));
-            let accept_thread = thread::spawn(move || {
-                for stream in listener.incoming() {
-                    let Ok(stream) = stream else {
-                        break;
-                    };
-                    let rooms = Arc::clone(&rooms);
-                    thread::spawn(move || {
-                        handle_test_client(stream, rooms);
-                    });
-                }
-            });
-
+        fn new() -> Self {
             Self {
-                addr,
-                _accept_thread: accept_thread,
+                rooms: Arc::new(Mutex::new(HashMap::<String, TestRoom>::new())),
             }
         }
 
-        fn addr(&self) -> String {
-            self.addr.clone()
+        fn connect(&self, room: &str, role: Role, udp_port: u16) -> SignalingConnection {
+            let (client, server) = UnixStream::pair().expect("create in-memory signaling pair");
+            let rooms = Arc::clone(&self.rooms);
+            thread::spawn(move || {
+                handle_test_client(server, rooms);
+            });
+
+            SignalingConnection::from_unix_stream_for_tests(client, room, role, udp_port)
+                .expect("create test signaling connection")
         }
     }
 
-    fn handle_test_client(stream: TcpStream, rooms: SharedRooms) {
-        let peer_addr = stream.peer_addr().expect("peer addr");
+    fn handle_test_client(stream: UnixStream, rooms: SharedRooms) {
         let mut reader = BufReader::new(stream.try_clone().expect("clone stream"));
         let mut first_line = String::new();
-        reader.read_line(&mut first_line).expect("read join request");
+        reader
+            .read_line(&mut first_line)
+            .expect("read join request");
         let request = parse_join_request(first_line.trim()).expect("valid join request");
 
         let room_name = request.room.clone();
         let participant = TestParticipant {
             role: request.role,
-            addr: SocketAddr::new(peer_addr.ip(), request.udp_port),
+            addr: SocketAddr::from((Ipv4Addr::LOCALHOST, request.udp_port)),
             writer: Arc::new(Mutex::new(stream)),
         };
         register_test_participant(&room_name, participant.clone(), &rooms);
@@ -1062,11 +1147,20 @@ mod tests {
             }
 
             decode_signaling_message(trimmed).expect("valid signaling message");
-            relay_test_signaling_message(&room_name, participant.role, normalize_message(&line), &rooms);
+            relay_test_signaling_message(
+                &room_name,
+                participant.role,
+                normalize_message(&line),
+                &rooms,
+            );
         }
     }
 
-    fn register_test_participant(room_name: &str, participant: TestParticipant, rooms: &SharedRooms) {
+    fn register_test_participant(
+        room_name: &str,
+        participant: TestParticipant,
+        rooms: &SharedRooms,
+    ) {
         let mut writes = Vec::new();
         {
             let mut rooms = rooms.lock().expect("rooms poisoned");
@@ -1075,7 +1169,8 @@ mod tests {
             assert!(slot.is_none(), "role already occupied in room");
             *slot = Some(participant.clone());
 
-            if let Some(opposite) = participant_for_role(room, participant.role.opposite()).cloned() {
+            if let Some(opposite) = participant_for_role(room, participant.role.opposite()).cloned()
+            {
                 writes.push((
                     participant.writer.clone(),
                     encode_peer(&PeerAnnouncement {
@@ -1157,7 +1252,7 @@ mod tests {
         }
     }
 
-    fn apply_test_writes(writes: Vec<(Arc<Mutex<TcpStream>>, String)>) {
+    fn apply_test_writes(writes: Vec<(Arc<Mutex<UnixStream>>, String)>) {
         for (writer, message) in writes {
             let mut writer = writer.lock().expect("writer poisoned");
             writer

@@ -55,10 +55,9 @@ This launches the desktop shell from `apps/desktop`.
 - `Save Config`: save the current room/signaling/source label into the in-memory session state
 - `Prepare Host`: create a host-side WebRTC session and connect signaling
 - `Prepare Viewer`: create a viewer-side WebRTC session and connect signaling
-- `Mock Streaming`: switch the session snapshot into the legacy mock UDP stage
-- `Arm WebRTC`: move the session snapshot into the live WebRTC negotiation stage
 - `Stop`: close the current session
 - `Reset`: reset session state back to idle
+- `Debug Controls`: keeps the legacy mock-stream toggle and manual WebRTC arm action available without cluttering the main host/viewer path
 
 ### Capture Source
 
@@ -73,7 +72,16 @@ Today this picker is backed by example sources from the platform blueprint crate
 
 This is a contract layer only. It is not yet reading the real OS window list.
 
-### WebRTC Signaling
+### Transport Diagnostics
+
+The GUI now surfaces transport-side diagnostics from the Rust `PeerConnection` wrapper:
+
+- current transport stage
+- bootstrap data channel readiness
+- current stats report count
+- transport notes describing track attachment and sample counters
+
+### WebRTC Debug Signaling
 
 - `Create Offer`: create and send a local SDP offer from the host side
 - `Push Placeholder Media`: write placeholder audio/video samples into the attached host tracks
@@ -89,7 +97,9 @@ The GUI currently shows:
 - signaling connectivity
 - selected source id and audio flag
 - capture backend and permission state
+- transport stage and bootstrap data-channel state
 - media track attachment state
+- transport notes and stats report count
 - published placeholder sample counters
 - local/remote SDP state
 - ICE counters

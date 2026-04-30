@@ -22,6 +22,7 @@ struct SessionView {
     stage: String,
     transport: String,
     transport_state: String,
+    transport_stage: Option<String>,
     signaling_connected: bool,
     room: Option<String>,
     signaling_addr: Option<String>,
@@ -44,6 +45,9 @@ struct SessionView {
     published_audio_sample_count: usize,
     last_video_sample_bytes: usize,
     last_audio_sample_bytes: usize,
+    local_data_channel_ready: bool,
+    transport_stats_report_count: usize,
+    transport_notes: Vec<String>,
     local_offer_ready: bool,
     remote_answer_ready: bool,
     local_candidate_count: usize,
@@ -155,10 +159,11 @@ fn update_session_config(
     source_label: Option<String>,
     state: tauri::State<'_, Mutex<SessionManager>>,
 ) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .update_config(room, signaling_addr, source_label);
+    let snapshot = state.lock().expect("session state poisoned").update_config(
+        room,
+        signaling_addr,
+        source_label,
+    );
 
     CommandResult {
         ok: true,
@@ -356,6 +361,7 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         stage: format_session_stage(snapshot.stage).to_string(),
         transport: format_session_transport(snapshot.transport).to_string(),
         transport_state: snapshot.transport_state,
+        transport_stage: snapshot.transport_stage,
         signaling_connected: snapshot.signaling_connected,
         room: snapshot.room,
         signaling_addr: snapshot.signaling_addr,
@@ -378,6 +384,9 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         published_audio_sample_count: snapshot.published_audio_sample_count,
         last_video_sample_bytes: snapshot.last_video_sample_bytes,
         last_audio_sample_bytes: snapshot.last_audio_sample_bytes,
+        local_data_channel_ready: snapshot.local_data_channel_ready,
+        transport_stats_report_count: snapshot.transport_stats_report_count,
+        transport_notes: snapshot.transport_notes,
         local_offer_ready: snapshot.local_offer_ready,
         remote_answer_ready: snapshot.remote_answer_ready,
         local_candidate_count: snapshot.local_candidate_count,
@@ -387,7 +396,10 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
     }
 }
 
-fn map_capture_catalog(catalog: CaptureCatalogSnapshot, snapshot: SessionSnapshot) -> CaptureCatalogView {
+fn map_capture_catalog(
+    catalog: CaptureCatalogSnapshot,
+    snapshot: SessionSnapshot,
+) -> CaptureCatalogView {
     CaptureCatalogView {
         backend: catalog.backend,
         permission_state: snapshot.capture_permission_state,

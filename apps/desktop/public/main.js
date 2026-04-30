@@ -78,9 +78,12 @@ function setSession(session) {
     <div><dt>Permission</dt><dd>${session.capture_permission_state ?? "n/a"}</dd></div>
     <div><dt>Peer</dt><dd>${session.active_peer ?? "n/a"}</dd></div>
     <div><dt>Transport State</dt><dd>${session.transport_state ?? "n/a"}</dd></div>
+    <div><dt>Transport Stage</dt><dd>${session.transport_stage ?? "n/a"}</dd></div>
     <div><dt>Media Tracks</dt><dd>${session.local_media_track_count ?? 0}</dd></div>
     <div><dt>Video Track</dt><dd>${String(session.local_video_track_attached)}</dd></div>
     <div><dt>Audio Track</dt><dd>${String(session.local_audio_track_attached)}</dd></div>
+    <div><dt>Data Channel</dt><dd>${String(session.local_data_channel_ready)}</dd></div>
+    <div><dt>Stats Reports</dt><dd>${session.transport_stats_report_count ?? 0}</dd></div>
     <div><dt>Video Samples</dt><dd>${session.published_video_sample_count ?? 0} / ${session.last_video_sample_bytes ?? 0}B</dd></div>
     <div><dt>Audio Samples</dt><dd>${session.published_audio_sample_count ?? 0} / ${session.last_audio_sample_bytes ?? 0}B</dd></div>
     <div><dt>Local Desc</dt><dd>${session.local_description_kind ?? "n/a"} / ${String(session.local_description_ready)}</dd></div>
@@ -92,6 +95,13 @@ function setSession(session) {
   document.getElementById("session-log").textContent = session.logs.join("\n");
   document.getElementById("signal-preview").textContent =
     session.last_signaling_message ?? "No signaling messages yet.";
+  document.getElementById("transport-diagnostics").innerHTML = `
+    <div><dt>Transport Stage</dt><dd>${session.transport_stage ?? "n/a"}</dd></div>
+    <div><dt>Data Channel</dt><dd>${String(session.local_data_channel_ready)}</dd></div>
+    <div><dt>Stats Reports</dt><dd>${session.transport_stats_report_count ?? 0}</dd></div>
+  `;
+  document.getElementById("transport-notes").textContent =
+    session.transport_notes?.join("\n") || "No transport diagnostics yet.";
   document.getElementById("room").value = session.room ?? document.getElementById("room").value;
   document.getElementById("signaling").value =
     session.signaling_addr ?? document.getElementById("signaling").value;
@@ -140,9 +150,12 @@ async function refresh() {
       <div><dt>Permission</dt><dd>unknown</dd></div>
       <div><dt>Peer</dt><dd>n/a</dd></div>
       <div><dt>Transport State</dt><dd>preview</dd></div>
+      <div><dt>Transport Stage</dt><dd>preview</dd></div>
       <div><dt>Media Tracks</dt><dd>0</dd></div>
       <div><dt>Video Track</dt><dd>false</dd></div>
       <div><dt>Audio Track</dt><dd>false</dd></div>
+      <div><dt>Data Channel</dt><dd>false</dd></div>
+      <div><dt>Stats Reports</dt><dd>0</dd></div>
       <div><dt>Video Samples</dt><dd>0 / 0B</dd></div>
       <div><dt>Audio Samples</dt><dd>0 / 0B</dd></div>
       <div><dt>Local Desc</dt><dd>n/a / false</dd></div>
@@ -155,6 +168,13 @@ async function refresh() {
       "Run inside Tauri to drive the in-memory session manager.";
     document.getElementById("signal-preview").textContent =
       "Run inside Tauri to preview signaling state.";
+    document.getElementById("transport-diagnostics").innerHTML = `
+      <div><dt>Transport Stage</dt><dd>preview</dd></div>
+      <div><dt>Data Channel</dt><dd>false</dd></div>
+      <div><dt>Stats Reports</dt><dd>0</dd></div>
+    `;
+    document.getElementById("transport-notes").textContent =
+      "Run inside Tauri to inspect Rust-side transport diagnostics.";
   }
 
   if (captureCatalog) {
