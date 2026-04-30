@@ -70,7 +70,7 @@ It now exposes commands for:
 - reading project and session status
 - listing current capture sources and selecting one in-session
 - preparing host and viewer sessions against the live signaling server
-- creating and sending a local SDP offer
+- auto-creating and sending the first local SDP offer from the host once signaling is connected
 - publishing placeholder audio/video samples into the attached host tracks for smoke testing
 - polling signaling and auto-applying remote offer/answer/ICE state
 - surfacing live transport diagnostics from the `PeerConnection` snapshot
@@ -105,6 +105,7 @@ What changed relative to the earlier scaffold:
 - `app-core` now has a live signaling client used by CLI and Tauri session flow
 - CLI now has `webrtc-host` and `webrtc-viewer` commands for real negotiation
 - `transport-webrtc` now wraps a real `PeerConnection` with attached placeholder audio/video tracks, ICE gathering, and connection-state snapshots
+- host session refresh now auto-creates its local offer when signaling is available
 - session snapshots and the Tauri UI now expose local media-track attachment state
 - session manager and transport now expose placeholder media-sample publishing state
 - session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes

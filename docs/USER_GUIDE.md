@@ -53,7 +53,7 @@ This launches the desktop shell from `apps/desktop`.
 - `Signaling`: TCP address of the signaling server
 - `Source Label`: manual label stored in the session snapshot
 - `Save Config`: save the current room/signaling/source label into the in-memory session state
-- `Prepare Host`: create a host-side WebRTC session and connect signaling
+- `Prepare Host`: create a host-side WebRTC session, connect signaling, and automatically send the first local offer when signaling is available
 - `Prepare Viewer`: create a viewer-side WebRTC session and connect signaling
 - `Stop`: close the current session
 - `Reset`: reset session state back to idle
@@ -83,12 +83,12 @@ The GUI now surfaces transport-side diagnostics from the Rust `PeerConnection` w
 
 ### WebRTC Debug Signaling
 
-- `Create Offer`: create and send a local SDP offer from the host side
+- `Force Offer`: manually recreate and send a local SDP offer from the host side for debugging
 - `Push Placeholder Media`: write placeholder audio/video samples into the attached host tracks
 - `Accept Answer`: manually apply a remote SDP answer for debugging
 - `Add ICE`: manually apply a remote ICE candidate for debugging
 
-Offer/answer and ICE can already flow automatically through the signaling server during refresh, but the manual fields are still available for debugging.
+Host-side offer creation, answer delivery, and ICE can already flow automatically through the signaling server during refresh, but the manual fields are still available for debugging.
 
 ### Status And Snapshot
 

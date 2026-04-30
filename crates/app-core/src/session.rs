@@ -156,6 +156,7 @@ impl SessionManager {
         ));
         self.initialize_transport("host");
         self.connect_signaling();
+        self.ensure_host_offer("local SDP offer created and sent automatically");
         self.snapshot()
     }
 
@@ -191,28 +192,7 @@ impl SessionManager {
     }
 
     pub fn create_local_offer(&mut self) -> SessionSnapshot {
-        let offer = match self.state.webrtc.as_mut() {
-            Some(webrtc) => match webrtc.create_local_offer() {
-                Ok(signal) => Some(signal),
-                Err(error) => {
-                    self.push_log(format!("failed to create local offer: {error}"));
-                    None
-                }
-            },
-            None => {
-                self.push_log("cannot create offer before session is configured".to_string());
-                None
-            }
-        };
-
-        if let Some(signal) = offer {
-            self.state.transport = SessionTransport::LiveWebRtc;
-            self.state.stage = SessionStage::NegotiatingWebRtc;
-            self.send_transport_signal(signal);
-            self.flush_local_transport_signals();
-            self.push_log("local SDP offer created and sent".to_string());
-        }
-
+        self.issue_local_offer("local SDP offer created and sent");
         self.snapshot()
     }
 
@@ -311,6 +291,7 @@ impl SessionManager {
 
     pub fn refresh(&mut self) -> SessionSnapshot {
         self.process_signaling_events();
+        self.ensure_host_offer("local SDP offer created and sent automatically");
         self.flush_local_transport_signals();
         self.update_stage_from_transport();
         self.snapshot()
@@ -542,6 +523,48 @@ impl SessionManager {
         }
     }
 
+    fn ensure_host_offer(&mut self, success_message: &str) {
+        if self.state.mode != SessionMode::Host || !self.state.signaling_connected {
+            return;
+        }
+
+        let local_description_ready = self
+            .state
+            .webrtc
+            .as_ref()
+            .map(|session| session.snapshot().local_description_ready)
+            .unwrap_or(false);
+        if local_description_ready {
+            return;
+        }
+
+        self.issue_local_offer(success_message);
+    }
+
+    fn issue_local_offer(&mut self, success_message: &str) {
+        let offer = match self.state.webrtc.as_mut() {
+            Some(webrtc) => match webrtc.create_local_offer() {
+                Ok(signal) => Some(signal),
+                Err(error) => {
+                    self.push_log(format!("failed to create local offer: {error}"));
+                    None
+                }
+            },
+            None => {
+                self.push_log("cannot create offer before session is configured".to_string());
+                None
+            }
+        };
+
+        if let Some(signal) = offer {
+            self.state.transport = SessionTransport::LiveWebRtc;
+            self.state.stage = SessionStage::NegotiatingWebRtc;
+            self.send_transport_signal(signal);
+            self.flush_local_transport_signals();
+            self.push_log(success_message.to_string());
+        }
+    }
+
     fn connect_signaling(&mut self) {
         let Some(signaling_addr) = self.state.signaling_addr.clone() else {
             return;
@@ -770,7 +793,7 @@ impl SessionManager {
                 "attach local media tracks before creating the offer"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc) if !local_description_ready => {
-                "create and send the local offer"
+                "keep refreshing signaling while the host prepares the local offer"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc) if !remote_description_ready => {
                 "wait for viewer answer and keep refreshing signaling"
@@ -943,6 +966,28 @@ mod tests {
     }
 
     #[test]
+    fn host_refresh_auto_creates_offer_after_signaling_connects() {
+        let server = TestSignalingServer::new();
+        let mut manager = SessionManager::new();
+        let snapshot = manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "in-memory-signaling".to_string(),
+            source_label: Some("vlc".to_string()),
+        });
+
+        assert!(!snapshot.local_offer_ready);
+        attach_test_signaling(&mut manager, &server, "demo", Role::Sender, 4100);
+
+        let refreshed = manager.refresh();
+        assert!(refreshed.local_offer_ready);
+        assert_eq!(refreshed.local_description_kind.as_deref(), Some("offer"));
+        assert!(refreshed
+            .logs
+            .iter()
+            .any(|line| line.contains("local SDP offer created and sent automatically")));
+    }
+
+    #[test]
     fn reset_returns_idle_state() {
         let mut manager = SessionManager::new();
         manager.mark_mock_streaming("127.0.0.1:9999".to_string());
@@ -965,8 +1010,7 @@ mod tests {
         });
         assert!(!host_start.signaling_connected);
         attach_test_signaling(&mut host, &server, "demo", Role::Sender, 4100);
-
-        let host_offer = host.create_local_offer();
+        let host_offer = host.refresh();
         assert!(host_offer.local_offer_ready);
         assert_eq!(host_offer.local_description_kind.as_deref(), Some("offer"));
 

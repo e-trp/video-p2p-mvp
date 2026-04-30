@@ -90,7 +90,7 @@
 
         <article class="card">
           <h2>WebRTC Debug Signaling</h2>
-          <p class="hint">Offer/answer and ICE already flow automatically through the signaling server during refresh. The controls below remain only as a manual escape hatch.</p>
+          <p class="hint">Host preparation now auto-creates and sends the first local offer when signaling is connected. The controls below remain only as a manual escape hatch.</p>
           <form class="form">
             <label>
               <span>Remote Answer SDP</span>
@@ -112,7 +112,7 @@ s=answer</textarea>
               </label>
             </div>
             <div class="actions">
-              <button type="button" id="offer-btn">Create Offer</button>
+              <button type="button" id="offer-btn">Force Offer</button>
               <button type="button" id="publish-media-btn" class="secondary">Push Placeholder Media</button>
               <button type="button" id="answer-btn" class="secondary">Accept Answer</button>
               <button type="button" id="ice-btn" class="secondary">Add ICE</button>

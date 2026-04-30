@@ -25,6 +25,7 @@ The backend around the GUI has moved one step forward:
 - stored signaling messages are replayed to a late joiner in the same room
 - the GUI now refreshes through a live signaling path and a real `PeerConnection`
 - host-side placeholder audio/video tracks are attached before offer creation and shown in the session snapshot
+- host preparation now auto-creates and sends the first local SDP offer once signaling is connected
 - a debug command can now push placeholder audio/video samples into those attached tracks
 - the GUI now shows a platform capture catalog and allows selecting a source in-session
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
@@ -68,7 +69,7 @@ The current Tauri UI is wired to the session manager and supports:
 - saving session configuration
 - preparing host or viewer session states with a live signaling connection
 - switching to mock streaming or live WebRTC transport stages
-- creating and sending a local offer
+- auto-creating and sending the first local offer from the host path
 - publishing placeholder audio/video samples into the attached host tracks
 - polling signaling through repeated snapshot refresh
 - auto-applying remote offer/answer/ICE during refresh

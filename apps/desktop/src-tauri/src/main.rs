@@ -122,10 +122,15 @@ fn start_host(
             signaling_addr: signaling_addr.clone(),
             source_label,
         });
+    let message = if snapshot.local_offer_ready {
+        format!("host session prepared for room={room}; local offer sent automatically")
+    } else {
+        format!("host session prepared for room={room}")
+    };
 
     CommandResult {
         ok: true,
-        message: format!("host session prepared for room={room}"),
+        message,
         session: map_snapshot(snapshot),
     }
 }
@@ -212,7 +217,7 @@ fn create_local_offer(state: tauri::State<'_, Mutex<SessionManager>>) -> Command
 
     CommandResult {
         ok: true,
-        message: "local SDP offer created".to_string(),
+        message: "local SDP offer created for debugging".to_string(),
         session: map_snapshot(snapshot),
     }
 }
