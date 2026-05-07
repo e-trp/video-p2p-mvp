@@ -72,7 +72,7 @@ pub fn current_catalog() -> MacCaptureCatalog {
     match enumerate_runtime_sources() {
         Ok(sources) if !sources.is_empty() => MacCaptureCatalog {
             backend_label: format!("{} runtime catalog", blueprint.sources_api),
-            permission_state: blueprint.permission_state,
+            permission_state: CapturePermissionState::Granted,
             notes: vec![format!(
                 "runtime catalog enumerated {} sources through osascript/System Events",
                 sources.len()
@@ -82,18 +82,37 @@ pub fn current_catalog() -> MacCaptureCatalog {
         },
         Err(error) => MacCaptureCatalog {
             backend_label: format!("{} blueprint fallback", blueprint.sources_api),
-            permission_state: blueprint.permission_state,
+            permission_state: infer_permission_state_from_error(&error),
             notes: vec![format!("runtime catalog fallback: {error}")],
             sources: blueprint.example_sources,
             origin: MacSourceCatalogOrigin::BlueprintFallback,
         },
         Ok(_) => MacCaptureCatalog {
             backend_label: format!("{} blueprint fallback", blueprint.sources_api),
-            permission_state: blueprint.permission_state,
+            permission_state: CapturePermissionState::Required,
             notes: vec!["runtime catalog fallback: runtime source list was empty".to_string()],
             sources: blueprint.example_sources,
             origin: MacSourceCatalogOrigin::BlueprintFallback,
         },
+    }
+}
+
+fn infer_permission_state_from_error(error: &str) -> CapturePermissionState {
+    let lower = error.to_ascii_lowercase();
+
+    if lower.contains("-1743")
+        || lower.contains("-1744")
+        || lower.contains("not authorized")
+        || lower.contains("not permitted")
+    {
+        CapturePermissionState::Denied
+    } else if lower.contains("-10827")
+        || lower.contains("failed to launch osascript")
+        || lower.contains("application isn’t running")
+    {
+        CapturePermissionState::Unknown
+    } else {
+        CapturePermissionState::Required
     }
 }
 
@@ -220,7 +239,8 @@ fn slugify(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        MacCaptureStage, blueprint, parse_runtime_listing, runtime_catalog_script, slugify,
+        MacCaptureStage, blueprint, infer_permission_state_from_error, parse_runtime_listing,
+        runtime_catalog_script, slugify,
     };
     use capture_core::CapturePermissionState;
 
@@ -262,5 +282,21 @@ mod tests {
     #[test]
     fn runtime_catalog_script_mentions_system_events() {
         assert!(runtime_catalog_script().contains("System Events"));
+    }
+
+    #[test]
+    fn permission_probe_maps_authorization_and_runtime_errors() {
+        assert_eq!(
+            infer_permission_state_from_error("execution error: Not authorized to send Apple events to System Events. (-1743)"),
+            CapturePermissionState::Denied
+        );
+        assert_eq!(
+            infer_permission_state_from_error("execution error: An error of type -10827 has occurred. (-10827)"),
+            CapturePermissionState::Unknown
+        );
+        assert_eq!(
+            infer_permission_state_from_error("runtime catalog output was empty"),
+            CapturePermissionState::Required
+        );
     }
 }

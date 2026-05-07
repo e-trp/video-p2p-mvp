@@ -101,6 +101,7 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - a live signaling client in `app-core` used by CLI and Tauri session flow
 - a capture catalog in `app-core` that surfaces permission state and platform source metadata, including runtime macOS and Linux enumeration with blueprint fallback
 - capture catalog origin and backend notes now flow through `app-core` into the Tauri GUI for operator diagnostics
+- session refresh now re-synchronizes the capture catalog so permission/origin changes are not stuck at process startup
 - a real `PeerConnection` bootstrap path with attached placeholder audio/video tracks, connection-state snapshots, and ICE gathering
 - Tauri commands and session snapshots that surface local media-track state and placeholder sample publish counters in the GUI
 - the main Tauri GUI path now relies on automatic signaling refresh instead of exposing manual answer/ICE controls

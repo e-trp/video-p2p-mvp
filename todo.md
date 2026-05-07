@@ -37,6 +37,7 @@
 
 - Done in part: `capture-core` now exists for shared source, permission, video-frame, and audio-buffer types
 - Done in part: `capture-macos` now exposes a best-effort runtime application/window catalog with blueprint fallback
+- Done in part: runtime probing on macOS now maps catalog results into live permission-state diagnostics
 - Done in part: Tauri/app-core now surface the current platform capture catalog and selected source metadata
 - Still open: the actual ScreenCaptureKit bridge, permission flow, and live sample delivery
 
@@ -51,6 +52,7 @@
 ### Iteration 3 Progress
 
 - Done in part: `capture-linux` now exposes a best-effort `wmctrl`-based runtime window catalog with blueprint fallback
+- Done in part: runtime probing on Linux now maps catalog results into live permission-state diagnostics
 - Still open: real portal session lifecycle, PipeWire media consumption, and robust Wayland coverage
 
 ## Iteration 4: Tauri Production Flow
@@ -68,6 +70,7 @@
 - Done in part: source picker UI now exists, backed by the current platform capture catalog blueprint data
 - Done in part: GUI now surfaces transport-stage, data-channel, and transport-note diagnostics from the live WebRTC layer
 - Done in part: GUI now surfaces capture-catalog origin and backend notes for runtime-vs-fallback diagnostics
+- Done in part: session refresh now re-synchronizes capture-catalog permission/origin state instead of freezing it at startup
 - Done in part: host session flow now auto-creates and sends its first local offer once signaling is connected
 - Done in part: host session flow now defaults to the first available capture source when none was selected explicitly
 - Done in part: capture-source picker changes now apply immediately without a separate confirmation button

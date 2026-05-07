@@ -1,5 +1,6 @@
 use capture_core::{CapturePermissionState, CaptureSource, CaptureSourceKind};
 use std::collections::HashSet;
+use std::env;
 use std::process::Command;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,7 +67,7 @@ pub fn current_catalog() -> LinuxCaptureCatalog {
     match enumerate_runtime_sources() {
         Ok(sources) if !sources.is_empty() => LinuxCaptureCatalog {
             backend_label: "x11_runtime_catalog".to_string(),
-            permission_state: blueprint.permission_state,
+            permission_state: CapturePermissionState::Granted,
             notes: vec![format!(
                 "runtime catalog enumerated {} windows through wmctrl",
                 sources.len()
@@ -76,18 +77,42 @@ pub fn current_catalog() -> LinuxCaptureCatalog {
         },
         Err(error) => LinuxCaptureCatalog {
             backend_label: format!("{:?}_blueprint_fallback", blueprint.preferred_backend),
-            permission_state: blueprint.permission_state,
+            permission_state: infer_permission_state_from_error(&error),
             notes: vec![format!("runtime catalog fallback: {error}")],
             sources: blueprint.example_sources,
             origin: LinuxSourceCatalogOrigin::BlueprintFallback,
         },
         Ok(_) => LinuxCaptureCatalog {
             backend_label: format!("{:?}_blueprint_fallback", blueprint.preferred_backend),
-            permission_state: blueprint.permission_state,
+            permission_state: CapturePermissionState::Required,
             notes: vec!["runtime catalog fallback: runtime source list was empty".to_string()],
             sources: blueprint.example_sources,
             origin: LinuxSourceCatalogOrigin::BlueprintFallback,
         },
+    }
+}
+
+fn infer_permission_state_from_error(error: &str) -> CapturePermissionState {
+    let has_display = env::var_os("DISPLAY").is_some() || env::var_os("WAYLAND_DISPLAY").is_some();
+    infer_permission_state_from_error_with_display(error, has_display)
+}
+
+fn infer_permission_state_from_error_with_display(
+    error: &str,
+    has_display: bool,
+) -> CapturePermissionState {
+    let lower = error.to_ascii_lowercase();
+
+    if lower.contains("cannot open display") || lower.contains("cannot get client list properties") {
+        if has_display {
+            CapturePermissionState::Required
+        } else {
+            CapturePermissionState::Unknown
+        }
+    } else if lower.contains("failed to launch wmctrl") || lower.contains("no such file or directory") {
+        CapturePermissionState::Unknown
+    } else {
+        CapturePermissionState::Required
     }
 }
 
@@ -213,8 +238,9 @@ fn slugify(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        LinuxCaptureBackend, blueprint, make_source_id, parse_window_listing, parse_window_row,
-        slugify,
+        LinuxCaptureBackend, blueprint, infer_permission_state_from_error,
+        infer_permission_state_from_error_with_display, make_source_id, parse_window_listing,
+        parse_window_row, slugify,
     };
     use capture_core::CapturePermissionState;
 
@@ -254,6 +280,32 @@ mod tests {
         assert_eq!(
             make_source_id("0x01", "mpv", "Playlist"),
             "linux-window-0x01-mpv-playlist"
+        );
+    }
+
+    #[test]
+    fn permission_probe_maps_runtime_errors() {
+        assert_eq!(
+            infer_permission_state_from_error("failed to launch wmctrl: No such file or directory (os error 2)"),
+            CapturePermissionState::Unknown
+        );
+        assert_eq!(
+            infer_permission_state_from_error_with_display(
+                "wmctrl returned 1: Cannot open display.",
+                true
+            ),
+            CapturePermissionState::Required
+        );
+        assert_eq!(
+            infer_permission_state_from_error_with_display(
+                "wmctrl returned 1: Cannot open display.",
+                false
+            ),
+            CapturePermissionState::Unknown
+        );
+        assert_eq!(
+            infer_permission_state_from_error("runtime catalog output was empty"),
+            CapturePermissionState::Required
         );
     }
 }
