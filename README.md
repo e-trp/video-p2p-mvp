@@ -76,8 +76,6 @@ It now exposes commands for:
 - publishing placeholder audio/video samples into the attached host tracks for smoke testing
 - polling signaling and auto-applying remote offer/answer/ICE state
 - surfacing live transport diagnostics from the `PeerConnection` snapshot
-- accepting manual remote SDP answer state for debugging
-- adding manual remote ICE candidate state for debugging
 - stopping a session
 - reading session logs
 - showing the saved specification
@@ -118,5 +116,5 @@ What changed relative to the earlier scaffold:
 
 1. Replace placeholder media samples with real captured audio/video input.
 2. Implement the `capture-macos` ScreenCaptureKit bridge on top of `capture-core`.
-3. Replace the remaining manual/debug signaling fields in the Tauri GUI with production UX.
+3. Replace blueprint/example capture sources with real OS enumeration in the Tauri GUI.
 4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.

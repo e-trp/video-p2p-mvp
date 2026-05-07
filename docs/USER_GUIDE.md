@@ -56,7 +56,6 @@ This launches the desktop shell from `apps/desktop`.
 - `Prepare Viewer`: create a viewer-side WebRTC session and connect signaling
 - `Stop`: close the current session
 - `Reset`: reset session state back to idle
-- `Debug Controls`: keeps the legacy mock-stream toggle and manual WebRTC arm action available without cluttering the main host/viewer path
 
 ### Capture Source
 
@@ -82,14 +81,11 @@ The GUI now surfaces transport-side diagnostics from the Rust `PeerConnection` w
 - current stats report count
 - transport notes describing track attachment and sample counters
 
-### WebRTC Debug Signaling
+### Transport Smoke Test
 
-- `Force Offer`: manually recreate and send a local SDP offer from the host side for debugging
 - `Push Placeholder Media`: write placeholder audio/video samples into the attached host tracks
-- `Accept Answer`: manually apply a remote SDP answer for debugging
-- `Add ICE`: manually apply a remote ICE candidate for debugging
 
-Host-side offer creation, answer delivery, and ICE can already flow automatically through the signaling server during refresh, but the manual fields are still available for debugging.
+Host-side offer creation, answer delivery, and ICE now flow automatically through the signaling server during refresh. The remaining manual control is only there to smoke-test media publication before real capture is wired.
 
 ### Status And Snapshot
 
@@ -136,5 +132,5 @@ cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
 
 - capture sources are blueprint/example data, not OS-enumerated windows
 - placeholder media is not real encoded screen/audio content
-- the GUI still exposes several debug controls
+- the GUI still relies on blueprint/example capture sources
 - the signaling service is still a minimal two-peer MVP

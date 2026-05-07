@@ -39,14 +39,6 @@
               <button type="button" id="reset-btn" class="ghost">Reset</button>
             </div>
           </form>
-          <details class="debug-panel">
-            <summary>Debug Controls</summary>
-            <p class="hint">These controls keep the old mock/manual path available while the production capture pipeline is still being wired.</p>
-            <div class="actions">
-              <button type="button" id="mock-btn" class="secondary">Mock Streaming</button>
-              <button type="button" id="webrtc-btn" class="secondary">Arm WebRTC</button>
-            </div>
-          </details>
           <p id="command-result" class="result">No command executed yet.</p>
         </article>
 
@@ -82,33 +74,11 @@
         </article>
 
         <article class="card">
-          <h2>WebRTC Debug Signaling</h2>
-          <p class="hint">Host preparation now auto-creates and sends the first local offer when signaling is connected. The controls below remain only as a manual escape hatch.</p>
+          <h2>Transport Smoke Test</h2>
+          <p class="hint">Host and viewer signaling now run automatically during refresh. This control only pushes placeholder audio/video samples into the attached host tracks so you can verify the publishing path before real capture is wired.</p>
           <form class="form">
-            <label>
-              <span>Remote Answer SDP</span>
-              <textarea id="remote-answer" rows="5">v=0
-s=answer</textarea>
-            </label>
-            <label>
-              <span>Remote ICE Candidate</span>
-              <textarea id="ice-candidate" rows="4">candidate:1 1 udp 2122260223 127.0.0.1 5000 typ host</textarea>
-            </label>
-            <div class="inline-fields">
-              <label>
-                <span>SDP Mid</span>
-                <input id="ice-mid" value="0" />
-              </label>
-              <label>
-                <span>MLine</span>
-                <input id="ice-mline" value="0" />
-              </label>
-            </div>
             <div class="actions">
-              <button type="button" id="offer-btn">Force Offer</button>
               <button type="button" id="publish-media-btn" class="secondary">Push Placeholder Media</button>
-              <button type="button" id="answer-btn" class="secondary">Accept Answer</button>
-              <button type="button" id="ice-btn" class="secondary">Add ICE</button>
             </div>
           </form>
         </article>

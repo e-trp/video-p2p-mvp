@@ -178,51 +178,6 @@ fn update_session_config(
 }
 
 #[tauri::command]
-fn mark_mock_streaming(
-    peer: String,
-    state: tauri::State<'_, Mutex<SessionManager>>,
-) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .mark_mock_streaming(peer.clone());
-
-    CommandResult {
-        ok: true,
-        message: format!("mock streaming activated with peer={peer}"),
-        session: map_snapshot(snapshot),
-    }
-}
-
-#[tauri::command]
-fn mark_webrtc_planned(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .mark_webrtc_ready();
-
-    CommandResult {
-        ok: true,
-        message: "session moved to planned WebRTC state".to_string(),
-        session: map_snapshot(snapshot),
-    }
-}
-
-#[tauri::command]
-fn create_local_offer(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .create_local_offer();
-
-    CommandResult {
-        ok: true,
-        message: "local SDP offer created for debugging".to_string(),
-        session: map_snapshot(snapshot),
-    }
-}
-
-#[tauri::command]
 fn select_capture_source(
     source_id: String,
     include_audio: bool,
@@ -255,42 +210,6 @@ fn publish_placeholder_media(state: tauri::State<'_, Mutex<SessionManager>>) -> 
 }
 
 #[tauri::command]
-fn accept_remote_answer(
-    sdp: String,
-    state: tauri::State<'_, Mutex<SessionManager>>,
-) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .accept_remote_answer(sdp);
-
-    CommandResult {
-        ok: true,
-        message: "remote SDP answer accepted".to_string(),
-        session: map_snapshot(snapshot),
-    }
-}
-
-#[tauri::command]
-fn add_remote_ice_candidate(
-    candidate: String,
-    sdp_mid: Option<String>,
-    sdp_mline_index: Option<u16>,
-    state: tauri::State<'_, Mutex<SessionManager>>,
-) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .add_remote_ice_candidate(candidate, sdp_mid, sdp_mline_index);
-
-    CommandResult {
-        ok: true,
-        message: "remote ICE candidate added".to_string(),
-        session: map_snapshot(snapshot),
-    }
-}
-
-#[tauri::command]
 fn stop_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state.lock().expect("session state poisoned").stop();
 
@@ -299,11 +218,6 @@ fn stop_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult
         message: "session stopped".to_string(),
         session: map_snapshot(snapshot),
     }
-}
-
-#[tauri::command]
-fn session_logs(state: tauri::State<'_, Mutex<SessionManager>>) -> Vec<String> {
-    state.lock().expect("session state poisoned").logs()
 }
 
 #[tauri::command]
@@ -343,15 +257,9 @@ fn main() {
             start_host,
             join_room,
             update_session_config,
-            mark_mock_streaming,
-            mark_webrtc_planned,
-            create_local_offer,
             select_capture_source,
             publish_placeholder_media,
-            accept_remote_answer,
-            add_remote_ice_candidate,
             stop_session,
-            session_logs,
             clear_session_logs,
             reset_session,
             specification_markdown

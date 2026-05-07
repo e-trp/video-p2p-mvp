@@ -249,37 +249,8 @@ async function load() {
 
   document.getElementById("source-audio").addEventListener("change", applySelectedSource);
 
-  document.getElementById("mock-btn").addEventListener("click", async () => {
-    await runCommand("mark_mock_streaming", { peer: "pending-direct-peer" });
-  });
-
-  document.getElementById("webrtc-btn").addEventListener("click", async () => {
-    await runCommand("mark_webrtc_planned");
-  });
-
-  document.getElementById("offer-btn").addEventListener("click", async () => {
-    await runCommand("create_local_offer");
-  });
-
   document.getElementById("publish-media-btn").addEventListener("click", async () => {
     await runCommand("publish_placeholder_media");
-  });
-
-  document.getElementById("answer-btn").addEventListener("click", async () => {
-    const sdp = document.getElementById("remote-answer").value;
-    await runCommand("accept_remote_answer", { sdp });
-  });
-
-  document.getElementById("ice-btn").addEventListener("click", async () => {
-    const candidate = document.getElementById("ice-candidate").value;
-    const sdp_mid = document.getElementById("ice-mid").value.trim() || null;
-    const mlineRaw = document.getElementById("ice-mline").value.trim();
-    const sdp_mline_index = mlineRaw === "" ? null : Number.parseInt(mlineRaw, 10);
-    await runCommand("add_remote_ice_candidate", {
-      candidate,
-      sdp_mid,
-      sdp_mline_index: Number.isNaN(sdp_mline_index) ? null : sdp_mline_index,
-    });
   });
 
   document.getElementById("stop-btn").addEventListener("click", async () => {
