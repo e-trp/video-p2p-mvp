@@ -27,10 +27,13 @@ function setStatus(status) {
 
 function setCaptureCatalog(catalog) {
   const container = document.getElementById("capture-catalog");
+  const noteText = catalog.notes?.length ? catalog.notes.join(" | ") : "none";
   container.innerHTML = `
     <div><dt>Backend</dt><dd>${catalog.backend}</dd></div>
+    <div><dt>Origin</dt><dd>${catalog.origin}</dd></div>
     <div><dt>Permission</dt><dd>${catalog.permission_state}</dd></div>
     <div><dt>Sources</dt><dd>${catalog.sources.length}</dd></div>
+    <div><dt>Notes</dt><dd>${noteText}</dd></div>
   `;
 
   const picker = document.getElementById("source-picker");
@@ -178,8 +181,10 @@ async function refresh() {
   } else {
     document.getElementById("capture-catalog").innerHTML = `
       <div><dt>Backend</dt><dd>preview</dd></div>
+      <div><dt>Origin</dt><dd>preview</dd></div>
       <div><dt>Permission</dt><dd>unknown</dd></div>
       <div><dt>Sources</dt><dd>0</dd></div>
+      <div><dt>Notes</dt><dd>Run inside Tauri to inspect capture catalog diagnostics.</dd></div>
     `;
     document.getElementById("source-picker").innerHTML = "";
     document.getElementById("source-picker").disabled = true;

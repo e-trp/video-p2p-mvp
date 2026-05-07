@@ -28,6 +28,7 @@ pub struct LinuxCaptureCatalog {
     pub permission_state: CapturePermissionState,
     pub sources: Vec<CaptureSource>,
     pub origin: LinuxSourceCatalogOrigin,
+    pub notes: Vec<String>,
 }
 
 pub fn blueprint() -> LinuxCaptureBlueprint {
@@ -66,12 +67,24 @@ pub fn current_catalog() -> LinuxCaptureCatalog {
         Ok(sources) if !sources.is_empty() => LinuxCaptureCatalog {
             backend_label: "x11_runtime_catalog".to_string(),
             permission_state: blueprint.permission_state,
+            notes: vec![format!(
+                "runtime catalog enumerated {} windows through wmctrl",
+                sources.len()
+            )],
             sources,
             origin: LinuxSourceCatalogOrigin::Runtime,
         },
-        _ => LinuxCaptureCatalog {
+        Err(error) => LinuxCaptureCatalog {
             backend_label: format!("{:?}_blueprint_fallback", blueprint.preferred_backend),
             permission_state: blueprint.permission_state,
+            notes: vec![format!("runtime catalog fallback: {error}")],
+            sources: blueprint.example_sources,
+            origin: LinuxSourceCatalogOrigin::BlueprintFallback,
+        },
+        Ok(_) => LinuxCaptureCatalog {
+            backend_label: format!("{:?}_blueprint_fallback", blueprint.preferred_backend),
+            permission_state: blueprint.permission_state,
+            notes: vec!["runtime catalog fallback: runtime source list was empty".to_string()],
             sources: blueprint.example_sources,
             origin: LinuxSourceCatalogOrigin::BlueprintFallback,
         },
