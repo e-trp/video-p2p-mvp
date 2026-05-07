@@ -48,6 +48,11 @@
 4. Add X11 fallback for unsupported environments.
 5. Test on at least GNOME Wayland and KDE Wayland.
 
+### Iteration 3 Progress
+
+- Done in part: `capture-linux` now exposes a best-effort `wmctrl`-based runtime window catalog with blueprint fallback
+- Still open: real portal session lifecycle, PipeWire media consumption, and robust Wayland coverage
+
 ## Iteration 4: Tauri Production Flow
 
 1. Replace mock session actions in the GUI with real backend session orchestration.
@@ -67,7 +72,8 @@
 - Done in part: capture-source picker changes now apply immediately without a separate confirmation button
 - Done in part: the main GUI path no longer exposes manual answer/ICE or legacy mock/WebRTC staging controls
 - Done in part: macOS GUI source selection now uses runtime enumeration when available
-- Still open: replace remaining blueprint sources with real OS enumeration, especially on Linux
+- Done in part: Linux GUI source selection now uses `wmctrl`-based runtime enumeration when available
+- Still open: replace metadata-only runtime catalogs with real capture-session enumeration and Wayland portal flow
 
 ## Iteration 5: Audio/Video Pipeline Hardening
 

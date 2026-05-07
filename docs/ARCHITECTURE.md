@@ -20,6 +20,7 @@ Components:
 1. `signaling-server` starts and listens on a TCP port.
 2. `app-core` exposes the current platform capture catalog and selected source metadata to the GUI.
    On macOS, that catalog now attempts runtime application/window enumeration before falling back to blueprint data.
+   On Linux, it now attempts `wmctrl`-based runtime window enumeration before falling back to blueprint data.
 3. A host/viewer session joins a room through `app-core::SignalingConnection`.
 4. `transport-webrtc` creates a real `PeerConnection`, attaches placeholder host audio/video tracks, and keeps a bootstrap data channel for control flow.
 5. Local SDP/ICE is encoded through shared protocol messages and sent through `signaling-server`.
@@ -98,7 +99,7 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - signaling server relay for validated SDP/ICE envelopes between room participants
 - signaling history replay for a late-joining peer in the same room
 - a live signaling client in `app-core` used by CLI and Tauri session flow
-- a capture catalog in `app-core` that surfaces permission state and platform source metadata, including runtime macOS enumeration with blueprint fallback
+- a capture catalog in `app-core` that surfaces permission state and platform source metadata, including runtime macOS and Linux enumeration with blueprint fallback
 - a real `PeerConnection` bootstrap path with attached placeholder audio/video tracks, connection-state snapshots, and ICE gathering
 - Tauri commands and session snapshots that surface local media-track state and placeholder sample publish counters in the GUI
 - the main Tauri GUI path now relies on automatic signaling refresh instead of exposing manual answer/ICE controls

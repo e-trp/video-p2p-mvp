@@ -68,9 +68,9 @@ If you never touch the picker before starting a host session, the first availabl
 Today this picker is backed by:
 
 - macOS: runtime application/window enumeration when available, with a fallback to `ScreenCaptureKit`-shaped blueprint sources
-- Linux: `Portal + PipeWire`-shaped sources
+- Linux: runtime X11 window enumeration through `wmctrl` when available, with a fallback to `Portal + PipeWire`-shaped blueprint sources
 
-This is still a contract layer overall. Linux is not yet reading the real OS window list, and macOS enumeration is best-effort rather than a real ScreenCaptureKit bridge.
+This is still a contract layer overall. Both platform catalogs are best-effort metadata enumeration, not real capture sessions, and they fall back to blueprint data when the host environment blocks runtime discovery.
 
 ### Transport Diagnostics
 
@@ -130,7 +130,7 @@ cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
 
 ## Current Limits
 
-- Linux capture sources are still blueprint/example data rather than OS-enumerated windows
+- Linux runtime enumeration currently depends on X11-style `wmctrl` metadata and does not cover the real Wayland portal flow yet
 - macOS source enumeration is metadata-only and still does not capture real media
 - placeholder media is not real encoded screen/audio content
 - the GUI still falls back to blueprint/example capture sources when runtime enumeration is unavailable
