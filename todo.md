@@ -36,7 +36,7 @@
 ### Iteration 2 Progress
 
 - Done in part: `capture-core` now exists for shared source, permission, video-frame, and audio-buffer types
-- Done in part: `capture-macos` blueprint now uses shared capture contracts and exposes example source metadata
+- Done in part: `capture-macos` now exposes a best-effort runtime application/window catalog with blueprint fallback
 - Done in part: Tauri/app-core now surface the current platform capture catalog and selected source metadata
 - Still open: the actual ScreenCaptureKit bridge, permission flow, and live sample delivery
 
@@ -66,7 +66,8 @@
 - Done in part: host session flow now defaults to the first available capture source when none was selected explicitly
 - Done in part: capture-source picker changes now apply immediately without a separate confirmation button
 - Done in part: the main GUI path no longer exposes manual answer/ICE or legacy mock/WebRTC staging controls
-- Still open: replace blueprint sources with real OS enumeration
+- Done in part: macOS GUI source selection now uses runtime enumeration when available
+- Still open: replace remaining blueprint sources with real OS enumeration, especially on Linux
 
 ## Iteration 5: Audio/Video Pipeline Hardening
 

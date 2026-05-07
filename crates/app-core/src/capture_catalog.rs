@@ -10,11 +10,11 @@ pub struct CaptureCatalogSnapshot {
 pub fn current_capture_catalog() -> CaptureCatalogSnapshot {
     #[cfg(target_os = "macos")]
     {
-        let blueprint = capture_macos::blueprint();
+        let catalog = capture_macos::current_catalog();
         return CaptureCatalogSnapshot {
-            backend: blueprint.sources_api.to_string(),
-            permission_state: blueprint.permission_state,
-            sources: blueprint.example_sources,
+            backend: catalog.backend_label,
+            permission_state: catalog.permission_state,
+            sources: catalog.sources,
         };
     }
 

@@ -65,12 +65,12 @@ This launches the desktop shell from `apps/desktop`.
 
 If you never touch the picker before starting a host session, the first available source is selected automatically.
 
-Today this picker is backed by example sources from the platform blueprint crates:
+Today this picker is backed by:
 
-- macOS: `ScreenCaptureKit`-shaped sources
+- macOS: runtime application/window enumeration when available, with a fallback to `ScreenCaptureKit`-shaped blueprint sources
 - Linux: `Portal + PipeWire`-shaped sources
 
-This is a contract layer only. It is not yet reading the real OS window list.
+This is still a contract layer overall. Linux is not yet reading the real OS window list, and macOS enumeration is best-effort rather than a real ScreenCaptureKit bridge.
 
 ### Transport Diagnostics
 
@@ -130,7 +130,8 @@ cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
 
 ## Current Limits
 
-- capture sources are blueprint/example data, not OS-enumerated windows
+- Linux capture sources are still blueprint/example data rather than OS-enumerated windows
+- macOS source enumeration is metadata-only and still does not capture real media
 - placeholder media is not real encoded screen/audio content
-- the GUI still relies on blueprint/example capture sources
+- the GUI still falls back to blueprint/example capture sources when runtime enumeration is unavailable
 - the signaling service is still a minimal two-peer MVP
