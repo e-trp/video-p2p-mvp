@@ -90,6 +90,13 @@ The capture panel also now shows:
 
 This data is refreshed through the session manager rather than staying fixed from initial app startup.
 
+When you prepare a host session, the session log and next-action hint now also react to capture readiness:
+
+- `granted`: the host catalog is ready for real source selection
+- `required`: OS permission is still needed or the app is still running on fallback metadata
+- `denied`: host capture needs explicit OS approval
+- `unknown`: the desktop session or capture tooling could not be verified cleanly
+
 ### Transport Smoke Test
 
 - `Push Placeholder Media`: write placeholder audio/video samples into the attached host tracks
