@@ -111,10 +111,11 @@ What changed relative to the earlier scaffold:
 - session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
 - the Tauri shell now exposes capture backend, permission state, and source selection from `app-core`
+- macOS capture-source listing now attempts runtime application/window enumeration and falls back to blueprint data when the environment blocks it
 
 ## Recommended Next Build Steps
 
 1. Replace placeholder media samples with real captured audio/video input.
 2. Implement the `capture-macos` ScreenCaptureKit bridge on top of `capture-core`.
-3. Replace blueprint/example capture sources with real OS enumeration in the Tauri GUI.
+3. Add Linux runtime source enumeration to replace blueprint/example capture sources outside macOS.
 4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.
