@@ -535,19 +535,32 @@ impl SessionManager {
             return;
         }
 
+        self.select_first_available_host_capture_source(
+            None,
+            "default capture source selected for host",
+        );
+    }
+
+    fn select_first_available_host_capture_source(
+        &mut self,
+        preferred_audio: Option<bool>,
+        log_prefix: &str,
+    ) -> bool {
         let Some(source) = self.state.capture_catalog.sources.first().cloned() else {
-            return;
+            return false;
         };
 
-        let include_audio = source.has_audio;
+        let include_audio = preferred_audio.unwrap_or(source.has_audio) && source.has_audio;
         self.state.capture_selection = Some(CaptureSelection {
             source_id: source.id.clone(),
             include_audio,
         });
+        self.state.source_label = Some(source.label());
         self.push_log(format!(
-            "default capture source selected for host: id={} include_audio={}",
+            "{log_prefix}: id={} include_audio={}",
             source.id, include_audio
         ));
+        true
     }
 
     fn ensure_host_offer(&mut self, success_message: &str) {
@@ -642,13 +655,22 @@ impl SessionManager {
             {
                 self.state.source_label = Some(label);
             } else {
+                let preferred_audio = selection.include_audio;
                 self.state.capture_selection = None;
                 self.state.source_label = None;
                 self.push_log(format!(
                     "capture source dropped from refreshed catalog: {}",
                     selection.source_id
                 ));
+                if self.state.mode == SessionMode::Host {
+                    self.select_first_available_host_capture_source(
+                        Some(preferred_audio),
+                        "host capture source rebound after catalog refresh",
+                    );
+                }
             }
+        } else if self.state.mode == SessionMode::Host {
+            self.ensure_default_host_capture_selection();
         }
     }
 
@@ -982,6 +1004,7 @@ mod tests {
         PeerAnnouncement, Role,
     };
     use crate::signaling::SignalingConnection;
+    use capture_core::{CaptureSource, CaptureSourceKind};
     use std::collections::HashMap;
     use std::io::{BufRead, BufReader, Write};
     use std::net::{Ipv4Addr, SocketAddr};
@@ -1060,6 +1083,36 @@ mod tests {
         );
         assert_eq!(snapshot.selected_source_audio, source.has_audio);
         assert_eq!(snapshot.source_label.as_deref(), Some(label.as_str()));
+    }
+
+    #[test]
+    fn host_rebind_helper_uses_first_available_source() {
+        let mut manager = SessionManager::new();
+        manager.state.capture_catalog.sources = vec![CaptureSource {
+            id: "replacement-source".to_string(),
+            kind: CaptureSourceKind::Window,
+            display_name: "Replacement".to_string(),
+            app_name: Some("VLC".to_string()),
+            has_audio: true,
+        }];
+        manager.state.capture_selection = None;
+
+        let rebound = manager.select_first_available_host_capture_source(
+            Some(false),
+            "host capture source rebound after catalog refresh",
+        );
+
+        assert!(rebound);
+        let snapshot = manager.snapshot();
+        assert_eq!(
+            snapshot.selected_source_id.as_deref(),
+            Some("replacement-source")
+        );
+        assert!(!snapshot.selected_source_audio);
+        assert_eq!(snapshot.source_label.as_deref(), Some("VLC - Replacement"));
+        assert!(snapshot.logs.iter().any(|line| line.contains(
+            "host capture source rebound after catalog refresh"
+        )));
     }
 
     #[test]

@@ -33,6 +33,7 @@ The backend around the GUI has moved one step forward:
 - capture catalog diagnostics now show whether the GUI is using runtime data or blueprint fallback, plus backend notes
 - capture permission state now follows the latest runtime probe instead of a fixed scaffold default
 - host session logs and next-action hints now react to capture readiness, not only signaling progress
+- host source selection now auto-rebinds when a refreshed runtime catalog drops the previously selected source
 - host startup now defaults to the first available capture source when the user has not selected one explicitly
 - capture picker and audio-toggle changes now apply immediately without a separate confirmation button
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
