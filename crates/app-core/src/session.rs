@@ -6,7 +6,7 @@ use crate::protocol::{
     IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage,
 };
 use crate::signaling::{SignalingConnection, SignalingEvent};
-use capture_core::CaptureSelection;
+use capture_core::{CapturePermissionState, CaptureSelection};
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use transport_webrtc::{
@@ -156,6 +156,7 @@ impl SessionManager {
             "host session configured for room={} signaling={}",
             intent.room, intent.signaling_addr
         ));
+        self.log_host_capture_readiness();
         self.initialize_transport("host");
         self.connect_signaling();
         self.ensure_host_offer("local SDP offer created and sent automatically");
@@ -651,6 +652,32 @@ impl SessionManager {
         }
     }
 
+    fn log_host_capture_readiness(&mut self) {
+        match self.state.capture_catalog.permission_state {
+            CapturePermissionState::Granted => {
+                self.push_log("capture catalog is ready for host-side source selection".to_string());
+            }
+            CapturePermissionState::Required => {
+                self.push_log(
+                    "capture permission is still required; runtime capture may stay on fallback sources until access is granted"
+                        .to_string(),
+                );
+            }
+            CapturePermissionState::Denied => {
+                self.push_log(
+                    "capture permission appears denied; OS approval is required before real host capture can start"
+                        .to_string(),
+                );
+            }
+            CapturePermissionState::Unknown => {
+                self.push_log(
+                    "capture permission state is unknown; verify the desktop session and refresh the catalog before relying on real host capture"
+                        .to_string(),
+                );
+            }
+        }
+    }
+
     fn process_signaling_events(&mut self) {
         let events = match self.state.signaling.as_mut() {
             Some(connection) => match connection.poll() {
@@ -828,6 +855,21 @@ impl SessionManager {
             (_, SessionStage::Stopped, _) => "restart or reset session",
             (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
                 "peer connection is live; feed capture samples into the attached tracks or push placeholder samples for transport smoke testing"
+            }
+            (SessionMode::Host, _, SessionTransport::LiveWebRtc)
+                if self.state.capture_catalog.permission_state == CapturePermissionState::Denied =>
+            {
+                "grant capture permission in the OS and refresh the catalog before relying on real host capture"
+            }
+            (SessionMode::Host, _, SessionTransport::LiveWebRtc)
+                if self.state.capture_catalog.permission_state == CapturePermissionState::Unknown =>
+            {
+                "verify the desktop session or capture tooling, then refresh the catalog before relying on real host capture"
+            }
+            (SessionMode::Host, _, SessionTransport::LiveWebRtc)
+                if self.state.capture_catalog.permission_state == CapturePermissionState::Required =>
+            {
+                "grant capture permission or continue with fallback metadata while real host capture is unavailable"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
                 if self.state.capture_selection.is_none()

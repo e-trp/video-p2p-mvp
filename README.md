@@ -115,6 +115,7 @@ What changed relative to the earlier scaffold:
 - Linux capture-source listing now attempts `wmctrl`-based runtime window enumeration and falls back to blueprint data when the environment blocks it
 - capture catalog diagnostics now surface runtime-vs-fallback origin and backend notes in the GUI
 - capture permission state is now derived from runtime probing and refreshed with the catalog instead of staying a static scaffold value
+- host session guidance now reacts to capture permission readiness instead of only signaling/transport state
 
 ## Recommended Next Build Steps
 
