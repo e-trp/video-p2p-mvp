@@ -20,11 +20,11 @@ pub fn current_capture_catalog() -> CaptureCatalogSnapshot {
 
     #[cfg(target_os = "linux")]
     {
-        let blueprint = capture_linux::blueprint();
+        let catalog = capture_linux::current_catalog();
         return CaptureCatalogSnapshot {
-            backend: format!("{:?}", blueprint.preferred_backend),
-            permission_state: blueprint.permission_state,
-            sources: blueprint.example_sources,
+            backend: catalog.backend_label,
+            permission_state: catalog.permission_state,
+            sources: catalog.sources,
         };
     }
 
