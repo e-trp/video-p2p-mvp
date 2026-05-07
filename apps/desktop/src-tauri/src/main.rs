@@ -103,7 +103,7 @@ fn session_snapshot(state: tauri::State<'_, Mutex<SessionManager>>) -> SessionVi
 
 #[tauri::command]
 fn capture_catalog(state: tauri::State<'_, Mutex<SessionManager>>) -> CaptureCatalogView {
-    let state = state.lock().expect("session state poisoned");
+    let mut state = state.lock().expect("session state poisoned");
     let catalog = state.capture_catalog();
     let snapshot = state.snapshot();
     map_capture_catalog(catalog, snapshot)

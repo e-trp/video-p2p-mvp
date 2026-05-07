@@ -31,6 +31,7 @@ The backend around the GUI has moved one step forward:
 - the macOS source picker now attempts live application/window enumeration before falling back to blueprint data
 - the Linux source picker now attempts `wmctrl`-based runtime window enumeration before falling back to blueprint data
 - capture catalog diagnostics now show whether the GUI is using runtime data or blueprint fallback, plus backend notes
+- capture permission state now follows the latest runtime probe instead of a fixed scaffold default
 - host startup now defaults to the first available capture source when the user has not selected one explicitly
 - capture picker and audio-toggle changes now apply immediately without a separate confirmation button
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes

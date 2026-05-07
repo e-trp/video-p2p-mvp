@@ -133,6 +133,7 @@ impl SessionManager {
     }
 
     pub fn start_host(&mut self, intent: SessionIntent) -> SessionSnapshot {
+        self.sync_capture_catalog();
         self.ensure_default_host_capture_selection();
         let selected_source_label = selected_source_label(
             &self.state.capture_catalog,
@@ -162,6 +163,7 @@ impl SessionManager {
     }
 
     pub fn start_viewer(&mut self, intent: SessionIntent) -> SessionSnapshot {
+        self.sync_capture_catalog();
         self.replace_state(
             SessionMode::Viewer,
             SessionStage::AwaitingPeer,
@@ -256,7 +258,8 @@ impl SessionManager {
         self.snapshot()
     }
 
-    pub fn capture_catalog(&self) -> CaptureCatalogSnapshot {
+    pub fn capture_catalog(&mut self) -> CaptureCatalogSnapshot {
+        self.sync_capture_catalog();
         self.state.capture_catalog.clone()
     }
 
@@ -265,6 +268,7 @@ impl SessionManager {
         source_id: String,
         include_audio: bool,
     ) -> SessionSnapshot {
+        self.sync_capture_catalog();
         let Some(source) = self
             .state
             .capture_catalog
@@ -291,6 +295,7 @@ impl SessionManager {
     }
 
     pub fn refresh(&mut self) -> SessionSnapshot {
+        self.sync_capture_catalog();
         self.process_signaling_events();
         self.ensure_host_offer("local SDP offer created and sent automatically");
         self.flush_local_transport_signals();
@@ -614,6 +619,38 @@ impl SessionManager {
         }
     }
 
+    fn sync_capture_catalog(&mut self) {
+        let previous_catalog = self.state.capture_catalog.clone();
+        self.state.capture_catalog = current_capture_catalog();
+
+        if previous_catalog.backend != self.state.capture_catalog.backend
+            || previous_catalog.permission_state != self.state.capture_catalog.permission_state
+            || previous_catalog.origin != self.state.capture_catalog.origin
+        {
+            self.push_log(format!(
+                "capture catalog refreshed: backend={} permission={} origin={}",
+                self.state.capture_catalog.backend,
+                describe_permission_state(self.state.capture_catalog.permission_state),
+                self.state.capture_catalog.origin
+            ));
+        }
+
+        if let Some(selection) = self.state.capture_selection.clone() {
+            if let Some(label) =
+                selected_source_label(&self.state.capture_catalog, Some(&selection))
+            {
+                self.state.source_label = Some(label);
+            } else {
+                self.state.capture_selection = None;
+                self.state.source_label = None;
+                self.push_log(format!(
+                    "capture source dropped from refreshed catalog: {}",
+                    selection.source_id
+                ));
+            }
+        }
+    }
+
     fn process_signaling_events(&mut self) {
         let events = match self.state.signaling.as_mut() {
             Some(connection) => match connection.poll() {
@@ -925,7 +962,10 @@ mod tests {
         assert_eq!(snapshot.transport, SessionTransport::LiveWebRtc);
         assert_eq!(snapshot.room.as_deref(), Some("demo"));
         assert_eq!(snapshot.source_label.as_deref(), Some("vlc"));
-        assert_eq!(snapshot.capture_permission_state, "required");
+        assert!(matches!(
+            snapshot.capture_permission_state.as_str(),
+            "required" | "granted" | "denied" | "unknown"
+        ));
         assert!(snapshot.available_source_count >= 1);
         assert_eq!(snapshot.local_media_track_count, 2);
         assert!(snapshot.local_video_track_attached);
