@@ -81,6 +81,12 @@ The GUI now surfaces transport-side diagnostics from the Rust `PeerConnection` w
 - current stats report count
 - transport notes describing track attachment and sample counters
 
+The capture panel also now shows:
+
+- backend label
+- catalog origin (`runtime`, `blueprint_fallback`, or `unavailable`)
+- backend notes explaining runtime enumeration success or fallback reason
+
 ### Transport Smoke Test
 
 - `Push Placeholder Media`: write placeholder audio/video samples into the attached host tracks

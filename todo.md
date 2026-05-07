@@ -67,6 +67,7 @@
 - Done in part: GUI session actions already drive real signaling, negotiation, and placeholder media publishing
 - Done in part: source picker UI now exists, backed by the current platform capture catalog blueprint data
 - Done in part: GUI now surfaces transport-stage, data-channel, and transport-note diagnostics from the live WebRTC layer
+- Done in part: GUI now surfaces capture-catalog origin and backend notes for runtime-vs-fallback diagnostics
 - Done in part: host session flow now auto-creates and sends its first local offer once signaling is connected
 - Done in part: host session flow now defaults to the first available capture source when none was selected explicitly
 - Done in part: capture-source picker changes now apply immediately without a separate confirmation button

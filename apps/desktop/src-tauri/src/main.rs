@@ -76,6 +76,8 @@ struct CaptureSourceView {
 struct CaptureCatalogView {
     backend: String,
     permission_state: String,
+    origin: String,
+    notes: Vec<String>,
     selected_source_id: Option<String>,
     selected_source_audio: bool,
     sources: Vec<CaptureSourceView>,
@@ -316,6 +318,8 @@ fn map_capture_catalog(
     CaptureCatalogView {
         backend: catalog.backend,
         permission_state: snapshot.capture_permission_state,
+        origin: catalog.origin,
+        notes: catalog.notes,
         selected_source_id: snapshot.selected_source_id,
         selected_source_audio: snapshot.selected_source_audio,
         sources: catalog

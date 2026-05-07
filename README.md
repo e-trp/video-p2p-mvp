@@ -113,6 +113,7 @@ What changed relative to the earlier scaffold:
 - the Tauri shell now exposes capture backend, permission state, and source selection from `app-core`
 - macOS capture-source listing now attempts runtime application/window enumeration and falls back to blueprint data when the environment blocks it
 - Linux capture-source listing now attempts `wmctrl`-based runtime window enumeration and falls back to blueprint data when the environment blocks it
+- capture catalog diagnostics now surface runtime-vs-fallback origin and backend notes in the GUI
 
 ## Recommended Next Build Steps
 

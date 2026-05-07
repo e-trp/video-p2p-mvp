@@ -32,6 +32,7 @@ pub struct MacCaptureCatalog {
     pub permission_state: CapturePermissionState,
     pub sources: Vec<CaptureSource>,
     pub origin: MacSourceCatalogOrigin,
+    pub notes: Vec<String>,
 }
 
 pub fn blueprint() -> MacCaptureBlueprint {
@@ -72,12 +73,24 @@ pub fn current_catalog() -> MacCaptureCatalog {
         Ok(sources) if !sources.is_empty() => MacCaptureCatalog {
             backend_label: format!("{} runtime catalog", blueprint.sources_api),
             permission_state: blueprint.permission_state,
+            notes: vec![format!(
+                "runtime catalog enumerated {} sources through osascript/System Events",
+                sources.len()
+            )],
             sources,
             origin: MacSourceCatalogOrigin::Runtime,
         },
-        _ => MacCaptureCatalog {
+        Err(error) => MacCaptureCatalog {
             backend_label: format!("{} blueprint fallback", blueprint.sources_api),
             permission_state: blueprint.permission_state,
+            notes: vec![format!("runtime catalog fallback: {error}")],
+            sources: blueprint.example_sources,
+            origin: MacSourceCatalogOrigin::BlueprintFallback,
+        },
+        Ok(_) => MacCaptureCatalog {
+            backend_label: format!("{} blueprint fallback", blueprint.sources_api),
+            permission_state: blueprint.permission_state,
+            notes: vec!["runtime catalog fallback: runtime source list was empty".to_string()],
             sources: blueprint.example_sources,
             origin: MacSourceCatalogOrigin::BlueprintFallback,
         },
