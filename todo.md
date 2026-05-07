@@ -72,6 +72,7 @@
 - Done in part: GUI now surfaces capture-catalog origin and backend notes for runtime-vs-fallback diagnostics
 - Done in part: session refresh now re-synchronizes capture-catalog permission/origin state instead of freezing it at startup
 - Done in part: host session guidance now reacts to capture permission readiness before falling back to signaling-only hints
+- Done in part: host source selection now auto-rebinds when runtime catalog refresh invalidates the previous source
 - Done in part: host session flow now auto-creates and sends its first local offer once signaling is connected
 - Done in part: host session flow now defaults to the first available capture source when none was selected explicitly
 - Done in part: capture-source picker changes now apply immediately without a separate confirmation button

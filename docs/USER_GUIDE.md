@@ -97,6 +97,8 @@ When you prepare a host session, the session log and next-action hint now also r
 - `denied`: host capture needs explicit OS approval
 - `unknown`: the desktop session or capture tooling could not be verified cleanly
 
+If the selected host source disappears after a later catalog refresh, the session manager now rebinds to the first available source automatically and records that change in the session log.
+
 ### Transport Smoke Test
 
 - `Push Placeholder Media`: write placeholder audio/video samples into the attached host tracks

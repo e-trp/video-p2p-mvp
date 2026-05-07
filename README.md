@@ -116,6 +116,7 @@ What changed relative to the earlier scaffold:
 - capture catalog diagnostics now surface runtime-vs-fallback origin and backend notes in the GUI
 - capture permission state is now derived from runtime probing and refreshed with the catalog instead of staying a static scaffold value
 - host session guidance now reacts to capture permission readiness instead of only signaling/transport state
+- host source selection now automatically rebinds to the first available source if a refreshed runtime catalog drops the previously selected source
 
 ## Recommended Next Build Steps
 
