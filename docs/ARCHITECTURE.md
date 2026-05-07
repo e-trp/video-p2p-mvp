@@ -22,7 +22,7 @@ Components:
 3. A host/viewer session joins a room through `app-core::SignalingConnection`.
 4. `transport-webrtc` creates a real `PeerConnection`, attaches placeholder host audio/video tracks, and keeps a bootstrap data channel for control flow.
 5. Local SDP/ICE is encoded through shared protocol messages and sent through `signaling-server`.
-6. The peer receives signaling messages, applies them, and returns answer/ICE through the same path.
+6. The peer receives signaling messages, and the GUI session refresh path auto-applies remote answer/ICE through the same signaling channel.
 7. Mock UDP sender/receiver flow still exists separately for the old media scaffold.
 
 The current signaling server also accepts future WebRTC signaling envelopes after pairing:
@@ -100,4 +100,5 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - a capture catalog in `app-core` that surfaces platform blueprint sources and permission state
 - a real `PeerConnection` bootstrap path with attached placeholder audio/video tracks, connection-state snapshots, and ICE gathering
 - Tauri commands and session snapshots that surface local media-track state and placeholder sample publish counters in the GUI
+- the main Tauri GUI path now relies on automatic signaling refresh instead of exposing manual answer/ICE controls
 - `capture-core` as the shared Rust-side model for future native capture backends

@@ -17,7 +17,7 @@ The repository now includes a desktop scaffold in `apps/desktop`:
 - Tauri Rust shell in `apps/desktop/src-tauri`
 - initial commands for reading project status and the saved specification
 - session manager hooks for `host`, `join`, `stop`, `status`, and `logs`
-- UI controls for config save, host/viewer prep, mock stream stage, planned WebRTC stage, reset, refresh, and log clearing
+- UI controls for config save, host/viewer prep, transport smoke testing, reset, refresh, and log clearing
 
 The backend around the GUI has moved one step forward:
 
@@ -31,7 +31,6 @@ The backend around the GUI has moved one step forward:
 - host startup now defaults to the first available capture source when the user has not selected one explicitly
 - capture picker and audio-toggle changes now apply immediately without a separate confirmation button
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
-- manual answer/ICE text fields remain only as debugging controls under an explicit debug section
 
 ## Intended GUI Responsibilities
 
@@ -71,13 +70,10 @@ The current Tauri UI is wired to the session manager and supports:
 - applying capture-source changes immediately from the picker state
 - saving session configuration
 - preparing host or viewer session states with a live signaling connection
-- switching to mock streaming or live WebRTC transport stages
 - auto-creating and sending the first local offer from the host path
 - publishing placeholder audio/video samples into the attached host tracks
 - polling signaling through repeated snapshot refresh
 - auto-applying remote offer/answer/ICE during refresh
-- accepting a remote answer
-- adding a remote ICE candidate
 - stopping or resetting a session
 - viewing current session status and next action
 - viewing transport connection state, transport stage, bootstrap data-channel readiness, transport notes, local audio/video track attachment, sample counters, local/remote description kind, and ICE counters
