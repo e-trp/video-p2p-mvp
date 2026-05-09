@@ -1987,6 +1987,7 @@ name = "transport-webrtc"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "capture-core",
  "interceptor",
  "tokio",
  "webrtc",

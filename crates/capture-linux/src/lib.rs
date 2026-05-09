@@ -103,13 +103,16 @@ fn infer_permission_state_from_error_with_display(
 ) -> CapturePermissionState {
     let lower = error.to_ascii_lowercase();
 
-    if lower.contains("cannot open display") || lower.contains("cannot get client list properties") {
+    if lower.contains("cannot open display") || lower.contains("cannot get client list properties")
+    {
         if has_display {
             CapturePermissionState::Required
         } else {
             CapturePermissionState::Unknown
         }
-    } else if lower.contains("failed to launch wmctrl") || lower.contains("no such file or directory") {
+    } else if lower.contains("failed to launch wmctrl")
+        || lower.contains("no such file or directory")
+    {
         CapturePermissionState::Unknown
     } else {
         CapturePermissionState::Required
@@ -247,7 +250,10 @@ mod tests {
     #[test]
     fn blueprint_exposes_required_permission_and_example_sources() {
         let blueprint = blueprint();
-        assert_eq!(blueprint.preferred_backend, LinuxCaptureBackend::PortalPipeWire);
+        assert_eq!(
+            blueprint.preferred_backend,
+            LinuxCaptureBackend::PortalPipeWire
+        );
         assert_eq!(blueprint.permission_state, CapturePermissionState::Required);
         assert_eq!(blueprint.example_sources.len(), 2);
     }
@@ -286,7 +292,9 @@ mod tests {
     #[test]
     fn permission_probe_maps_runtime_errors() {
         assert_eq!(
-            infer_permission_state_from_error("failed to launch wmctrl: No such file or directory (os error 2)"),
+            infer_permission_state_from_error(
+                "failed to launch wmctrl: No such file or directory (os error 2)"
+            ),
             CapturePermissionState::Unknown
         );
         assert_eq!(

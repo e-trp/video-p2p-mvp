@@ -120,7 +120,9 @@ pub enum SignalingMessage {
 pub fn parse_join_request(line: &str) -> Result<JoinRequest, ProtocolError> {
     let parts: Vec<_> = line.split_whitespace().collect();
     if parts.len() != 4 || parts[0] != "JOIN" {
-        return Err(ProtocolError("expected: JOIN <room> <sender|receiver> <udp_port>".to_string()));
+        return Err(ProtocolError(
+            "expected: JOIN <room> <sender|receiver> <udp_port>".to_string(),
+        ));
     }
 
     Ok(JoinRequest {
@@ -174,7 +176,9 @@ pub fn parse_peer_message(line: &str) -> Result<Option<PeerAnnouncement>, Protoc
         return Err(ProtocolError(message.to_string()));
     }
 
-    Err(ProtocolError(format!("unsupported signaling message: {trimmed}")))
+    Err(ProtocolError(format!(
+        "unsupported signaling message: {trimmed}"
+    )))
 }
 
 pub fn encode_media_packet(packet: &MediaPacket) -> Vec<u8> {
@@ -230,7 +234,9 @@ pub fn decode_signaling_message(line: &str) -> Result<SignalingMessage, Protocol
     let trimmed = line.trim();
     let parts: Vec<_> = trimmed.split('|').collect();
     if parts.len() < 4 || parts[0] != "SIG" {
-        return Err(ProtocolError(format!("unsupported signaling envelope: {trimmed}")));
+        return Err(ProtocolError(format!(
+            "unsupported signaling envelope: {trimmed}"
+        )));
     }
 
     match parts[1] {
@@ -238,27 +244,27 @@ pub fn decode_signaling_message(line: &str) -> Result<SignalingMessage, Protocol
             sdp_type: parts[2].parse()?,
             sdp: unescape_payload(parts[3]),
         })),
-        "ICE" if parts.len() == 5 => Ok(SignalingMessage::IceCandidate(IceCandidate {
-            sdp_mid: unescape_optional(parts[2]),
-            sdp_mline_index: if parts[3] == "-" {
-                None
-            } else {
-                Some(
-                    parts[3]
-                        .parse()
-                        .map_err(|_| ProtocolError(format!("invalid sdp mline index: {}", parts[3])))?,
-                )
-            },
-            candidate: unescape_payload(parts[4]),
-        })),
-        other => Err(ProtocolError(format!("unsupported signaling message type: {other}"))),
+        "ICE" if parts.len() == 5 => {
+            Ok(SignalingMessage::IceCandidate(IceCandidate {
+                sdp_mid: unescape_optional(parts[2]),
+                sdp_mline_index: if parts[3] == "-" {
+                    None
+                } else {
+                    Some(parts[3].parse().map_err(|_| {
+                        ProtocolError(format!("invalid sdp mline index: {}", parts[3]))
+                    })?)
+                },
+                candidate: unescape_payload(parts[4]),
+            }))
+        }
+        other => Err(ProtocolError(format!(
+            "unsupported signaling message type: {other}"
+        ))),
     }
 }
 
 fn escape_optional(value: Option<&str>) -> String {
-    value
-        .map(escape_payload)
-        .unwrap_or_else(|| "-".to_string())
+    value.map(escape_payload).unwrap_or_else(|| "-".to_string())
 }
 
 fn unescape_optional(value: &str) -> Option<String> {
@@ -270,7 +276,10 @@ fn unescape_optional(value: &str) -> Option<String> {
 }
 
 fn escape_payload(value: &str) -> String {
-    value.replace('%', "%25").replace('|', "%7C").replace('\n', "%0A")
+    value
+        .replace('%', "%25")
+        .replace('|', "%7C")
+        .replace('\n', "%0A")
 }
 
 fn unescape_payload(value: &str) -> String {
@@ -289,12 +298,11 @@ mod tests {
 
     #[test]
     fn roundtrip_sdp_envelope() {
-        let encoded = encode_signaling_message(&SignalingMessage::SessionDescription(
-            SessionDescription {
+        let encoded =
+            encode_signaling_message(&SignalingMessage::SessionDescription(SessionDescription {
                 sdp_type: SdpType::Offer,
                 sdp: "v=0\no=- 0 0 IN IP4 127.0.0.1".to_string(),
-            },
-        ));
+            }));
         let decoded = decode_signaling_message(encoded.trim()).expect("decode sdp");
         assert_eq!(
             decoded,

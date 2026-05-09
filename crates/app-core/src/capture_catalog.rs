@@ -106,7 +106,10 @@ mod tests {
 
     #[test]
     fn permission_state_description_is_stable() {
-        assert_eq!(describe_permission_state(CapturePermissionState::Required), "required");
+        assert_eq!(
+            describe_permission_state(CapturePermissionState::Required),
+            "required"
+        );
     }
 
     #[test]

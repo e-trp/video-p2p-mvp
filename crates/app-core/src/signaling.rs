@@ -1,6 +1,6 @@
 use crate::protocol::{
-    decode_signaling_message, encode_signaling_message, parse_peer_message, PeerAnnouncement, Role,
-    SignalingMessage,
+    PeerAnnouncement, Role, SignalingMessage, decode_signaling_message, encode_signaling_message,
+    parse_peer_message,
 };
 use std::error::Error;
 use std::fmt::{Display, Formatter};

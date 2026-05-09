@@ -1,13 +1,14 @@
 use crate::capture_catalog::{
-    current_capture_catalog, describe_permission_state, selected_source_label,
-    CaptureCatalogSnapshot,
+    CaptureCatalogSnapshot, current_capture_catalog, describe_permission_state,
+    selected_source_label,
 };
 use crate::protocol::{
     IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage,
 };
 use crate::signaling::{SignalingConnection, SignalingEvent};
-use capture_core::{CapturePermissionState, CaptureSelection};
-use std::time::Duration;
+use capture_core::{
+    AudioBuffer, CapturePermissionState, CaptureSelection, VideoFrame, VideoPixelFormat,
+};
 use std::time::{SystemTime, UNIX_EPOCH};
 use transport_webrtc::{
     DescriptionKind, TransportSession, TransportStage, WebRtcConfig, WebRtcSignal,
@@ -74,6 +75,8 @@ pub struct SessionSnapshot {
     pub published_audio_sample_count: usize,
     pub last_video_sample_bytes: usize,
     pub last_audio_sample_bytes: usize,
+    pub last_video_capture_summary: Option<String>,
+    pub last_audio_capture_summary: Option<String>,
     pub local_data_channel_ready: bool,
     pub transport_stats_report_count: usize,
     pub transport_notes: Vec<String>,
@@ -304,28 +307,48 @@ impl SessionManager {
         self.snapshot()
     }
 
-    pub fn publish_placeholder_media(&mut self) -> SessionSnapshot {
+    pub fn publish_debug_capture_samples(&mut self) -> SessionSnapshot {
         if let Some(webrtc) = self.state.webrtc.as_mut() {
-            let video = webrtc
-                .publish_video_sample(vec![0x90, 0x90, 0x90, 0x01], Duration::from_millis(33));
-            let audio = webrtc
-                .publish_audio_sample(vec![0xF8, 0xFF, 0xFE, 0x00], Duration::from_millis(20));
+            let selected_source_id = self
+                .state
+                .capture_selection
+                .as_ref()
+                .map(|selection| selection.source_id.clone())
+                .unwrap_or_else(|| "unselected-source".to_string());
+            let include_audio = self
+                .state
+                .capture_selection
+                .as_ref()
+                .map(|selection| selection.include_audio)
+                .unwrap_or(false);
+
+            let video = webrtc.publish_video_frame(debug_video_frame(&selected_source_id));
+            let audio = if include_audio {
+                Some(webrtc.publish_audio_buffer(debug_audio_buffer()))
+            } else {
+                None
+            };
 
             match (video, audio) {
-                (Ok(()), Ok(())) => {
-                    self.push_log(
-                        "placeholder audio/video samples published to local tracks".to_string(),
-                    );
+                (Ok(()), Some(Ok(()))) => {
+                    self.push_log(format!(
+                        "debug capture video/audio payloads published for source={selected_source_id}"
+                    ));
+                }
+                (Ok(()), None) => {
+                    self.push_log(format!(
+                        "debug capture video payload published for source={selected_source_id}; audio skipped by capture selection"
+                    ));
                 }
                 (video_result, audio_result) => {
                     if let Err(error) = video_result {
                         self.push_log(format!(
-                            "failed to publish placeholder video sample: {error}"
+                            "failed to publish debug capture video payload: {error}"
                         ));
                     }
-                    if let Err(error) = audio_result {
+                    if let Some(Err(error)) = audio_result {
                         self.push_log(format!(
-                            "failed to publish placeholder audio sample: {error}"
+                            "failed to publish debug capture audio payload: {error}"
                         ));
                     }
                 }
@@ -335,6 +358,10 @@ impl SessionManager {
         }
 
         self.snapshot()
+    }
+
+    pub fn publish_placeholder_media(&mut self) -> SessionSnapshot {
+        self.publish_debug_capture_samples()
     }
 
     pub fn stop(&mut self) -> SessionSnapshot {
@@ -454,6 +481,12 @@ impl SessionManager {
                 .as_ref()
                 .map(|snapshot| snapshot.last_audio_sample_bytes)
                 .unwrap_or(0),
+            last_video_capture_summary: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.last_video_capture_summary.clone()),
+            last_audio_capture_summary: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.last_audio_capture_summary.clone()),
             local_data_channel_ready: transport_snapshot
                 .as_ref()
                 .map(|snapshot| snapshot.local_data_channel_ready)
@@ -677,7 +710,9 @@ impl SessionManager {
     fn log_host_capture_readiness(&mut self) {
         match self.state.capture_catalog.permission_state {
             CapturePermissionState::Granted => {
-                self.push_log("capture catalog is ready for host-side source selection".to_string());
+                self.push_log(
+                    "capture catalog is ready for host-side source selection".to_string(),
+                );
             }
             CapturePermissionState::Required => {
                 self.push_log(
@@ -876,20 +911,23 @@ impl SessionManager {
             }
             (_, SessionStage::Stopped, _) => "restart or reset session",
             (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
-                "peer connection is live; feed capture samples into the attached tracks or push placeholder samples for transport smoke testing"
+                "peer connection is live; feed capture samples into the attached tracks or push debug capture samples for transport smoke testing"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
-                if self.state.capture_catalog.permission_state == CapturePermissionState::Denied =>
+                if self.state.capture_catalog.permission_state
+                    == CapturePermissionState::Denied =>
             {
                 "grant capture permission in the OS and refresh the catalog before relying on real host capture"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
-                if self.state.capture_catalog.permission_state == CapturePermissionState::Unknown =>
+                if self.state.capture_catalog.permission_state
+                    == CapturePermissionState::Unknown =>
             {
                 "verify the desktop session or capture tooling, then refresh the catalog before relying on real host capture"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
-                if self.state.capture_catalog.permission_state == CapturePermissionState::Required =>
+                if self.state.capture_catalog.permission_state
+                    == CapturePermissionState::Required =>
             {
                 "grant capture permission or continue with fallback metadata while real host capture is unavailable"
             }
@@ -996,12 +1034,67 @@ fn stamp(message: &str) -> String {
     format!("[{seconds}] {message}")
 }
 
+fn timestamp_micros() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|value| value.as_micros() as u64)
+        .unwrap_or(0)
+}
+
+fn debug_video_frame(source_id: &str) -> VideoFrame {
+    let width = 64;
+    let height = 36;
+    let seed = source_id
+        .bytes()
+        .fold(0u8, |value, byte| value.wrapping_add(byte));
+    let mut bytes = Vec::with_capacity((width * height * 4) as usize);
+
+    for index in 0..(width * height) {
+        let channel = (index % 255) as u8;
+        bytes.extend_from_slice(&[
+            seed.wrapping_add(channel),
+            seed.wrapping_add(channel / 2),
+            seed.wrapping_sub(channel / 3),
+            0xFF,
+        ]);
+    }
+
+    VideoFrame {
+        format: VideoPixelFormat::Bgra8,
+        width,
+        height,
+        timestamp_micros: timestamp_micros(),
+        bytes,
+    }
+}
+
+fn debug_audio_buffer() -> AudioBuffer {
+    let sample_rate_hz = 48_000;
+    let channels = 2;
+    let frames = 960;
+    let mut samples = Vec::with_capacity((frames * u32::from(channels)) as usize);
+
+    for index in 0..frames {
+        let wave = (((index % 48) as f32) / 24.0) - 1.0;
+        samples.push(wave * 0.05);
+        samples.push((-wave) * 0.05);
+    }
+
+    AudioBuffer {
+        sample_rate_hz,
+        channels,
+        frames,
+        timestamp_micros: timestamp_micros(),
+        samples,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{SessionIntent, SessionManager, SessionMode, SessionStage, SessionTransport};
     use crate::protocol::{
-        decode_signaling_message, encode_peer, encode_waiting, parse_join_request,
-        PeerAnnouncement, Role,
+        PeerAnnouncement, Role, decode_signaling_message, encode_peer, encode_waiting,
+        parse_join_request,
     };
     use crate::signaling::SignalingConnection;
     use capture_core::{CaptureSource, CaptureSourceKind};
@@ -1059,10 +1152,16 @@ mod tests {
             Some(first_source.id.as_str())
         );
         assert_eq!(snapshot.selected_source_audio, first_source.has_audio);
-        assert_eq!(snapshot.source_label.as_deref(), Some(first_source.label().as_str()));
-        assert!(snapshot.logs.iter().any(|line| line.contains(
-            "default capture source selected for host"
-        )));
+        assert_eq!(
+            snapshot.source_label.as_deref(),
+            Some(first_source.label().as_str())
+        );
+        assert!(
+            snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("default capture source selected for host"))
+        );
     }
 
     #[test]
@@ -1110,9 +1209,12 @@ mod tests {
         );
         assert!(!snapshot.selected_source_audio);
         assert_eq!(snapshot.source_label.as_deref(), Some("VLC - Replacement"));
-        assert!(snapshot.logs.iter().any(|line| line.contains(
-            "host capture source rebound after catalog refresh"
-        )));
+        assert!(
+            snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("host capture source rebound after catalog refresh"))
+        );
     }
 
     #[test]
@@ -1126,14 +1228,16 @@ mod tests {
         let snapshot = manager.stop();
 
         assert_eq!(snapshot.stage, SessionStage::Stopped);
-        assert!(snapshot
-            .logs
-            .iter()
-            .any(|line| line.contains("session stopped")));
+        assert!(
+            snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("session stopped"))
+        );
     }
 
     #[test]
-    fn host_session_can_publish_placeholder_media() {
+    fn host_session_can_publish_debug_capture_media() {
         let mut manager = SessionManager::new();
         manager.start_host(SessionIntent {
             room: "demo".to_string(),
@@ -1141,11 +1245,53 @@ mod tests {
             source_label: Some("vlc".to_string()),
         });
 
-        let snapshot = manager.publish_placeholder_media();
+        let snapshot = manager.publish_debug_capture_samples();
         assert_eq!(snapshot.published_video_sample_count, 1);
         assert_eq!(snapshot.published_audio_sample_count, 1);
-        assert_eq!(snapshot.last_video_sample_bytes, 4);
-        assert_eq!(snapshot.last_audio_sample_bytes, 4);
+        assert_eq!(snapshot.last_video_sample_bytes, 64 * 36 * 4);
+        assert_eq!(snapshot.last_audio_sample_bytes, 960 * 2 * 4);
+        assert!(
+            snapshot
+                .last_video_capture_summary
+                .as_deref()
+                .is_some_and(|summary| summary.starts_with("bgra8 64x36 @ "))
+        );
+        assert!(
+            snapshot
+                .last_audio_capture_summary
+                .as_deref()
+                .is_some_and(|summary| summary.starts_with("48000Hz 2ch 960f @ "))
+        );
+    }
+
+    #[test]
+    fn debug_capture_publish_respects_audio_toggle() {
+        let mut manager = SessionManager::new();
+        let source = manager
+            .capture_catalog()
+            .sources
+            .iter()
+            .find(|source| source.has_audio)
+            .cloned()
+            .expect("at least one audio-capable source");
+
+        manager.select_capture_source(source.id, false);
+        manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: Some("vlc".to_string()),
+        });
+
+        let snapshot = manager.publish_debug_capture_samples();
+        assert_eq!(snapshot.published_video_sample_count, 1);
+        assert_eq!(snapshot.published_audio_sample_count, 0);
+        assert!(snapshot.last_audio_capture_summary.is_none());
+        assert!(
+            snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("audio skipped by capture selection"))
+        );
     }
 
     #[test]
@@ -1164,10 +1310,12 @@ mod tests {
         let refreshed = manager.refresh();
         assert!(refreshed.local_offer_ready);
         assert_eq!(refreshed.local_description_kind.as_deref(), Some("offer"));
-        assert!(refreshed
-            .logs
-            .iter()
-            .any(|line| line.contains("local SDP offer created and sent automatically")));
+        assert!(
+            refreshed
+                .logs
+                .iter()
+                .any(|line| line.contains("local SDP offer created and sent automatically"))
+        );
     }
 
     #[test]
@@ -1237,14 +1385,18 @@ mod tests {
             viewer_snapshot.remote_description_kind.as_deref(),
             Some("offer")
         );
-        assert!(viewer_snapshot
-            .logs
-            .iter()
-            .any(|line| line.contains("remote SDP offer received")));
-        assert!(host_snapshot
-            .logs
-            .iter()
-            .any(|line| line.contains("remote SDP answer received and applied")));
+        assert!(
+            viewer_snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("remote SDP offer received"))
+        );
+        assert!(
+            host_snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("remote SDP answer received and applied"))
+        );
     }
 
     fn attach_test_signaling(

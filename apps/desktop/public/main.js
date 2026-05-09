@@ -88,6 +88,8 @@ function setSession(session) {
     <div><dt>Stats Reports</dt><dd>${session.transport_stats_report_count ?? 0}</dd></div>
     <div><dt>Video Samples</dt><dd>${session.published_video_sample_count ?? 0} / ${session.last_video_sample_bytes ?? 0}B</dd></div>
     <div><dt>Audio Samples</dt><dd>${session.published_audio_sample_count ?? 0} / ${session.last_audio_sample_bytes ?? 0}B</dd></div>
+    <div><dt>Video Payload</dt><dd>${session.last_video_capture_summary ?? "n/a"}</dd></div>
+    <div><dt>Audio Payload</dt><dd>${session.last_audio_capture_summary ?? "n/a"}</dd></div>
     <div><dt>Local Desc</dt><dd>${session.local_description_kind ?? "n/a"} / ${String(session.local_description_ready)}</dd></div>
     <div><dt>Remote Desc</dt><dd>${session.remote_description_kind ?? "n/a"} / ${String(session.remote_description_ready)}</dd></div>
     <div><dt>Local ICE</dt><dd>${session.local_candidate_count ?? 0}</dd></div>
@@ -157,6 +159,8 @@ async function refresh() {
       <div><dt>Stats Reports</dt><dd>0</dd></div>
       <div><dt>Video Samples</dt><dd>0 / 0B</dd></div>
       <div><dt>Audio Samples</dt><dd>0 / 0B</dd></div>
+      <div><dt>Video Payload</dt><dd>n/a</dd></div>
+      <div><dt>Audio Payload</dt><dd>n/a</dd></div>
       <div><dt>Local Desc</dt><dd>n/a / false</dd></div>
       <div><dt>Remote Desc</dt><dd>n/a / false</dd></div>
       <div><dt>Local ICE</dt><dd>0</dd></div>
@@ -255,7 +259,7 @@ async function load() {
   document.getElementById("source-audio").addEventListener("change", applySelectedSource);
 
   document.getElementById("publish-media-btn").addEventListener("click", async () => {
-    await runCommand("publish_placeholder_media");
+    await runCommand("publish_debug_capture_samples");
   });
 
   document.getElementById("stop-btn").addEventListener("click", async () => {

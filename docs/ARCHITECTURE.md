@@ -6,7 +6,7 @@ The repository is now a workspace-based scaffold with a future desktop GUI targe
 
 Components:
 
-- `crates/app-core`: shared protocol, CLI parsing, live signaling client, and session orchestration
+- `crates/app-core`: shared protocol, CLI parsing, live signaling client, session orchestration, and debug capture-burst bridging
 - `crates/capture-core`: shared capture-domain types for source selection, permissions, audio buffers, and video frames
 - `crates/transport-webrtc`: real `RTCPeerConnection` bootstrap with attached host media tracks and control data channel
 - `crates/capture-macos`: planned ScreenCaptureKit backend blueprint crate
@@ -25,7 +25,8 @@ Components:
 4. `transport-webrtc` creates a real `PeerConnection`, attaches placeholder host audio/video tracks, and keeps a bootstrap data channel for control flow.
 5. Local SDP/ICE is encoded through shared protocol messages and sent through `signaling-server`.
 6. The peer receives signaling messages, and the GUI session refresh path auto-applies remote answer/ICE through the same signaling channel.
-7. Mock UDP sender/receiver flow still exists separately for the old media scaffold.
+7. The session manager can synthesize `capture-core` video/audio payloads and push them through the attached host tracks for transport smoke testing.
+8. Mock UDP sender/receiver flow still exists separately for the old media scaffold.
 
 The current signaling server also accepts future WebRTC signaling envelopes after pairing:
 
@@ -105,6 +106,7 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - host session guidance now branches on capture readiness before falling through to signaling-only advice
 - host capture selection now self-heals to the first available source when runtime catalog refresh invalidates the previous selection
 - a real `PeerConnection` bootstrap path with attached placeholder audio/video tracks, connection-state snapshots, and ICE gathering
-- Tauri commands and session snapshots that surface local media-track state and placeholder sample publish counters in the GUI
+- Tauri commands and session snapshots that surface local media-track state, debug capture-payload counters, and payload summaries in the GUI
+- the CLI host flow now follows the same automatic first-offer path as the GUI and can optionally publish a debug capture burst after connect
 - the main Tauri GUI path now relies on automatic signaling refresh instead of exposing manual answer/ICE controls
 - `capture-core` as the shared Rust-side model for future native capture backends
