@@ -108,6 +108,11 @@ The debug burst respects the selected source audio toggle:
 - if `Include Audio` is enabled, both video and audio payload summaries are updated
 - if `Include Audio` is disabled, only the video payload is published during the smoke test
 
+This smoke path now goes through the same session-facing publish validation that future native capture backends are expected to use:
+
+- the selected source id must match the payload source being published
+- audio payloads are rejected when the current selection has `Include Audio` turned off
+
 Host-side offer creation, answer delivery, and ICE now flow automatically through the signaling server during refresh. The remaining manual control is only there to smoke-test media publication before real capture is wired.
 
 ### Status And Snapshot

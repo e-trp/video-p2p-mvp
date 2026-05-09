@@ -307,54 +307,95 @@ impl SessionManager {
         self.snapshot()
     }
 
+    pub fn publish_capture_video_frame(
+        &mut self,
+        source_id: String,
+        frame: VideoFrame,
+    ) -> SessionSnapshot {
+        self.sync_capture_catalog();
+
+        if let Err(message) = self.validate_capture_publish_request(&source_id, false) {
+            self.push_log(message);
+            return self.snapshot();
+        }
+
+        match self.state.webrtc.as_mut() {
+            Some(webrtc) => match webrtc.publish_video_frame(frame) {
+                Ok(()) => {
+                    self.push_log(format!(
+                        "capture video frame published for source={source_id}"
+                    ));
+                }
+                Err(error) => {
+                    self.push_log(format!(
+                        "failed to publish capture video frame for source={source_id}: {error}"
+                    ));
+                }
+            },
+            None => self
+                .push_log("cannot publish capture video before session is configured".to_string()),
+        }
+
+        self.snapshot()
+    }
+
+    pub fn publish_capture_audio_buffer(
+        &mut self,
+        source_id: String,
+        buffer: AudioBuffer,
+    ) -> SessionSnapshot {
+        self.sync_capture_catalog();
+
+        if let Err(message) = self.validate_capture_publish_request(&source_id, true) {
+            self.push_log(message);
+            return self.snapshot();
+        }
+
+        match self.state.webrtc.as_mut() {
+            Some(webrtc) => match webrtc.publish_audio_buffer(buffer) {
+                Ok(()) => {
+                    self.push_log(format!(
+                        "capture audio buffer published for source={source_id}"
+                    ));
+                }
+                Err(error) => {
+                    self.push_log(format!(
+                        "failed to publish capture audio buffer for source={source_id}: {error}"
+                    ));
+                }
+            },
+            None => self
+                .push_log("cannot publish capture audio before session is configured".to_string()),
+        }
+
+        self.snapshot()
+    }
+
     pub fn publish_debug_capture_samples(&mut self) -> SessionSnapshot {
-        if let Some(webrtc) = self.state.webrtc.as_mut() {
-            let selected_source_id = self
-                .state
-                .capture_selection
-                .as_ref()
-                .map(|selection| selection.source_id.clone())
-                .unwrap_or_else(|| "unselected-source".to_string());
-            let include_audio = self
-                .state
-                .capture_selection
-                .as_ref()
-                .map(|selection| selection.include_audio)
-                .unwrap_or(false);
+        let Some(selection) = self.state.capture_selection.clone() else {
+            self.push_log(
+                "cannot publish debug capture samples before selecting a capture source"
+                    .to_string(),
+            );
+            return self.snapshot();
+        };
 
-            let video = webrtc.publish_video_frame(debug_video_frame(&selected_source_id));
-            let audio = if include_audio {
-                Some(webrtc.publish_audio_buffer(debug_audio_buffer()))
-            } else {
-                None
-            };
+        self.publish_capture_video_frame(
+            selection.source_id.clone(),
+            debug_video_frame(&selection.source_id),
+        );
 
-            match (video, audio) {
-                (Ok(()), Some(Ok(()))) => {
-                    self.push_log(format!(
-                        "debug capture video/audio payloads published for source={selected_source_id}"
-                    ));
-                }
-                (Ok(()), None) => {
-                    self.push_log(format!(
-                        "debug capture video payload published for source={selected_source_id}; audio skipped by capture selection"
-                    ));
-                }
-                (video_result, audio_result) => {
-                    if let Err(error) = video_result {
-                        self.push_log(format!(
-                            "failed to publish debug capture video payload: {error}"
-                        ));
-                    }
-                    if let Some(Err(error)) = audio_result {
-                        self.push_log(format!(
-                            "failed to publish debug capture audio payload: {error}"
-                        ));
-                    }
-                }
-            }
+        if selection.include_audio {
+            self.publish_capture_audio_buffer(selection.source_id.clone(), debug_audio_buffer());
+            self.push_log(format!(
+                "debug capture video/audio payloads published for source={}",
+                selection.source_id
+            ));
         } else {
-            self.push_log("cannot publish media before session is configured".to_string());
+            self.push_log(format!(
+                "debug capture video payload published for source={}; audio skipped by capture selection",
+                selection.source_id
+            ));
         }
 
         self.snapshot()
@@ -705,6 +746,37 @@ impl SessionManager {
         } else if self.state.mode == SessionMode::Host {
             self.ensure_default_host_capture_selection();
         }
+    }
+
+    fn validate_capture_publish_request(
+        &self,
+        source_id: &str,
+        require_audio: bool,
+    ) -> Result<(), String> {
+        if self.state.mode != SessionMode::Host {
+            return Err("capture media can only be published from a host session".to_string());
+        }
+
+        let Some(selection) = self.state.capture_selection.as_ref() else {
+            return Err(
+                "capture media cannot be published before selecting a capture source".to_string(),
+            );
+        };
+
+        if selection.source_id != source_id {
+            return Err(format!(
+                "capture media source mismatch: selected={} published={}",
+                selection.source_id, source_id
+            ));
+        }
+
+        if require_audio && !selection.include_audio {
+            return Err(format!(
+                "capture audio buffer ignored because audio is disabled for source={source_id}"
+            ));
+        }
+
+        Ok(())
     }
 
     fn log_host_capture_readiness(&mut self) {
@@ -1262,6 +1334,18 @@ mod tests {
                 .as_deref()
                 .is_some_and(|summary| summary.starts_with("48000Hz 2ch 960f @ "))
         );
+        assert!(
+            snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("capture video frame published for source="))
+        );
+        assert!(
+            snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("capture audio buffer published for source="))
+        );
     }
 
     #[test]
@@ -1292,6 +1376,63 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("audio skipped by capture selection"))
         );
+    }
+
+    #[test]
+    fn capture_publish_rejects_mismatched_source_id() {
+        let mut manager = SessionManager::new();
+        let source = manager
+            .capture_catalog()
+            .sources
+            .first()
+            .cloned()
+            .expect("at least one source");
+
+        manager.select_capture_source(source.id.clone(), source.has_audio);
+        manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: Some("vlc".to_string()),
+        });
+
+        let snapshot = manager.publish_capture_video_frame(
+            "different-source".to_string(),
+            super::debug_video_frame("different-source"),
+        );
+
+        assert_eq!(snapshot.published_video_sample_count, 0);
+        assert!(
+            snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("capture media source mismatch"))
+        );
+    }
+
+    #[test]
+    fn capture_publish_rejects_audio_when_selection_disables_it() {
+        let mut manager = SessionManager::new();
+        let source = manager
+            .capture_catalog()
+            .sources
+            .iter()
+            .find(|source| source.has_audio)
+            .cloned()
+            .expect("at least one audio-capable source");
+
+        manager.select_capture_source(source.id.clone(), false);
+        manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: Some("vlc".to_string()),
+        });
+
+        let snapshot = manager.publish_capture_audio_buffer(source.id, super::debug_audio_buffer());
+
+        assert_eq!(snapshot.published_audio_sample_count, 0);
+        assert!(snapshot.logs.iter().any(|line| line.contains(
+            "capture audio buffer ignored because audio is disabled"
+        )));
     }
 
     #[test]
