@@ -60,6 +60,7 @@ This repository's MVP is intentionally smaller than the final product. It provid
 - direct UDP transfer of mock media packets between peers
 - a live WebRTC negotiation path with attached host audio/video tracks
 - debug `capture-core` payload publishing for transport smoke tests
+- a session-facing capture publish path that validates the selected source and audio opt-in before transport publication
 - saved specification and documentation
 
 This MVP does **not** yet provide:

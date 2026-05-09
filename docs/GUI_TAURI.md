@@ -48,7 +48,7 @@ The backend around the GUI has moved one step forward:
 
 ## Backend Split
 
-- `app-core`: shared protocol, session state, signaling orchestration, and debug capture-burst bridging
+- `app-core`: shared protocol, session state, signaling orchestration, and source-validated capture-burst bridging
 - `transport-webrtc`: real peer transport bootstrap with attached host tracks
 - `capture-macos`: planned ScreenCaptureKit bridge
 - `capture-linux`: planned Portal + PipeWire integration
