@@ -46,6 +46,12 @@ Run the live WebRTC negotiation host:
 cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000
 ```
 
+Run the host and publish one debug capture burst after the peer connection comes up:
+
+```bash
+cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 --push-debug-capture
+```
+
 Run the live WebRTC negotiation viewer:
 
 ```bash
@@ -73,7 +79,7 @@ It now exposes commands for:
 - defaulting the host session to the first available capture source when none was selected explicitly
 - preparing host and viewer sessions against the live signaling server
 - auto-creating and sending the first local SDP offer from the host once signaling is connected
-- publishing placeholder audio/video samples into the attached host tracks for smoke testing
+- publishing debug `capture-core` audio/video payloads into the attached host tracks for smoke testing
 - polling signaling and auto-applying remote offer/answer/ICE state
 - surfacing live transport diagnostics from the `PeerConnection` snapshot
 - stopping a session
@@ -105,10 +111,12 @@ What changed relative to the earlier scaffold:
 - `app-core` now has a live signaling client used by CLI and Tauri session flow
 - CLI now has `webrtc-host` and `webrtc-viewer` commands for real negotiation
 - `transport-webrtc` now wraps a real `PeerConnection` with attached placeholder audio/video tracks, ICE gathering, and connection-state snapshots
+- the CLI host path now relies on the same automatic first-offer behavior as the GUI instead of forcing a second manual offer attempt
 - host session refresh now auto-creates its local offer when signaling is available
 - session snapshots and the Tauri UI now expose local media-track attachment state
-- session manager and transport now expose placeholder media-sample publishing state
+- session manager and transport now expose capture-payload publishing state and payload summaries
 - session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes
+- the CLI host path can now push one debug `capture-core` burst after the peer connection connects
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
 - the Tauri shell now exposes capture backend, permission state, and source selection from `app-core`
 - macOS capture-source listing now attempts runtime application/window enumeration and falls back to blueprint data when the environment blocks it
@@ -120,7 +128,7 @@ What changed relative to the earlier scaffold:
 
 ## Recommended Next Build Steps
 
-1. Replace placeholder media samples with real captured audio/video input.
+1. Replace debug `capture-core` media bursts with real captured audio/video input.
 2. Implement the `capture-macos` ScreenCaptureKit bridge on top of `capture-core`.
-3. Implement real permission-aware capture/session bridging on top of the new runtime source catalogs.
+3. Replace the debug `capture-core` payload generator with real permission-aware capture/session bridging on top of the new runtime source catalogs.
 4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.

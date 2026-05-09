@@ -45,6 +45,8 @@ struct SessionView {
     published_audio_sample_count: usize,
     last_video_sample_bytes: usize,
     last_audio_sample_bytes: usize,
+    last_video_capture_summary: Option<String>,
+    last_audio_capture_summary: Option<String>,
     local_data_channel_ready: bool,
     transport_stats_report_count: usize,
     transport_notes: Vec<String>,
@@ -198,15 +200,17 @@ fn select_capture_source(
 }
 
 #[tauri::command]
-fn publish_placeholder_media(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+fn publish_debug_capture_samples(
+    state: tauri::State<'_, Mutex<SessionManager>>,
+) -> CommandResult {
     let snapshot = state
         .lock()
         .expect("session state poisoned")
-        .publish_placeholder_media();
+        .publish_debug_capture_samples();
 
     CommandResult {
         ok: true,
-        message: "placeholder media samples published".to_string(),
+        message: "debug capture samples published".to_string(),
         session: map_snapshot(snapshot),
     }
 }
@@ -260,7 +264,7 @@ fn main() {
             join_room,
             update_session_config,
             select_capture_source,
-            publish_placeholder_media,
+            publish_debug_capture_samples,
             stop_session,
             clear_session_logs,
             reset_session,
@@ -299,6 +303,8 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         published_audio_sample_count: snapshot.published_audio_sample_count,
         last_video_sample_bytes: snapshot.last_video_sample_bytes,
         last_audio_sample_bytes: snapshot.last_audio_sample_bytes,
+        last_video_capture_summary: snapshot.last_video_capture_summary,
+        last_audio_capture_summary: snapshot.last_audio_capture_summary,
         local_data_channel_ready: snapshot.local_data_channel_ready,
         transport_stats_report_count: snapshot.transport_stats_report_count,
         transport_notes: snapshot.transport_notes,

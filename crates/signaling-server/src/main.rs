@@ -124,7 +124,10 @@ fn register_participant(
 
     match status {
         RegistrationStatus::Waiting => {
-            println!("room {room_name} waiting for {}", participant.role.opposite());
+            println!(
+                "room {room_name} waiting for {}",
+                participant.role.opposite()
+            );
         }
         RegistrationStatus::Paired { sender, receiver } => {
             println!("room {room_name} paired: sender={sender} receiver={receiver}");
@@ -359,7 +362,10 @@ mod tests {
             buffer_text(&sender_buffer),
             "WAITING\nPEER receiver 127.0.0.1 4200\n"
         );
-        assert_eq!(buffer_text(&receiver_buffer), "PEER sender 127.0.0.1 4100\n");
+        assert_eq!(
+            buffer_text(&receiver_buffer),
+            "PEER sender 127.0.0.1 4100\n"
+        );
 
         apply_writes(relay_signaling_in_room(
             &mut room,
@@ -412,11 +418,7 @@ mod tests {
         );
     }
 
-    fn make_participant(
-        role: Role,
-        port: u16,
-        writer: SharedWriter,
-    ) -> (Participant, SocketAddr) {
+    fn make_participant(role: Role, port: u16, writer: SharedWriter) -> (Participant, SocketAddr) {
         let addr = parse_addr(port);
         (
             Participant {
@@ -429,9 +431,7 @@ mod tests {
     }
 
     fn parse_addr(port: u16) -> SocketAddr {
-        format!("127.0.0.1:{port}")
-            .parse()
-            .expect("socket addr")
+        format!("127.0.0.1:{port}").parse().expect("socket addr")
     }
 
     fn memory_writer() -> (SharedWriter, Arc<Mutex<Vec<u8>>>) {

@@ -34,10 +34,10 @@ pub fn parse_cli_args(args: &[String]) -> Result<AppCommand, Box<dyn Error>> {
         "spec" => Ok(AppCommand::PrintSpec),
         "sender" => {
             let room = required_flag(&args[1..], "--room")?;
-            let signaling_addr = parse_flag(&args[1..], "--signal")?
-                .unwrap_or_else(|| "127.0.0.1:7000".to_string());
-            let udp_bind = parse_flag(&args[1..], "--udp-bind")?
-                .unwrap_or_else(|| "0.0.0.0:0".to_string());
+            let signaling_addr =
+                parse_flag(&args[1..], "--signal")?.unwrap_or_else(|| "127.0.0.1:7000".to_string());
+            let udp_bind =
+                parse_flag(&args[1..], "--udp-bind")?.unwrap_or_else(|| "0.0.0.0:0".to_string());
             let fps = parse_flag(&args[1..], "--fps")?
                 .map(|value| value.parse())
                 .transpose()?
@@ -46,8 +46,8 @@ pub fn parse_cli_args(args: &[String]) -> Result<AppCommand, Box<dyn Error>> {
                 .map(|value| value.parse())
                 .transpose()?
                 .unwrap_or(120);
-            let source = parse_flag(&args[1..], "--source")?
-                .unwrap_or_else(|| "mock-window".to_string());
+            let source =
+                parse_flag(&args[1..], "--source")?.unwrap_or_else(|| "mock-window".to_string());
 
             Ok(AppCommand::Sender(SenderConfig {
                 room,
@@ -60,10 +60,10 @@ pub fn parse_cli_args(args: &[String]) -> Result<AppCommand, Box<dyn Error>> {
         }
         "receiver" => {
             let room = required_flag(&args[1..], "--room")?;
-            let signaling_addr = parse_flag(&args[1..], "--signal")?
-                .unwrap_or_else(|| "127.0.0.1:7000".to_string());
-            let udp_bind = parse_flag(&args[1..], "--udp-bind")?
-                .unwrap_or_else(|| "0.0.0.0:0".to_string());
+            let signaling_addr =
+                parse_flag(&args[1..], "--signal")?.unwrap_or_else(|| "127.0.0.1:7000".to_string());
+            let udp_bind =
+                parse_flag(&args[1..], "--udp-bind")?.unwrap_or_else(|| "0.0.0.0:0".to_string());
             let expected_frames = parse_flag(&args[1..], "--expected-frames")?
                 .map(|value| value.parse())
                 .transpose()?;
@@ -77,26 +77,28 @@ pub fn parse_cli_args(args: &[String]) -> Result<AppCommand, Box<dyn Error>> {
         }
         "webrtc-host" => {
             let room = required_flag(&args[1..], "--room")?;
-            let signaling_addr = parse_flag(&args[1..], "--signal")?
-                .unwrap_or_else(|| "127.0.0.1:7000".to_string());
-            let source_label = parse_flag(&args[1..], "--source")?
-                .unwrap_or_else(|| "mock-window".to_string());
+            let signaling_addr =
+                parse_flag(&args[1..], "--signal")?.unwrap_or_else(|| "127.0.0.1:7000".to_string());
+            let source_label =
+                parse_flag(&args[1..], "--source")?.unwrap_or_else(|| "mock-window".to_string());
             let timeout_ms = parse_flag(&args[1..], "--timeout-ms")?
                 .map(|value| value.parse())
                 .transpose()?
                 .unwrap_or(10_000);
+            let push_debug_capture = has_flag(&args[1..], "--push-debug-capture");
 
             Ok(AppCommand::WebRtcHost(WebRtcHostConfig {
                 room,
                 signaling_addr,
                 source_label,
                 timeout_ms,
+                push_debug_capture,
             }))
         }
         "webrtc-viewer" => {
             let room = required_flag(&args[1..], "--room")?;
-            let signaling_addr = parse_flag(&args[1..], "--signal")?
-                .unwrap_or_else(|| "127.0.0.1:7000".to_string());
+            let signaling_addr =
+                parse_flag(&args[1..], "--signal")?.unwrap_or_else(|| "127.0.0.1:7000".to_string());
             let timeout_ms = parse_flag(&args[1..], "--timeout-ms")?
                 .map(|value| value.parse())
                 .transpose()?
@@ -127,7 +129,13 @@ fn parse_flag(args: &[String], flag: &str) -> Result<Option<String>, Box<dyn Err
 }
 
 fn required_flag(args: &[String], flag: &str) -> Result<String, Box<dyn Error>> {
-    parse_flag(args, flag)?.ok_or_else(|| Box::new(CliError(format!("required flag missing: {flag}"))) as Box<dyn Error>)
+    parse_flag(args, flag)?.ok_or_else(|| {
+        Box::new(CliError(format!("required flag missing: {flag}"))) as Box<dyn Error>
+    })
+}
+
+fn has_flag(args: &[String], flag: &str) -> bool {
+    args.iter().any(|value| value == flag)
 }
 
 pub fn print_help() {
@@ -140,11 +148,49 @@ Commands:
   spec
   sender --room demo --signal 127.0.0.1:7000 [--udp-bind 0.0.0.0:0] [--fps 10] [--frames 120] [--source mock-window]
   receiver --room demo --signal 127.0.0.1:7000 [--udp-bind 0.0.0.0:0] [--expected-frames 120]
-  webrtc-host --room demo --signal 127.0.0.1:7000 [--source mock-window] [--timeout-ms 10000]
+  webrtc-host --room demo --signal 127.0.0.1:7000 [--source mock-window] [--timeout-ms 10000] [--push-debug-capture]
   webrtc-viewer --room demo --signal 127.0.0.1:7000 [--timeout-ms 10000]
 
 This MVP uses TCP for signaling and direct UDP for mock media packets.
 It now also has a live WebRTC negotiation path that uses the same signaling server,
-but media capture and media tracks are still not attached yet."
+with attached host audio/video tracks and optional debug `capture-core` payload publishing."
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AppCommand, parse_cli_args};
+
+    #[test]
+    fn webrtc_host_flag_enables_debug_capture() {
+        let args = vec![
+            "webrtc-host".to_string(),
+            "--room".to_string(),
+            "demo".to_string(),
+            "--push-debug-capture".to_string(),
+        ];
+
+        let command = parse_cli_args(&args).expect("parse host command");
+        let AppCommand::WebRtcHost(config) = command else {
+            panic!("expected host command");
+        };
+
+        assert!(config.push_debug_capture);
+    }
+
+    #[test]
+    fn webrtc_host_defaults_debug_capture_to_disabled() {
+        let args = vec![
+            "webrtc-host".to_string(),
+            "--room".to_string(),
+            "demo".to_string(),
+        ];
+
+        let command = parse_cli_args(&args).expect("parse host command");
+        let AppCommand::WebRtcHost(config) = command else {
+            panic!("expected host command");
+        };
+
+        assert!(!config.push_debug_capture);
+    }
 }

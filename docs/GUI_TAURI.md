@@ -26,7 +26,7 @@ The backend around the GUI has moved one step forward:
 - the GUI now refreshes through a live signaling path and a real `PeerConnection`
 - host-side placeholder audio/video tracks are attached before offer creation and shown in the session snapshot
 - host preparation now auto-creates and sends the first local SDP offer once signaling is connected
-- a debug command can now push placeholder audio/video samples into those attached tracks
+- a debug command can now push synthetic `capture-core` audio/video payloads into those attached tracks
 - the GUI now shows a platform capture catalog and allows selecting a source in-session
 - the macOS source picker now attempts live application/window enumeration before falling back to blueprint data
 - the Linux source picker now attempts `wmctrl`-based runtime window enumeration before falling back to blueprint data
@@ -48,10 +48,10 @@ The backend around the GUI has moved one step forward:
 
 ## Backend Split
 
-- `app-core`: shared protocol, session state, mock transport today
-- `transport-webrtc`: future real peer transport
-- `capture-macos`: future ScreenCaptureKit bridge
-- `capture-linux`: future Portal + PipeWire integration
+- `app-core`: shared protocol, session state, signaling orchestration, and debug capture-burst bridging
+- `transport-webrtc`: real peer transport bootstrap with attached host tracks
+- `capture-macos`: planned ScreenCaptureKit bridge
+- `capture-linux`: planned Portal + PipeWire integration
 - `desktop-app`: Tauri shell and user-facing commands
 
 ## Session Management Layer
@@ -77,12 +77,12 @@ The current Tauri UI is wired to the session manager and supports:
 - saving session configuration
 - preparing host or viewer session states with a live signaling connection
 - auto-creating and sending the first local offer from the host path
-- publishing placeholder audio/video samples into the attached host tracks
+- publishing synthetic `capture-core` audio/video payloads into the attached host tracks
 - polling signaling through repeated snapshot refresh
 - auto-applying remote offer/answer/ICE during refresh
 - stopping or resetting a session
 - viewing current session status and next action
-- viewing transport connection state, transport stage, bootstrap data-channel readiness, transport notes, local audio/video track attachment, sample counters, local/remote description kind, and ICE counters
+- viewing transport connection state, transport stage, bootstrap data-channel readiness, transport notes, local audio/video track attachment, sample counters, last payload summaries, local/remote description kind, and ICE counters
 - viewing and clearing the rolling session log
 
 ## Important Note

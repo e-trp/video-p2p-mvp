@@ -267,8 +267,7 @@ mod tests {
 
     #[test]
     fn runtime_listing_parser_deduplicates_identical_rows() {
-        let sources =
-            parse_runtime_listing("window\tVLC\tNow Playing\nwindow\tVLC\tNow Playing\n");
+        let sources = parse_runtime_listing("window\tVLC\tNow Playing\nwindow\tVLC\tNow Playing\n");
 
         assert_eq!(sources.len(), 1);
     }
@@ -287,11 +286,15 @@ mod tests {
     #[test]
     fn permission_probe_maps_authorization_and_runtime_errors() {
         assert_eq!(
-            infer_permission_state_from_error("execution error: Not authorized to send Apple events to System Events. (-1743)"),
+            infer_permission_state_from_error(
+                "execution error: Not authorized to send Apple events to System Events. (-1743)"
+            ),
             CapturePermissionState::Denied
         );
         assert_eq!(
-            infer_permission_state_from_error("execution error: An error of type -10827 has occurred. (-10827)"),
+            infer_permission_state_from_error(
+                "execution error: An error of type -10827 has occurred. (-10827)"
+            ),
             CapturePermissionState::Unknown
         );
         assert_eq!(

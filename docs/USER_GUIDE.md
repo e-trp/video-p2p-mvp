@@ -8,7 +8,7 @@ This repository is still an MVP. Today it can already provide:
 - a Tauri desktop GUI for host/viewer session control
 - a live WebRTC negotiation path between host and viewer
 - attached placeholder host audio/video tracks
-- placeholder media sample publishing for transport smoke testing
+- debug `capture-core` media payload publishing for transport smoke testing
 - a source picker fed by the current `capture-core` platform blueprint data
 
 It does **not** yet provide real OS screen capture, real system audio capture, STUN/TURN, or production invite/auth flows.
@@ -101,7 +101,12 @@ If the selected host source disappears after a later catalog refresh, the sessio
 
 ### Transport Smoke Test
 
-- `Push Placeholder Media`: write placeholder audio/video samples into the attached host tracks
+- `Push Debug Capture Burst`: synthesize `capture-core` video/audio payloads and write them into the attached host tracks
+
+The debug burst respects the selected source audio toggle:
+
+- if `Include Audio` is enabled, both video and audio payload summaries are updated
+- if `Include Audio` is disabled, only the video payload is published during the smoke test
 
 Host-side offer creation, answer delivery, and ICE now flow automatically through the signaling server during refresh. The remaining manual control is only there to smoke-test media publication before real capture is wired.
 
@@ -115,7 +120,7 @@ The GUI currently shows:
 - transport stage and bootstrap data-channel state
 - media track attachment state
 - transport notes and stats report count
-- published placeholder sample counters
+- published debug sample counters and last payload summaries
 - local/remote SDP state
 - ICE counters
 - session logs
@@ -140,6 +145,12 @@ Host:
 cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000
 ```
 
+Host with one debug capture burst after connect:
+
+```bash
+cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 --push-debug-capture
+```
+
 Viewer:
 
 ```bash
@@ -150,6 +161,6 @@ cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
 
 - Linux runtime enumeration currently depends on X11-style `wmctrl` metadata and does not cover the real Wayland portal flow yet
 - macOS source enumeration is metadata-only and still does not capture real media
-- placeholder media is not real encoded screen/audio content
+- debug `capture-core` payload bursts are still synthetic, not OS-captured media
 - the GUI still falls back to blueprint/example capture sources when runtime enumeration is unavailable
 - the signaling service is still a minimal two-peer MVP
