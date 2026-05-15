@@ -1,6 +1,7 @@
 pub mod app;
 pub mod capture_catalog;
 pub mod mock_media;
+mod preferences;
 pub mod protocol;
 pub mod session;
 pub mod session_flow;

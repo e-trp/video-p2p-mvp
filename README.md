@@ -77,6 +77,7 @@ It now exposes commands for:
 - listing current capture sources and selecting one in-session
 - applying capture source changes immediately from the picker
 - defaulting the host session to the first available capture source when none was selected explicitly
+- persisting last-used room, signaling address, and capture-source selection across session-manager restarts
 - preparing host and viewer sessions against the live signaling server
 - auto-creating and sending the first local SDP offer from the host once signaling is connected
 - publishing debug `capture-core` audio/video payloads into the attached host tracks for smoke testing
@@ -126,6 +127,7 @@ What changed relative to the earlier scaffold:
 - capture permission state is now derived from runtime probing and refreshed with the catalog instead of staying a static scaffold value
 - host session guidance now reacts to capture permission readiness instead of only signaling/transport state
 - host source selection now automatically rebinds to the first available source if a refreshed runtime catalog drops the previously selected source
+- session-manager preferences now persist room/signaling/source metadata across resets and Tauri restarts
 
 ## Recommended Next Build Steps
 

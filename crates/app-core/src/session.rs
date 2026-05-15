@@ -2,6 +2,7 @@ use crate::capture_catalog::{
     CaptureCatalogSnapshot, current_capture_catalog, describe_permission_state,
     selected_source_label,
 };
+use crate::preferences::{PersistedSessionConfig, PreferencesStore};
 use crate::protocol::{
     IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage,
 };
@@ -87,9 +88,9 @@ pub struct SessionSnapshot {
     pub last_signaling_message: Option<String>,
 }
 
-#[derive(Default)]
 pub struct SessionManager {
     state: SessionState,
+    preferences: PreferencesStore,
 }
 
 struct SessionState {
@@ -133,6 +134,11 @@ impl Default for SessionState {
 impl SessionManager {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    #[cfg(test)]
+    fn new_for_tests(preferences: PreferencesStore) -> Self {
+        Self::with_preferences(preferences)
     }
 
     pub fn start_host(&mut self, intent: SessionIntent) -> SessionSnapshot {
@@ -259,6 +265,7 @@ impl SessionManager {
             self.state.source_label = Some(source_label.clone());
             self.push_log(format!("source label updated to {source_label}"));
         }
+        self.persist_preferences();
         self.snapshot()
     }
 
@@ -295,6 +302,7 @@ impl SessionManager {
             "capture source selected: id={} include_audio={}",
             source.id, include_audio
         ));
+        self.persist_preferences();
         self.snapshot()
     }
 
@@ -431,6 +439,7 @@ impl SessionManager {
             let _ = webrtc.close();
         }
         self.state = SessionState::default();
+        self.load_persisted_preferences();
         self.push_log("session reset to idle state".to_string());
         self.snapshot()
     }
@@ -562,6 +571,15 @@ impl SessionManager {
 
     pub fn logs(&self) -> Vec<String> {
         self.state.logs.clone()
+    }
+
+    fn with_preferences(preferences: PreferencesStore) -> Self {
+        let mut manager = Self {
+            state: SessionState::default(),
+            preferences,
+        };
+        manager.load_persisted_preferences();
+        manager
     }
 
     fn replace_state(
@@ -710,6 +728,7 @@ impl SessionManager {
     fn sync_capture_catalog(&mut self) {
         let previous_catalog = self.state.capture_catalog.clone();
         self.state.capture_catalog = current_capture_catalog();
+        let mut persist_preferences = false;
 
         if previous_catalog.backend != self.state.capture_catalog.backend
             || previous_catalog.permission_state != self.state.capture_catalog.permission_state
@@ -732,19 +751,26 @@ impl SessionManager {
                 let preferred_audio = selection.include_audio;
                 self.state.capture_selection = None;
                 self.state.source_label = None;
+                persist_preferences = true;
                 self.push_log(format!(
                     "capture source dropped from refreshed catalog: {}",
                     selection.source_id
                 ));
                 if self.state.mode == SessionMode::Host {
-                    self.select_first_available_host_capture_source(
+                    persist_preferences |= self.select_first_available_host_capture_source(
                         Some(preferred_audio),
                         "host capture source rebound after catalog refresh",
                     );
                 }
             }
         } else if self.state.mode == SessionMode::Host {
+            let had_selection = self.state.capture_selection.is_some();
             self.ensure_default_host_capture_selection();
+            persist_preferences = !had_selection && self.state.capture_selection.is_some();
+        }
+
+        if persist_preferences {
+            self.persist_preferences();
         }
     }
 
@@ -961,6 +987,49 @@ impl SessionManager {
         }
     }
 
+    fn load_persisted_preferences(&mut self) {
+        let persisted = match self.preferences.load() {
+            Ok(Some(config)) => config,
+            Ok(None) => return,
+            Err(error) => {
+                self.push_log(format!(
+                    "failed to load persisted session preferences: {error}"
+                ));
+                return;
+            }
+        };
+
+        self.apply_persisted_preferences(persisted);
+        self.push_log("restored persisted session preferences".to_string());
+    }
+
+    fn apply_persisted_preferences(&mut self, persisted: PersistedSessionConfig) {
+        self.state.room = persisted.room;
+        self.state.signaling_addr = persisted.signaling_addr;
+        self.state.source_label = persisted.source_label;
+        self.state.capture_selection = persisted.capture_selection;
+
+        if let Some(label) = selected_source_label(
+            &self.state.capture_catalog,
+            self.state.capture_selection.as_ref(),
+        ) {
+            self.state.source_label = Some(label);
+        }
+    }
+
+    fn persist_preferences(&mut self) {
+        let persisted = PersistedSessionConfig {
+            room: self.state.room.clone(),
+            signaling_addr: self.state.signaling_addr.clone(),
+            source_label: self.state.source_label.clone(),
+            capture_selection: self.state.capture_selection.clone(),
+        };
+
+        if let Err(error) = self.preferences.save(&persisted) {
+            self.push_log(format!("failed to persist session preferences: {error}"));
+        }
+    }
+
     fn next_action(&self) -> &'static str {
         let transport_snapshot = self.state.webrtc.as_ref().map(|session| session.snapshot());
         let connected = transport_snapshot
@@ -1040,6 +1109,12 @@ impl SessionManager {
             }
             _ => "keep refreshing signaling until the peer connection is connected",
         }
+    }
+}
+
+impl Default for SessionManager {
+    fn default() -> Self {
+        Self::with_preferences(PreferencesStore::discover())
     }
 }
 
@@ -1164,6 +1239,7 @@ fn debug_audio_buffer() -> AudioBuffer {
 #[cfg(test)]
 mod tests {
     use super::{SessionIntent, SessionManager, SessionMode, SessionStage, SessionTransport};
+    use crate::preferences::PreferencesStore;
     use crate::protocol::{
         PeerAnnouncement, Role, decode_signaling_message, encode_peer, encode_waiting,
         parse_join_request,
@@ -1171,9 +1247,12 @@ mod tests {
     use crate::signaling::SignalingConnection;
     use capture_core::{CaptureSource, CaptureSourceKind};
     use std::collections::HashMap;
+    use std::fs;
     use std::io::{BufRead, BufReader, Write};
     use std::net::{Ipv4Addr, SocketAddr};
     use std::os::unix::net::UnixStream;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::{Duration, Instant};
@@ -1468,6 +1547,87 @@ mod tests {
         assert_eq!(snapshot.mode, SessionMode::Idle);
         assert_eq!(snapshot.stage, SessionStage::Idle);
         assert_eq!(snapshot.next_action, "configure host or viewer session");
+    }
+
+    #[test]
+    fn session_manager_restores_persisted_preferences() {
+        let config_dir = unique_temp_dir("session-prefs");
+        let mut first =
+            SessionManager::new_for_tests(PreferencesStore::from_config_dir(config_dir.clone()));
+        let source = first
+            .capture_catalog()
+            .sources
+            .first()
+            .cloned()
+            .expect("at least one source");
+
+        first.update_config(
+            Some("saved-room".to_string()),
+            Some("127.0.0.1:7100".to_string()),
+            None,
+        );
+        first.select_capture_source(source.id.clone(), false);
+
+        let restored =
+            SessionManager::new_for_tests(PreferencesStore::from_config_dir(config_dir.clone()));
+        let snapshot = restored.snapshot();
+
+        assert_eq!(snapshot.room.as_deref(), Some("saved-room"));
+        assert_eq!(snapshot.signaling_addr.as_deref(), Some("127.0.0.1:7100"));
+        assert_eq!(
+            snapshot.selected_source_id.as_deref(),
+            Some(source.id.as_str())
+        );
+        assert!(!snapshot.selected_source_audio);
+        assert_eq!(
+            snapshot.source_label.as_deref(),
+            Some(source.label().as_str())
+        );
+        assert!(
+            snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("restored persisted session preferences"))
+        );
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn reset_restores_persisted_preferences_after_runtime_changes() {
+        let config_dir = unique_temp_dir("session-reset");
+        let mut manager =
+            SessionManager::new_for_tests(PreferencesStore::from_config_dir(config_dir.clone()));
+        let source = manager
+            .capture_catalog()
+            .sources
+            .first()
+            .cloned()
+            .expect("at least one source");
+
+        manager.update_config(
+            Some("saved-room".to_string()),
+            Some("127.0.0.1:7200".to_string()),
+            None,
+        );
+        manager.select_capture_source(source.id.clone(), source.has_audio);
+        manager.start_host(SessionIntent {
+            room: "transient-room".to_string(),
+            signaling_addr: "127.0.0.1:7300".to_string(),
+            source_label: Some("temporary".to_string()),
+        });
+
+        let snapshot = manager.reset();
+        assert_eq!(snapshot.mode, SessionMode::Idle);
+        assert_eq!(snapshot.stage, SessionStage::Idle);
+        assert_eq!(snapshot.room.as_deref(), Some("saved-room"));
+        assert_eq!(snapshot.signaling_addr.as_deref(), Some("127.0.0.1:7200"));
+        assert_eq!(
+            snapshot.selected_source_id.as_deref(),
+            Some(source.id.as_str())
+        );
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]
@@ -1788,5 +1948,17 @@ mod tests {
         } else {
             format!("{message}\n")
         }
+    }
+
+    fn unique_temp_dir(prefix: &str) -> PathBuf {
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+        let dir = std::env::temp_dir().join(format!(
+            "{prefix}-{}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&dir).expect("create temp dir");
+        dir
     }
 }

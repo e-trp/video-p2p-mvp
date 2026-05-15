@@ -111,3 +111,4 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - `app-core::SessionManager` now validates selected source identity and audio opt-in before accepting capture payloads for publication
 - the main Tauri GUI path now relies on automatic signaling refresh instead of exposing manual answer/ICE controls
 - `capture-core` as the shared Rust-side model for future native capture backends
+- a lightweight local session-preferences store in `app-core` for restoring room/signaling/source choices between desktop launches

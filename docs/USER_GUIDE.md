@@ -51,7 +51,7 @@ This launches the desktop shell from `apps/desktop`.
 
 - `Room`: room name for host/viewer pairing
 - `Signaling`: TCP address of the signaling server
-- `Save Config`: save the current room and signaling address into the in-memory session state
+- `Save Config`: save the current room and signaling address into the local session-preferences file used by the desktop shell
 - `Prepare Host`: create a host-side WebRTC session, connect signaling, and automatically send the first local offer when signaling is available
 - `Prepare Viewer`: create a viewer-side WebRTC session and connect signaling
 - `Stop`: close the current session
@@ -62,6 +62,7 @@ This launches the desktop shell from `apps/desktop`.
 - `Available Source`: current platform blueprint source list
 - `Include Audio`: stores whether the chosen source should include audio when capture is wired for real
 - changing the picker or audio toggle applies the host-side capture selection immediately
+- the most recent room, signaling address, and source selection are restored automatically on the next desktop launch or session-manager reset
 
 If you never touch the picker before starting a host session, the first available source is selected automatically.
 
