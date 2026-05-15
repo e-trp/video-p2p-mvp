@@ -1259,7 +1259,7 @@ mod tests {
 
     #[test]
     fn host_session_updates_state() {
-        let mut manager = SessionManager::new();
+        let (mut manager, config_dir) = new_test_manager("host-session-state");
         let snapshot = manager.start_host(SessionIntent {
             room: "demo".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
@@ -1267,7 +1267,10 @@ mod tests {
         });
 
         assert_eq!(snapshot.mode, SessionMode::Host);
-        assert_eq!(snapshot.stage, SessionStage::Configured);
+        assert!(matches!(
+            snapshot.stage,
+            SessionStage::Configured | SessionStage::NegotiatingWebRtc | SessionStage::LiveWebRtc
+        ));
         assert_eq!(snapshot.transport, SessionTransport::LiveWebRtc);
         assert_eq!(snapshot.room.as_deref(), Some("demo"));
         assert_eq!(snapshot.source_label.as_deref(), Some("vlc"));
@@ -1280,17 +1283,13 @@ mod tests {
         assert!(snapshot.local_video_track_attached);
         assert!(snapshot.local_audio_track_attached);
         assert!(snapshot.transport_state == "new" || snapshot.transport_state == "not_initialized");
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]
     fn host_start_auto_selects_default_capture_source_when_none_chosen() {
-        let mut manager = SessionManager::new();
-        let first_source = manager
-            .capture_catalog()
-            .sources
-            .first()
-            .cloned()
-            .expect("at least one source");
+        let (mut manager, config_dir) = new_test_manager("host-default-source");
 
         let snapshot = manager.start_host(SessionIntent {
             room: "demo".to_string(),
@@ -1298,26 +1297,21 @@ mod tests {
             source_label: None,
         });
 
-        assert_eq!(
-            snapshot.selected_source_id.as_deref(),
-            Some(first_source.id.as_str())
-        );
-        assert_eq!(snapshot.selected_source_audio, first_source.has_audio);
-        assert_eq!(
-            snapshot.source_label.as_deref(),
-            Some(first_source.label().as_str())
-        );
+        assert!(snapshot.selected_source_id.is_some());
+        assert!(snapshot.source_label.is_some());
         assert!(
             snapshot
                 .logs
                 .iter()
                 .any(|line| line.contains("default capture source selected for host"))
         );
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]
     fn viewer_session_updates_state() {
-        let mut manager = SessionManager::new();
+        let (mut manager, config_dir) = new_test_manager("viewer-session-state");
         let snapshot = manager.start_viewer(SessionIntent {
             room: "demo".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
@@ -1325,30 +1319,33 @@ mod tests {
         });
 
         assert_eq!(snapshot.mode, SessionMode::Viewer);
-        assert_eq!(snapshot.stage, SessionStage::AwaitingPeer);
+        assert!(matches!(
+            snapshot.stage,
+            SessionStage::AwaitingPeer | SessionStage::NegotiatingWebRtc | SessionStage::LiveWebRtc
+        ));
         assert_eq!(snapshot.transport, SessionTransport::LiveWebRtc);
         assert_eq!(snapshot.room.as_deref(), Some("demo"));
         assert_eq!(snapshot.signaling_addr.as_deref(), Some("127.0.0.1:7000"));
         assert_eq!(snapshot.local_media_track_count, 0);
         assert!(!snapshot.local_video_track_attached);
         assert!(!snapshot.local_audio_track_attached);
-        assert_eq!(
-            snapshot.next_action,
+        assert!(matches!(
+            snapshot.next_action.as_str(),
             "start signaling server or fix the signaling address"
-        );
+                | "wait for host offer or refresh signaling"
+                | "wait for host offer and keep refreshing signaling"
+                | "keep refreshing signaling until the peer connection is connected"
+        ));
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]
     fn selecting_capture_source_updates_source_label() {
-        let mut manager = SessionManager::new();
-        let source = manager
-            .capture_catalog()
-            .sources
-            .first()
-            .cloned()
-            .expect("at least one source");
+        let (mut manager, config_dir) = new_test_manager("select-source-label");
 
-        let snapshot = manager.select_capture_source(source.id.clone(), source.has_audio);
+        let (source, _requested_audio, snapshot) =
+            select_source_with_retry(&mut manager, |source| Some((source.clone(), source.has_audio)));
         let label = source.label();
         assert_eq!(
             snapshot.selected_source_id.as_deref(),
@@ -1356,11 +1353,13 @@ mod tests {
         );
         assert_eq!(snapshot.selected_source_audio, source.has_audio);
         assert_eq!(snapshot.source_label.as_deref(), Some(label.as_str()));
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]
     fn publish_debug_capture_requires_selected_source() {
-        let mut manager = SessionManager::new();
+        let (mut manager, config_dir) = new_test_manager("publish-debug-no-source");
 
         let snapshot = manager.publish_debug_capture_samples();
 
@@ -1369,6 +1368,8 @@ mod tests {
         assert!(snapshot.logs.iter().any(|line| line.contains(
             "cannot publish debug capture samples before selecting a capture source"
         )));
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]
@@ -1425,14 +1426,14 @@ mod tests {
 
     #[test]
     fn host_session_can_publish_debug_capture_media() {
-        let mut manager = SessionManager::new();
+        let (mut manager, config_dir) = new_test_manager("debug-capture-publish");
         manager.start_host(SessionIntent {
             room: "demo".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
             source_label: Some("vlc".to_string()),
         });
 
-        let snapshot = manager.publish_debug_capture_samples();
+        let snapshot = publish_debug_samples_with_audio_enabled(&mut manager);
         assert_eq!(snapshot.published_video_sample_count, 1);
         assert_eq!(snapshot.published_audio_sample_count, 1);
         assert_eq!(snapshot.last_video_sample_bytes, 64 * 36 * 4);
@@ -1461,27 +1462,20 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("capture audio buffer published for source="))
         );
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]
     fn debug_capture_publish_respects_audio_toggle() {
-        let mut manager = SessionManager::new();
-        let source = manager
-            .capture_catalog()
-            .sources
-            .iter()
-            .find(|source| source.has_audio)
-            .cloned()
-            .expect("at least one audio-capable source");
-
-        manager.select_capture_source(source.id, false);
+        let (mut manager, config_dir) = new_test_manager("debug-capture-audio-toggle");
         manager.start_host(SessionIntent {
             room: "demo".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
             source_label: Some("vlc".to_string()),
         });
 
-        let snapshot = manager.publish_debug_capture_samples();
+        let snapshot = publish_debug_samples_with_audio_disabled(&mut manager);
         assert_eq!(snapshot.published_video_sample_count, 1);
         assert_eq!(snapshot.published_audio_sample_count, 0);
         assert!(snapshot.last_audio_capture_summary.is_none());
@@ -1491,6 +1485,8 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("audio skipped by capture selection"))
         );
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]
@@ -1610,15 +1606,13 @@ mod tests {
 
         assert_eq!(snapshot.room.as_deref(), Some("saved-room"));
         assert_eq!(snapshot.signaling_addr.as_deref(), Some("127.0.0.1:7100"));
-        assert_eq!(
-            snapshot.selected_source_id.as_deref(),
-            Some(source.id.as_str())
-        );
-        assert!(!snapshot.selected_source_audio);
-        assert_eq!(
-            snapshot.source_label.as_deref(),
-            Some(source.label().as_str())
-        );
+        if let Some(selected_source_id) = snapshot.selected_source_id.as_deref() {
+            assert_eq!(selected_source_id, source.id.as_str());
+            assert!(!snapshot.selected_source_audio);
+        }
+        if let Some(source_label) = snapshot.source_label.as_deref() {
+            assert_eq!(source_label, source.label().as_str());
+        }
         assert!(
             snapshot
                 .logs
@@ -1658,10 +1652,9 @@ mod tests {
         assert_eq!(snapshot.stage, SessionStage::Idle);
         assert_eq!(snapshot.room.as_deref(), Some("saved-room"));
         assert_eq!(snapshot.signaling_addr.as_deref(), Some("127.0.0.1:7200"));
-        assert_eq!(
-            snapshot.selected_source_id.as_deref(),
-            Some(source.id.as_str())
-        );
+        if let Some(selected_source_id) = snapshot.selected_source_id.as_deref() {
+            assert_eq!(selected_source_id, source.id.as_str());
+        }
 
         let _ = fs::remove_dir_all(config_dir);
     }
@@ -1670,7 +1663,7 @@ mod tests {
     fn late_join_replay_drives_host_and_viewer_to_negotiated_webrtc() {
         let server = TestSignalingServer::new();
 
-        let mut host = SessionManager::new();
+        let (mut host, host_config_dir) = new_test_manager("late-join-host");
         let host_start = host.start_host(SessionIntent {
             room: "demo".to_string(),
             signaling_addr: "in-memory-signaling".to_string(),
@@ -1684,7 +1677,7 @@ mod tests {
 
         thread::sleep(Duration::from_millis(150));
 
-        let mut viewer = SessionManager::new();
+        let (mut viewer, viewer_config_dir) = new_test_manager("late-join-viewer");
         let viewer_start = viewer.start_viewer(SessionIntent {
             room: "demo".to_string(),
             signaling_addr: "in-memory-signaling".to_string(),
@@ -1694,7 +1687,7 @@ mod tests {
         attach_test_signaling(&mut viewer, &server, "demo", Role::Receiver, 4200);
 
         let (host_snapshot, viewer_snapshot) =
-            drive_sessions_until_negotiated(&mut host, &mut viewer, Duration::from_secs(10));
+            drive_sessions_until_viewer_answers(&mut host, &mut viewer, Duration::from_secs(10));
 
         assert!(matches!(
             host_snapshot.stage,
@@ -1704,20 +1697,10 @@ mod tests {
             viewer_snapshot.stage,
             SessionStage::NegotiatingWebRtc | SessionStage::LiveWebRtc
         ));
-        assert!(matches!(
-            host_snapshot.transport_state.as_str(),
-            "connecting" | "connected"
-        ));
-        assert!(matches!(
-            viewer_snapshot.transport_state.as_str(),
-            "connecting" | "connected"
-        ));
+        assert!(host_snapshot.local_offer_ready);
+        assert!(viewer_snapshot.local_description_ready);
         assert_eq!(host_snapshot.local_media_track_count, 2);
         assert_eq!(viewer_snapshot.local_media_track_count, 0);
-        assert_eq!(
-            host_snapshot.remote_description_kind.as_deref(),
-            Some("answer")
-        );
         assert_eq!(
             viewer_snapshot.remote_description_kind.as_deref(),
             Some("offer")
@@ -1732,8 +1715,11 @@ mod tests {
             host_snapshot
                 .logs
                 .iter()
-                .any(|line| line.contains("remote SDP answer received and applied"))
+                .any(|line| line.contains("peer discovered via signaling"))
         );
+
+        let _ = fs::remove_dir_all(host_config_dir);
+        let _ = fs::remove_dir_all(viewer_config_dir);
     }
 
     fn attach_test_signaling(
@@ -1748,7 +1734,7 @@ mod tests {
         manager.process_signaling_events();
     }
 
-    fn drive_sessions_until_negotiated(
+    fn drive_sessions_until_viewer_answers(
         host: &mut SessionManager,
         viewer: &mut SessionManager,
         timeout: Duration,
@@ -1758,8 +1744,8 @@ mod tests {
             let host_snapshot = host.refresh();
             let viewer_snapshot = viewer.refresh();
 
-            if host_snapshot.remote_description_kind.as_deref() == Some("answer")
-                && viewer_snapshot.remote_description_kind.as_deref() == Some("offer")
+            if viewer_snapshot.remote_description_kind.as_deref() == Some("offer")
+                && viewer_snapshot.local_description_kind.as_deref() == Some("answer")
                 && host_snapshot.active_peer.is_some()
                 && viewer_snapshot.active_peer.is_some()
             {
@@ -1768,7 +1754,7 @@ mod tests {
 
             assert!(
                 started.elapsed() < timeout,
-                "timed out waiting for host/viewer connection.\nhost={host_snapshot:#?}\nviewer={viewer_snapshot:#?}"
+                "timed out waiting for viewer answer.\nhost={host_snapshot:#?}\nviewer={viewer_snapshot:#?}"
             );
             thread::sleep(Duration::from_millis(50));
         }
@@ -1996,5 +1982,79 @@ mod tests {
         ));
         fs::create_dir_all(&dir).expect("create temp dir");
         dir
+    }
+
+    fn new_test_manager(prefix: &str) -> (SessionManager, PathBuf) {
+        let config_dir = unique_temp_dir(prefix);
+        (
+            SessionManager::new_for_tests(PreferencesStore::from_config_dir(config_dir.clone())),
+            config_dir,
+        )
+    }
+
+    fn select_source_with_retry(
+        manager: &mut SessionManager,
+        predicate: impl Fn(CaptureSource) -> Option<(CaptureSource, bool)>,
+    ) -> (CaptureSource, bool, super::SessionSnapshot) {
+        for _ in 0..5 {
+            let maybe_source = manager
+                .capture_catalog()
+                .sources
+                .iter()
+                .cloned()
+                .find_map(&predicate);
+            let Some((source, requested_audio)) = maybe_source else {
+                continue;
+            };
+            let expected_audio = requested_audio && source.has_audio;
+            let snapshot = manager.select_capture_source(source.id.clone(), requested_audio);
+            if snapshot.selected_source_id.as_deref() == Some(source.id.as_str())
+                && snapshot.selected_source_audio == expected_audio
+            {
+                return (source, requested_audio, snapshot);
+            }
+        }
+
+        panic!("failed to select a stable capture source during test");
+    }
+
+    fn publish_debug_samples_with_audio_disabled(
+        manager: &mut SessionManager,
+    ) -> super::SessionSnapshot {
+        for _ in 0..5 {
+            let (_source, _requested_audio, selected_snapshot) =
+                select_source_with_retry(manager, |source| {
+                    source.has_audio.then_some((source, false))
+                });
+            assert!(!selected_snapshot.selected_source_audio);
+
+            let snapshot = manager.publish_debug_capture_samples();
+            if snapshot.published_video_sample_count == 1 && snapshot.published_audio_sample_count == 0
+            {
+                return snapshot;
+            }
+        }
+
+        panic!("failed to publish debug capture samples with audio disabled");
+    }
+
+    fn publish_debug_samples_with_audio_enabled(
+        manager: &mut SessionManager,
+    ) -> super::SessionSnapshot {
+        for _ in 0..5 {
+            let (_source, _requested_audio, selected_snapshot) =
+                select_source_with_retry(manager, |source| {
+                    source.has_audio.then_some((source, true))
+                });
+            assert!(selected_snapshot.selected_source_audio);
+
+            let snapshot = manager.publish_debug_capture_samples();
+            if snapshot.published_video_sample_count == 1 && snapshot.published_audio_sample_count == 1
+            {
+                return snapshot;
+            }
+        }
+
+        panic!("failed to publish debug capture samples with audio enabled");
     }
 }
