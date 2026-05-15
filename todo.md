@@ -117,7 +117,8 @@
 - Done in part: session-manager reset now restores persisted preferences after clearing the active live session
 - Done in part: `apps/desktop/src-tauri/tauri.conf.json` now enables macOS `.app` and `.dmg` bundle targets with a project-specific bundle identifier and baseline bundle metadata
 - Done in part: desktop release packaging now has generated icon assets, crate/bundle metadata, and helper scripts for icon generation plus `cargo tauri build`
-- Still open: broader UI preference persistence, notarization/signing details, and installation/troubleshooting docs
+- Done in part: installation, release-build, saved-preferences, and troubleshooting guidance now live in `docs/INSTALLATION.md`
+- Still open: broader UI preference persistence and notarization/signing details
 
 ## Iteration 8: Testing And Release Readiness
 
