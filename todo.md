@@ -111,6 +111,12 @@
 4. Add desktop icons, metadata and release build scripts.
 5. Write installation and troubleshooting documentation.
 
+### Iteration 7 Progress
+
+- Done in part: `app-core::SessionManager` now persists last-used room, signaling address, source label, and selected capture-source metadata to a lightweight local preferences file
+- Done in part: session-manager reset now restores persisted preferences after clearing the active live session
+- Still open: broader UI preference persistence, packaging, icons/metadata, and release scripts
+
 ## Iteration 8: Testing And Release Readiness
 
 1. Add unit tests for signaling protocol parsing and session transitions.
