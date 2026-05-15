@@ -40,10 +40,27 @@ Keep it running while you test the GUI or CLI peers.
 Open another terminal in the repository root:
 
 ```bash
-cargo tauri dev --manifest-path apps/desktop/src-tauri/Cargo.toml
+cd apps/desktop/src-tauri
+cargo tauri dev
 ```
 
 This launches the desktop shell from `apps/desktop`.
+
+## Build A Desktop Release Bundle
+
+Refresh the generated icon assets:
+
+```bash
+./scripts/generate-desktop-icons.sh
+```
+
+Build the Tauri release bundle:
+
+```bash
+./scripts/build-desktop-release.sh
+```
+
+This regenerates the desktop icons, changes into `apps/desktop/src-tauri`, and runs `cargo tauri build`.
 
 ## Current GUI Workflow
 

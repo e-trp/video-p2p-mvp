@@ -2,7 +2,13 @@
 name = "desktop-app"
 version = "0.1.0"
 edition = "2024"
+authors = ["Evgeniy Toropchin"]
 description = "Tauri desktop shell for the video-p2p project"
+repository = "https://github.com/e-trp/video-p2p-mvp"
+homepage = "https://github.com/e-trp/video-p2p-mvp"
+keywords = ["p2p", "webrtc", "tauri", "screen-share", "desktop"]
+categories = ["multimedia", "network-programming"]
+publish = false
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
