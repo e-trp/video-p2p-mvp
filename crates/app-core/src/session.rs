@@ -1316,6 +1316,29 @@ mod tests {
     }
 
     #[test]
+    fn viewer_session_updates_state() {
+        let mut manager = SessionManager::new();
+        let snapshot = manager.start_viewer(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: None,
+        });
+
+        assert_eq!(snapshot.mode, SessionMode::Viewer);
+        assert_eq!(snapshot.stage, SessionStage::AwaitingPeer);
+        assert_eq!(snapshot.transport, SessionTransport::LiveWebRtc);
+        assert_eq!(snapshot.room.as_deref(), Some("demo"));
+        assert_eq!(snapshot.signaling_addr.as_deref(), Some("127.0.0.1:7000"));
+        assert_eq!(snapshot.local_media_track_count, 0);
+        assert!(!snapshot.local_video_track_attached);
+        assert!(!snapshot.local_audio_track_attached);
+        assert_eq!(
+            snapshot.next_action,
+            "start signaling server or fix the signaling address"
+        );
+    }
+
+    #[test]
     fn selecting_capture_source_updates_source_label() {
         let mut manager = SessionManager::new();
         let source = manager
@@ -1333,6 +1356,19 @@ mod tests {
         );
         assert_eq!(snapshot.selected_source_audio, source.has_audio);
         assert_eq!(snapshot.source_label.as_deref(), Some(label.as_str()));
+    }
+
+    #[test]
+    fn publish_debug_capture_requires_selected_source() {
+        let mut manager = SessionManager::new();
+
+        let snapshot = manager.publish_debug_capture_samples();
+
+        assert_eq!(snapshot.published_video_sample_count, 0);
+        assert_eq!(snapshot.published_audio_sample_count, 0);
+        assert!(snapshot.logs.iter().any(|line| line.contains(
+            "cannot publish debug capture samples before selecting a capture source"
+        )));
     }
 
     #[test]
