@@ -13,6 +13,8 @@ This repository is still an MVP. Today it can already provide:
 
 It does **not** yet provide real OS screen capture, real system audio capture, STUN/TURN, or production invite/auth flows.
 
+For setup, release build notes, and troubleshooting, see `docs/INSTALLATION.md`.
+
 ## Requirements
 
 - Rust toolchain with `cargo`
