@@ -127,3 +127,8 @@
 3. Add manual QA checklist for macOS and Linux.
 4. Test real streaming across different networks.
 5. Measure latency, CPU usage and packet loss behavior.
+
+### Iteration 8 Progress
+
+- Done in part: `app-core` now has broader unit coverage for signaling parser edge cases plus viewer/debug-capture session transition behavior
+- Still open: more end-to-end coverage, QA checklists, and real-network validation

@@ -292,9 +292,11 @@ fn unescape_payload(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        IceCandidate, SdpType, SessionDescription, SignalingMessage, decode_signaling_message,
-        encode_signaling_message,
+        IceCandidate, Role, SdpType, SessionDescription, SignalingMessage,
+        decode_signaling_message, encode_signaling_message, parse_join_request,
+        parse_peer_message,
     };
+    use std::net::{Ipv4Addr, SocketAddr};
 
     #[test]
     fn roundtrip_sdp_envelope() {
@@ -329,5 +331,37 @@ mod tests {
                 sdp_mline_index: Some(0),
             })
         );
+    }
+
+    #[test]
+    fn parse_join_and_peer_messages_cover_waiting_peer_and_error_paths() {
+        let join = parse_join_request("JOIN demo receiver 4100").expect("join request");
+        assert_eq!(join.room, "demo");
+        assert_eq!(join.role, Role::Receiver);
+        assert_eq!(join.udp_port, 4100);
+
+        assert!(parse_peer_message("WAITING")
+            .expect("waiting state")
+            .is_none());
+
+        let peer = parse_peer_message("PEER sender 127.0.0.1 4200")
+            .expect("peer message")
+            .expect("peer announcement");
+        assert_eq!(peer.role, Role::Sender);
+        assert_eq!(peer.addr, SocketAddr::from((Ipv4Addr::LOCALHOST, 4200)));
+
+        let error = parse_peer_message("ERROR room full").expect_err("error response");
+        assert!(error.0.contains("room full"));
+    }
+
+    #[test]
+    fn decode_signaling_message_rejects_invalid_payloads() {
+        let invalid_index =
+            decode_signaling_message("SIG|ICE|0|not-a-number|candidate:demo").expect_err("bad index");
+        assert!(invalid_index.0.contains("invalid sdp mline index"));
+
+        let invalid_type =
+            decode_signaling_message("SIG|BYE|payload").expect_err("bad type");
+        assert!(invalid_type.0.contains("unsupported signaling envelope"));
     }
 }
