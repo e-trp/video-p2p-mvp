@@ -129,6 +129,7 @@ What changed relative to the earlier scaffold:
 - host source selection now automatically rebinds to the first available source if a refreshed runtime catalog drops the previously selected source
 - session-manager preferences now persist room/signaling/source metadata across resets and Tauri restarts
 - the desktop Tauri config now enables macOS `.app` and `.dmg` bundle targets with a real bundle identifier and baseline metadata
+- desktop release support now includes generated Tauri icon assets, package metadata, and helper scripts for icon refresh plus `cargo tauri build`
 
 ## Recommended Next Build Steps
 

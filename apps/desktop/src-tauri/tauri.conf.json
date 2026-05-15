@@ -24,10 +24,18 @@
   "bundle": {
     "active": true,
     "targets": ["app", "dmg"],
+    "publisher": "e-trp",
+    "homepage": "https://github.com/e-trp/video-p2p-mvp",
     "category": "Video",
     "shortDescription": "Peer-to-peer desktop window and audio streaming shell.",
     "longDescription": "Tauri desktop shell for the VideoP2P MVP that prepares host and viewer sessions for peer-to-peer window streaming with signaling-driven WebRTC setup.",
-    "icon": ["icons/icon.png"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.png"
+    ],
     "macOS": {
       "bundleVersion": "0.1.0",
       "bundleName": "VideoP2P",
