@@ -131,4 +131,5 @@
 ### Iteration 8 Progress
 
 - Done in part: `app-core` now has broader unit coverage for signaling parser edge cases plus viewer/debug-capture session transition behavior
-- Still open: more end-to-end coverage, QA checklists, and real-network validation
+- Done in part: `app-core/tests/host_viewer_flow.rs` now exercises host/viewer negotiation and late-join offer replay over a real local TCP signaling path
+- Still open: broader QA checklists and real-network validation
