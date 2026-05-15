@@ -128,6 +128,7 @@ What changed relative to the earlier scaffold:
 - host session guidance now reacts to capture permission readiness instead of only signaling/transport state
 - host source selection now automatically rebinds to the first available source if a refreshed runtime catalog drops the previously selected source
 - session-manager preferences now persist room/signaling/source metadata across resets and Tauri restarts
+- the desktop Tauri config now enables macOS `.app` and `.dmg` bundle targets with a real bundle identifier and baseline metadata
 
 ## Recommended Next Build Steps
 

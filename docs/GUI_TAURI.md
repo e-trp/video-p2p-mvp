@@ -15,6 +15,7 @@ The repository now includes a desktop scaffold in `apps/desktop`:
 
 - static frontend in `apps/desktop/public`
 - Tauri Rust shell in `apps/desktop/src-tauri`
+- baseline macOS Tauri bundle configuration for `.app` and `.dmg` packaging
 - initial commands for reading project status and the saved specification
 - session manager hooks for `host`, `join`, `stop`, `status`, and `logs`
 - UI controls for config save, host/viewer prep, transport smoke testing, reset, refresh, and log clearing

@@ -115,7 +115,8 @@
 
 - Done in part: `app-core::SessionManager` now persists last-used room, signaling address, source label, and selected capture-source metadata to a lightweight local preferences file
 - Done in part: session-manager reset now restores persisted preferences after clearing the active live session
-- Still open: broader UI preference persistence, packaging, icons/metadata, and release scripts
+- Done in part: `apps/desktop/src-tauri/tauri.conf.json` now enables macOS `.app` and `.dmg` bundle targets with a project-specific bundle identifier and baseline bundle metadata
+- Still open: broader UI preference persistence, notarization/signing details, icons/metadata, and release scripts
 
 ## Iteration 8: Testing And Release Readiness
 
