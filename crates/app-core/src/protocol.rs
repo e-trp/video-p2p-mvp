@@ -293,8 +293,7 @@ fn unescape_payload(value: &str) -> String {
 mod tests {
     use super::{
         IceCandidate, Role, SdpType, SessionDescription, SignalingMessage,
-        decode_signaling_message, encode_signaling_message, parse_join_request,
-        parse_peer_message,
+        decode_signaling_message, encode_signaling_message, parse_join_request, parse_peer_message,
     };
     use std::net::{Ipv4Addr, SocketAddr};
 
@@ -340,9 +339,11 @@ mod tests {
         assert_eq!(join.role, Role::Receiver);
         assert_eq!(join.udp_port, 4100);
 
-        assert!(parse_peer_message("WAITING")
-            .expect("waiting state")
-            .is_none());
+        assert!(
+            parse_peer_message("WAITING")
+                .expect("waiting state")
+                .is_none()
+        );
 
         let peer = parse_peer_message("PEER sender 127.0.0.1 4200")
             .expect("peer message")
@@ -356,12 +357,11 @@ mod tests {
 
     #[test]
     fn decode_signaling_message_rejects_invalid_payloads() {
-        let invalid_index =
-            decode_signaling_message("SIG|ICE|0|not-a-number|candidate:demo").expect_err("bad index");
+        let invalid_index = decode_signaling_message("SIG|ICE|0|not-a-number|candidate:demo")
+            .expect_err("bad index");
         assert!(invalid_index.0.contains("invalid sdp mline index"));
 
-        let invalid_type =
-            decode_signaling_message("SIG|BYE|payload").expect_err("bad type");
+        let invalid_type = decode_signaling_message("SIG|BYE|payload").expect_err("bad type");
         assert!(invalid_type.0.contains("unsupported signaling envelope"));
     }
 }

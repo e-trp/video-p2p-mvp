@@ -1,3 +1,4 @@
+use crate::ice_servers::IceServerEntry;
 use crate::session::{SessionIntent, SessionManager};
 use std::error::Error;
 use std::thread;
@@ -8,6 +9,7 @@ pub struct WebRtcHostConfig {
     pub room: String,
     pub signaling_addr: String,
     pub source_label: String,
+    pub ice_servers: Vec<IceServerEntry>,
     pub timeout_ms: u64,
     pub push_debug_capture: bool,
 }
@@ -16,6 +18,7 @@ pub struct WebRtcHostConfig {
 pub struct WebRtcViewerConfig {
     pub room: String,
     pub signaling_addr: String,
+    pub ice_servers: Vec<IceServerEntry>,
     pub timeout_ms: u64,
 }
 
@@ -25,6 +28,7 @@ pub fn run_webrtc_host(config: WebRtcHostConfig) -> Result<(), Box<dyn Error>> {
         room: config.room.clone(),
         signaling_addr: config.signaling_addr.clone(),
         source_label: Some(config.source_label.clone()),
+        ice_servers: config.ice_servers.clone(),
     });
     println!(
         "webrtc host prepared: room={} signaling={} transport_state={}",
@@ -57,6 +61,7 @@ pub fn run_webrtc_viewer(config: WebRtcViewerConfig) -> Result<(), Box<dyn Error
         room: config.room.clone(),
         signaling_addr: config.signaling_addr.clone(),
         source_label: None,
+        ice_servers: config.ice_servers.clone(),
     });
     println!(
         "webrtc viewer prepared: room={} signaling={} transport_state={}",

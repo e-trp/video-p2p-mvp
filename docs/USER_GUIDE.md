@@ -7,11 +7,12 @@ This repository is still an MVP. Today it can already provide:
 - a TCP signaling server for room pairing and WebRTC signaling relay
 - a Tauri desktop GUI for host/viewer session control
 - a live WebRTC negotiation path between host and viewer
+- configurable ICE server entries for custom STUN/TURN traversal
 - attached placeholder host audio/video tracks
 - debug `capture-core` media payload publishing for transport smoke testing
 - a source picker fed by the current `capture-core` platform blueprint data
 
-It does **not** yet provide real OS screen capture, real system audio capture, STUN/TURN, or production invite/auth flows.
+It does **not** yet provide real OS screen capture, real system audio capture, bundled STUN/TURN deployment defaults, or production invite/auth flows.
 
 For setup, release build notes, and troubleshooting, see `docs/INSTALLATION.md`.
 
@@ -70,7 +71,8 @@ This regenerates the desktop icons, changes into `apps/desktop/src-tauri`, and r
 
 - `Room`: room name for host/viewer pairing
 - `Signaling`: TCP address of the signaling server
-- `Save Config`: save the current room and signaling address into the local session-preferences file used by the desktop shell
+- `ICE Servers`: optional newline-separated STUN/TURN entries using `url` or `url|username|credential`
+- `Save Config`: save the current room, signaling address, and ICE server list into the local session-preferences file used by the desktop shell
 - `Prepare Host`: create a host-side WebRTC session, connect signaling, and automatically send the first local offer when signaling is available
 - `Prepare Viewer`: create a viewer-side WebRTC session and connect signaling
 - `Stop`: close the current session
@@ -176,6 +178,14 @@ Host with one debug capture burst after connect:
 cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 --push-debug-capture
 ```
 
+Host with explicit STUN/TURN:
+
+```bash
+cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 \
+  --ice-server 'stun:stun.l.google.com:19302' \
+  --ice-server 'turn:turn.example.com:3478?transport=udp|username|credential'
+```
+
 Viewer:
 
 ```bash
@@ -188,4 +198,5 @@ cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
 - macOS source enumeration is metadata-only and still does not capture real media
 - debug `capture-core` payload bursts are still synthetic, not OS-captured media
 - the GUI still falls back to blueprint/example capture sources when runtime enumeration is unavailable
+- ICE server configuration is manual; there is still no bundled TURN service, auth flow, or direct/relay path reporting in the GUI
 - the signaling service is still a minimal two-peer MVP

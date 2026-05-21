@@ -103,6 +103,11 @@
 4. Separate signaling deployment config from desktop runtime config.
 5. Document production deployment topology and security assumptions.
 
+### Iteration 6 Progress
+
+- Done in part: `transport-webrtc` already accepted ICE server entries, and `app-core`, CLI, Tauri, and persisted desktop session config now expose custom STUN/TURN server configuration end to end
+- Still open: direct-vs-relay path reporting, bundled TURN deployment/auth flow, and production topology documentation
+
 ## Iteration 7: Persistence And App Packaging
 
 1. Persist last-used signaling settings and UI preferences.

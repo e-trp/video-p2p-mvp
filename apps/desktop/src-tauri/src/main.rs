@@ -2,7 +2,7 @@
 
 use app_core::{
     CaptureCatalogSnapshot, SessionIntent, SessionManager, SessionMode, SessionSnapshot,
-    SessionStage, SessionTransport,
+    SessionStage, SessionTransport, parse_ice_server_entries,
 };
 use serde::Serialize;
 use std::sync::Mutex;
@@ -26,6 +26,9 @@ struct SessionView {
     signaling_connected: bool,
     room: Option<String>,
     signaling_addr: Option<String>,
+    ice_server_count: usize,
+    ice_server_summary: String,
+    ice_servers: String,
     source_label: Option<String>,
     selected_source_id: Option<String>,
     selected_source_audio: bool,
@@ -116,16 +119,19 @@ fn start_host(
     room: String,
     signaling_addr: String,
     source_label: Option<String>,
+    ice_servers: Option<String>,
     state: tauri::State<'_, Mutex<SessionManager>>,
 ) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .start_host(SessionIntent {
-            room: room.clone(),
-            signaling_addr: signaling_addr.clone(),
-            source_label,
-        });
+    let parsed_ice_servers = match parse_ice_servers_for_command(&state, ice_servers) {
+        Ok(value) => value,
+        Err(result) => return result,
+    };
+    let snapshot = state.lock().expect("session state poisoned").start_host(SessionIntent {
+        room: room.clone(),
+        signaling_addr: signaling_addr.clone(),
+        source_label,
+        ice_servers: parsed_ice_servers,
+    });
     let message = if snapshot.local_offer_ready {
         format!("host session prepared for room={room}; local offer sent automatically")
     } else {
@@ -143,16 +149,19 @@ fn start_host(
 fn join_room(
     room: String,
     signaling_addr: String,
+    ice_servers: Option<String>,
     state: tauri::State<'_, Mutex<SessionManager>>,
 ) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .start_viewer(SessionIntent {
-            room: room.clone(),
-            signaling_addr: signaling_addr.clone(),
-            source_label: None,
-        });
+    let parsed_ice_servers = match parse_ice_servers_for_command(&state, ice_servers) {
+        Ok(value) => value,
+        Err(result) => return result,
+    };
+    let snapshot = state.lock().expect("session state poisoned").start_viewer(SessionIntent {
+        room: room.clone(),
+        signaling_addr: signaling_addr.clone(),
+        source_label: None,
+        ice_servers: parsed_ice_servers,
+    });
 
     CommandResult {
         ok: true,
@@ -166,12 +175,18 @@ fn update_session_config(
     room: Option<String>,
     signaling_addr: Option<String>,
     source_label: Option<String>,
+    ice_servers: Option<String>,
     state: tauri::State<'_, Mutex<SessionManager>>,
 ) -> CommandResult {
+    let parsed_ice_servers = match parse_ice_servers_for_command(&state, ice_servers) {
+        Ok(value) => value,
+        Err(result) => return result,
+    };
     let snapshot = state.lock().expect("session state poisoned").update_config(
         room,
         signaling_addr,
         source_label,
+        Some(parsed_ice_servers),
     );
 
     CommandResult {
@@ -284,6 +299,9 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         signaling_connected: snapshot.signaling_connected,
         room: snapshot.room,
         signaling_addr: snapshot.signaling_addr,
+        ice_server_count: snapshot.ice_server_count,
+        ice_server_summary: snapshot.ice_server_summary,
+        ice_servers: snapshot.ice_servers,
         source_label: snapshot.source_label,
         selected_source_id: snapshot.selected_source_id,
         selected_source_audio: snapshot.selected_source_audio,
@@ -315,6 +333,20 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         last_signaling_message: snapshot.last_signaling_message,
         logs: snapshot.logs,
     }
+}
+
+fn parse_ice_servers_for_command(
+    state: &tauri::State<'_, Mutex<SessionManager>>,
+    ice_servers: Option<String>,
+) -> Result<Vec<app_core::IceServerEntry>, CommandResult> {
+    parse_ice_server_entries(ice_servers.as_deref().unwrap_or_default()).map_err(|error| {
+        let snapshot = state.lock().expect("session state poisoned").snapshot();
+        CommandResult {
+            ok: false,
+            message: format!("invalid ICE server configuration: {error}"),
+            session: map_snapshot(snapshot),
+        }
+    })
 }
 
 fn map_capture_catalog(

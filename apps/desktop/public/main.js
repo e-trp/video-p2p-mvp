@@ -73,6 +73,7 @@ function setSession(session) {
     <div><dt>Mode</dt><dd>${session.mode}</dd></div>
     <div><dt>Room</dt><dd>${session.room ?? "n/a"}</dd></div>
     <div><dt>Signaling</dt><dd>${session.signaling_addr ?? "n/a"}</dd></div>
+    <div><dt>ICE Servers</dt><dd>${session.ice_server_count ?? 0} / ${session.ice_server_summary ?? "none"}</dd></div>
     <div><dt>Signal Link</dt><dd>${String(session.signaling_connected)}</dd></div>
     <div><dt>Source</dt><dd>${session.source_label ?? "n/a"}</dd></div>
     <div><dt>Selected Source</dt><dd>${session.selected_source_id ?? "n/a"} / ${String(session.selected_source_audio)}</dd></div>
@@ -109,12 +110,14 @@ function setSession(session) {
   document.getElementById("room").value = session.room ?? document.getElementById("room").value;
   document.getElementById("signaling").value =
     session.signaling_addr ?? document.getElementById("signaling").value;
+  document.getElementById("ice-servers").value = session.ice_servers ?? "";
 }
 
 function formValues() {
   return {
     room: document.getElementById("room").value.trim(),
     signaling_addr: document.getElementById("signaling").value.trim(),
+    ice_servers: document.getElementById("ice-servers").value.trim(),
   };
 }
 
@@ -144,6 +147,7 @@ async function refresh() {
       <div><dt>Mode</dt><dd>preview</dd></div>
       <div><dt>Room</dt><dd>n/a</dd></div>
       <div><dt>Signaling</dt><dd>n/a</dd></div>
+      <div><dt>ICE Servers</dt><dd>0 / none</dd></div>
       <div><dt>Signal Link</dt><dd>false</dd></div>
       <div><dt>Source</dt><dd>n/a</dd></div>
       <div><dt>Selected Source</dt><dd>n/a / false</dd></div>

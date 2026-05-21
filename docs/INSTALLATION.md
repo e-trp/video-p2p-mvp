@@ -10,6 +10,7 @@ The current repository can already provide:
 - CLI smoke-test flows
 - a Tauri desktop shell for host/viewer session control
 - live WebRTC negotiation between host and viewer
+- configurable STUN/TURN ICE server settings for CLI and desktop runs
 - debug `capture-core` media bursts for transport validation
 
 It does **not** yet provide:
@@ -88,7 +89,7 @@ This currently:
 
 ## Saved Session Preferences
 
-The desktop shell persists room, signaling address, and selected source metadata into a local preferences file.
+The desktop shell persists room, signaling address, configured ICE servers, and selected source metadata into a local preferences file.
 
 Default locations:
 
@@ -103,6 +104,29 @@ export VIDEO_P2P_MVP_CONFIG_DIR=/tmp/video-p2p-mvp-config
 ```
 
 The app writes `session.conf` inside that directory.
+
+ICE server entries are stored as newline-separated values in one of these forms:
+
+- `stun:stun.l.google.com:19302`
+- `turn:turn.example.com:3478?transport=udp|username|credential`
+
+## STUN/TURN Configuration
+
+The current MVP does not ship a TURN service, but both CLI and Tauri can now pass explicit ICE server entries through to the underlying `RTCPeerConnection`.
+
+CLI examples:
+
+```bash
+cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 \
+  --ice-server 'stun:stun.l.google.com:19302'
+```
+
+```bash
+cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 \
+  --ice-server 'turn:turn.example.com:3478?transport=udp|username|credential'
+```
+
+In the Tauri desktop shell, enter one ICE server per line in the `ICE Servers` field, then save or prepare the session.
 
 ## Troubleshooting
 
@@ -143,11 +167,18 @@ What to check:
 - both peers use the same room name
 - both peers use the same signaling address
 - the signaling address is reachable from the desktop shell or CLI process
+- if you are testing across networks, the STUN/TURN entries are valid and reachable
 
 Start from the known local default first:
 
 ```bash
 127.0.0.1:7000
+```
+
+For NAT-traversal tests, start with a known-good STUN entry before assuming TURN is required:
+
+```bash
+stun:stun.l.google.com:19302
 ```
 
 ### The desktop shell shows sources, but no real media is streamed

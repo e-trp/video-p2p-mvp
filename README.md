@@ -47,6 +47,14 @@ Run the live WebRTC negotiation host:
 cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000
 ```
 
+Run the host with explicit STUN/TURN entries:
+
+```bash
+cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 \
+  --ice-server 'stun:stun.l.google.com:19302' \
+  --ice-server 'turn:turn.example.com:3478?transport=udp|username|credential'
+```
+
 Run the host and publish one debug capture burst after the peer connection comes up:
 
 ```bash
@@ -80,6 +88,7 @@ It now exposes commands for:
 - defaulting the host session to the first available capture source when none was selected explicitly
 - persisting last-used room, signaling address, and capture-source selection across session-manager restarts
 - preparing host and viewer sessions against the live signaling server
+- configuring custom ICE server entries for STUN/TURN-assisted traversal
 - auto-creating and sending the first local SDP offer from the host once signaling is connected
 - publishing debug `capture-core` audio/video payloads into the attached host tracks for smoke testing
 - polling signaling and auto-applying remote offer/answer/ICE state
@@ -102,7 +111,7 @@ This is not yet a real screen-sharing application. It does not currently include
 - real source enumeration from the operating system
 - real captured samples flowing through the attached tracks
 - real audio/video codecs
-- STUN/TURN
+- bundled STUN/TURN deployment defaults
 - production GUI workflow
 
 What changed relative to the earlier scaffold:
@@ -129,6 +138,7 @@ What changed relative to the earlier scaffold:
 - host session guidance now reacts to capture permission readiness instead of only signaling/transport state
 - host source selection now automatically rebinds to the first available source if a refreshed runtime catalog drops the previously selected source
 - session-manager preferences now persist room/signaling/source metadata across resets and Tauri restarts
+- session-manager preferences now also persist custom ICE server entries for later host/viewer reconnects
 - the desktop Tauri config now enables macOS `.app` and `.dmg` bundle targets with a real bundle identifier and baseline metadata
 - desktop release support now includes generated Tauri icon assets, package metadata, and helper scripts for icon refresh plus `cargo tauri build`
 - installation, saved-preferences, and troubleshooting guidance now live in a dedicated `docs/INSTALLATION.md`

@@ -1,3 +1,4 @@
+use crate::ice_servers::{IceServerEntry, parse_ice_server_entries};
 use crate::mock_media::{ReceiverConfig, SenderConfig};
 use crate::session_flow::{WebRtcHostConfig, WebRtcViewerConfig};
 use std::error::Error;
@@ -86,11 +87,13 @@ pub fn parse_cli_args(args: &[String]) -> Result<AppCommand, Box<dyn Error>> {
                 .transpose()?
                 .unwrap_or(10_000);
             let push_debug_capture = has_flag(&args[1..], "--push-debug-capture");
+            let ice_servers = parse_ice_server_flags(&args[1..])?;
 
             Ok(AppCommand::WebRtcHost(WebRtcHostConfig {
                 room,
                 signaling_addr,
                 source_label,
+                ice_servers,
                 timeout_ms,
                 push_debug_capture,
             }))
@@ -103,10 +106,12 @@ pub fn parse_cli_args(args: &[String]) -> Result<AppCommand, Box<dyn Error>> {
                 .map(|value| value.parse())
                 .transpose()?
                 .unwrap_or(10_000);
+            let ice_servers = parse_ice_server_flags(&args[1..])?;
 
             Ok(AppCommand::WebRtcViewer(WebRtcViewerConfig {
                 room,
                 signaling_addr,
+                ice_servers,
                 timeout_ms,
             }))
         }
@@ -138,6 +143,33 @@ fn has_flag(args: &[String], flag: &str) -> bool {
     args.iter().any(|value| value == flag)
 }
 
+fn parse_repeated_flag(args: &[String], flag: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    let mut values = Vec::new();
+    let mut index = 0;
+    while index < args.len() {
+        if args[index] == flag {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| CliError(format!("missing value for {flag}")))?;
+            values.push(value.clone());
+            index += 2;
+        } else {
+            index += 1;
+        }
+    }
+    Ok(values)
+}
+
+fn parse_ice_server_flags(args: &[String]) -> Result<Vec<IceServerEntry>, Box<dyn Error>> {
+    let mut entries = Vec::new();
+    for spec in parse_repeated_flag(args, "--ice-server")? {
+        let parsed = parse_ice_server_entries(&spec)
+            .map_err(|error| CliError(format!("invalid --ice-server value `{spec}`: {error}")))?;
+        entries.extend(parsed);
+    }
+    Ok(entries)
+}
+
 pub fn print_help() {
     println!(
         "\
@@ -148,12 +180,16 @@ Commands:
   spec
   sender --room demo --signal 127.0.0.1:7000 [--udp-bind 0.0.0.0:0] [--fps 10] [--frames 120] [--source mock-window]
   receiver --room demo --signal 127.0.0.1:7000 [--udp-bind 0.0.0.0:0] [--expected-frames 120]
-  webrtc-host --room demo --signal 127.0.0.1:7000 [--source mock-window] [--timeout-ms 10000] [--push-debug-capture]
-  webrtc-viewer --room demo --signal 127.0.0.1:7000 [--timeout-ms 10000]
+  webrtc-host --room demo --signal 127.0.0.1:7000 [--source mock-window] [--ice-server stun:stun.example.com:3478] [--timeout-ms 10000] [--push-debug-capture]
+  webrtc-viewer --room demo --signal 127.0.0.1:7000 [--ice-server stun:stun.example.com:3478] [--timeout-ms 10000]
 
 This MVP uses TCP for signaling and direct UDP for mock media packets.
 It now also has a live WebRTC negotiation path that uses the same signaling server,
-with attached host audio/video tracks and optional debug `capture-core` payload publishing."
+with attached host audio/video tracks and optional debug `capture-core` payload publishing.
+
+ICE server format:
+  --ice-server 'stun:stun.l.google.com:19302'
+  --ice-server 'turn:turn.example.com:3478?transport=udp|username|credential'"
     );
 }
 
@@ -192,5 +228,27 @@ mod tests {
         };
 
         assert!(!config.push_debug_capture);
+    }
+
+    #[test]
+    fn webrtc_viewer_parses_repeatable_ice_server_flags() {
+        let args = vec![
+            "webrtc-viewer".to_string(),
+            "--room".to_string(),
+            "demo".to_string(),
+            "--ice-server".to_string(),
+            "stun:stun.example.com:3478".to_string(),
+            "--ice-server".to_string(),
+            "turn:turn.example.com:3478?transport=udp|demo|secret".to_string(),
+        ];
+
+        let command = parse_cli_args(&args).expect("parse viewer command");
+        let AppCommand::WebRtcViewer(config) = command else {
+            panic!("expected viewer command");
+        };
+
+        assert_eq!(config.ice_servers.len(), 2);
+        assert_eq!(config.ice_servers[0].urls[0], "stun:stun.example.com:3478");
+        assert_eq!(config.ice_servers[1].username.as_deref(), Some("demo"));
     }
 }
