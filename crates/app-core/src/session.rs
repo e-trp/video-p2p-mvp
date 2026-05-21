@@ -2,6 +2,7 @@ use crate::capture_catalog::{
     CaptureCatalogSnapshot, current_capture_catalog, describe_permission_state,
     selected_source_label,
 };
+use crate::ice_servers::{IceServerEntry, format_ice_server_entries, summarize_ice_server_entries};
 use crate::preferences::{PersistedSessionConfig, PreferencesStore};
 use crate::protocol::{
     IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage,
@@ -44,6 +45,7 @@ pub struct SessionIntent {
     pub room: String,
     pub signaling_addr: String,
     pub source_label: Option<String>,
+    pub ice_servers: Vec<IceServerEntry>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,6 +55,9 @@ pub struct SessionSnapshot {
     pub transport: SessionTransport,
     pub room: Option<String>,
     pub signaling_addr: Option<String>,
+    pub ice_server_count: usize,
+    pub ice_server_summary: String,
+    pub ice_servers: String,
     pub source_label: Option<String>,
     pub selected_source_id: Option<String>,
     pub selected_source_audio: bool,
@@ -99,6 +104,7 @@ struct SessionState {
     transport: SessionTransport,
     room: Option<String>,
     signaling_addr: Option<String>,
+    ice_servers: Vec<IceServerEntry>,
     source_label: Option<String>,
     capture_catalog: CaptureCatalogSnapshot,
     capture_selection: Option<CaptureSelection>,
@@ -118,6 +124,7 @@ impl Default for SessionState {
             transport: SessionTransport::MockUdp,
             room: None,
             signaling_addr: None,
+            ice_servers: Vec::new(),
             source_label: None,
             capture_catalog: current_capture_catalog(),
             capture_selection: None,
@@ -165,6 +172,7 @@ impl SessionManager {
             "host session configured for room={} signaling={}",
             intent.room, intent.signaling_addr
         ));
+        self.log_ice_server_configuration();
         self.log_host_capture_readiness();
         self.initialize_transport("host");
         self.connect_signaling();
@@ -184,6 +192,7 @@ impl SessionManager {
             "viewer session configured for room={} signaling={}",
             intent.room, intent.signaling_addr
         ));
+        self.log_ice_server_configuration();
         self.initialize_transport("viewer");
         self.connect_signaling();
         self.snapshot()
@@ -252,6 +261,7 @@ impl SessionManager {
         room: Option<String>,
         signaling_addr: Option<String>,
         source_label: Option<String>,
+        ice_servers: Option<Vec<IceServerEntry>>,
     ) -> SessionSnapshot {
         if let Some(room) = room {
             self.state.room = Some(room.clone());
@@ -264,6 +274,13 @@ impl SessionManager {
         if let Some(source_label) = source_label {
             self.state.source_label = Some(source_label.clone());
             self.push_log(format!("source label updated to {source_label}"));
+        }
+        if let Some(ice_servers) = ice_servers {
+            self.state.ice_servers = ice_servers;
+            self.push_log(format!(
+                "ICE server configuration updated: {} entries",
+                self.state.ice_servers.len()
+            ));
         }
         self.persist_preferences();
         self.snapshot()
@@ -464,6 +481,9 @@ impl SessionManager {
             transport: self.state.transport,
             room: self.state.room.clone(),
             signaling_addr: self.state.signaling_addr.clone(),
+            ice_server_count: self.state.ice_servers.len(),
+            ice_server_summary: summarize_ice_server_entries(&self.state.ice_servers),
+            ice_servers: format_ice_server_entries(&self.state.ice_servers),
             source_label: self.state.source_label.clone(),
             selected_source_id: self
                 .state
@@ -594,6 +614,7 @@ impl SessionManager {
         self.state.transport = transport;
         self.state.room = Some(intent.room);
         self.state.signaling_addr = Some(intent.signaling_addr);
+        self.state.ice_servers = intent.ice_servers;
         self.state.source_label = intent.source_label;
         self.state.active_peer = None;
         self.state.webrtc = None;
@@ -609,11 +630,19 @@ impl SessionManager {
             room,
             role: role.to_string(),
             signaling_url: signaling_addr,
-            ice_servers: Vec::new(),
+            ice_servers: self
+                .state
+                .ice_servers
+                .iter()
+                .map(IceServerEntry::to_transport)
+                .collect(),
         }) {
             Ok(session) => {
                 self.state.webrtc = Some(session);
-                self.push_log("real WebRTC PeerConnection initialized".to_string());
+                self.push_log(format!(
+                    "real WebRTC PeerConnection initialized with {} ICE server entries",
+                    self.state.ice_servers.len()
+                ));
             }
             Err(error) => {
                 self.state.webrtc = None;
@@ -987,6 +1016,17 @@ impl SessionManager {
         }
     }
 
+    fn log_ice_server_configuration(&mut self) {
+        if self.state.ice_servers.is_empty() {
+            self.push_log("ICE server configuration: none; local-only candidates only".to_string());
+        } else {
+            self.push_log(format!(
+                "ICE server configuration: {}",
+                summarize_ice_server_entries(&self.state.ice_servers)
+            ));
+        }
+    }
+
     fn load_persisted_preferences(&mut self) {
         let persisted = match self.preferences.load() {
             Ok(Some(config)) => config,
@@ -1006,6 +1046,7 @@ impl SessionManager {
     fn apply_persisted_preferences(&mut self, persisted: PersistedSessionConfig) {
         self.state.room = persisted.room;
         self.state.signaling_addr = persisted.signaling_addr;
+        self.state.ice_servers = persisted.ice_servers;
         self.state.source_label = persisted.source_label;
         self.state.capture_selection = persisted.capture_selection;
 
@@ -1023,6 +1064,7 @@ impl SessionManager {
             signaling_addr: self.state.signaling_addr.clone(),
             source_label: self.state.source_label.clone(),
             capture_selection: self.state.capture_selection.clone(),
+            ice_servers: self.state.ice_servers.clone(),
         };
 
         if let Err(error) = self.preferences.save(&persisted) {
@@ -1264,6 +1306,7 @@ mod tests {
             room: "demo".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
             source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
         });
 
         assert_eq!(snapshot.mode, SessionMode::Host);
@@ -1295,6 +1338,7 @@ mod tests {
             room: "demo".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
             source_label: None,
+            ice_servers: Vec::new(),
         });
 
         assert!(snapshot.selected_source_id.is_some());
@@ -1316,6 +1360,7 @@ mod tests {
             room: "demo".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
             source_label: None,
+            ice_servers: Vec::new(),
         });
 
         assert_eq!(snapshot.mode, SessionMode::Viewer);
@@ -1345,7 +1390,9 @@ mod tests {
         let (mut manager, config_dir) = new_test_manager("select-source-label");
 
         let (source, _requested_audio, snapshot) =
-            select_source_with_retry(&mut manager, |source| Some((source.clone(), source.has_audio)));
+            select_source_with_retry(&mut manager, |source| {
+                Some((source.clone(), source.has_audio))
+            });
         let label = source.label();
         assert_eq!(
             snapshot.selected_source_id.as_deref(),
@@ -1365,9 +1412,9 @@ mod tests {
 
         assert_eq!(snapshot.published_video_sample_count, 0);
         assert_eq!(snapshot.published_audio_sample_count, 0);
-        assert!(snapshot.logs.iter().any(|line| line.contains(
-            "cannot publish debug capture samples before selecting a capture source"
-        )));
+        assert!(snapshot.logs.iter().any(|line| {
+            line.contains("cannot publish debug capture samples before selecting a capture source")
+        }));
 
         let _ = fs::remove_dir_all(config_dir);
     }
@@ -1412,6 +1459,7 @@ mod tests {
             room: "join".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
             source_label: None,
+            ice_servers: Vec::new(),
         });
         let snapshot = manager.stop();
 
@@ -1431,6 +1479,7 @@ mod tests {
             room: "demo".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
             source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
         });
 
         let snapshot = publish_debug_samples_with_audio_enabled(&mut manager);
@@ -1473,6 +1522,7 @@ mod tests {
             room: "demo".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
             source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
         });
 
         let snapshot = publish_debug_samples_with_audio_disabled(&mut manager);
@@ -1504,6 +1554,7 @@ mod tests {
             room: "demo".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
             source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
         });
 
         let snapshot = manager.publish_capture_video_frame(
@@ -1536,6 +1587,7 @@ mod tests {
             room: "demo".to_string(),
             signaling_addr: "127.0.0.1:7000".to_string(),
             source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
         });
 
         let snapshot = manager.publish_capture_audio_buffer(source.id, super::debug_audio_buffer());
@@ -1554,6 +1606,7 @@ mod tests {
             room: "demo".to_string(),
             signaling_addr: "in-memory-signaling".to_string(),
             source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
         });
 
         assert!(!snapshot.local_offer_ready);
@@ -1597,6 +1650,7 @@ mod tests {
             Some("saved-room".to_string()),
             Some("127.0.0.1:7100".to_string()),
             None,
+            Some(Vec::new()),
         );
         first.select_capture_source(source.id.clone(), false);
 
@@ -1639,12 +1693,14 @@ mod tests {
             Some("saved-room".to_string()),
             Some("127.0.0.1:7200".to_string()),
             None,
+            Some(Vec::new()),
         );
         manager.select_capture_source(source.id.clone(), source.has_audio);
         manager.start_host(SessionIntent {
             room: "transient-room".to_string(),
             signaling_addr: "127.0.0.1:7300".to_string(),
             source_label: Some("temporary".to_string()),
+            ice_servers: Vec::new(),
         });
 
         let snapshot = manager.reset();
@@ -1668,6 +1724,7 @@ mod tests {
             room: "demo".to_string(),
             signaling_addr: "in-memory-signaling".to_string(),
             source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
         });
         assert!(!host_start.signaling_connected);
         attach_test_signaling(&mut host, &server, "demo", Role::Sender, 4100);
@@ -1682,6 +1739,7 @@ mod tests {
             room: "demo".to_string(),
             signaling_addr: "in-memory-signaling".to_string(),
             source_label: None,
+            ice_servers: Vec::new(),
         });
         assert!(!viewer_start.signaling_connected);
         attach_test_signaling(&mut viewer, &server, "demo", Role::Receiver, 4200);
@@ -2029,7 +2087,8 @@ mod tests {
             assert!(!selected_snapshot.selected_source_audio);
 
             let snapshot = manager.publish_debug_capture_samples();
-            if snapshot.published_video_sample_count == 1 && snapshot.published_audio_sample_count == 0
+            if snapshot.published_video_sample_count == 1
+                && snapshot.published_audio_sample_count == 0
             {
                 return snapshot;
             }
@@ -2049,7 +2108,8 @@ mod tests {
             assert!(selected_snapshot.selected_source_audio);
 
             let snapshot = manager.publish_debug_capture_samples();
-            if snapshot.published_video_sample_count == 1 && snapshot.published_audio_sample_count == 1
+            if snapshot.published_video_sample_count == 1
+                && snapshot.published_audio_sample_count == 1
             {
                 return snapshot;
             }

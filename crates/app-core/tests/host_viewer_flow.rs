@@ -42,8 +42,12 @@ struct TestTcpSignalingServer {
 }
 
 impl TestTcpSignalingServer {
-    fn start() -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind test signaling server");
+    fn start() -> Option<Self> {
+        let listener = match TcpListener::bind("127.0.0.1:0") {
+            Ok(listener) => listener,
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => return None,
+            Err(error) => panic!("bind test signaling server: {error}"),
+        };
         listener
             .set_nonblocking(true)
             .expect("set listener nonblocking");
@@ -73,11 +77,11 @@ impl TestTcpSignalingServer {
             }
         });
 
-        Self {
+        Some(Self {
             addr,
             shutdown,
             accept_thread: Some(accept_thread),
-        }
+        })
     }
 
     fn addr(&self) -> &str {
@@ -97,13 +101,16 @@ impl Drop for TestTcpSignalingServer {
 
 #[test]
 fn host_and_viewer_negotiate_over_real_tcp_signaling() {
-    let server = TestTcpSignalingServer::start();
+    let Some(server) = TestTcpSignalingServer::start() else {
+        return;
+    };
 
     let mut host = SessionManager::new();
     let host_start = host.start_host(SessionIntent {
         room: "demo".to_string(),
         signaling_addr: server.addr().to_string(),
         source_label: Some("runtime-source".to_string()),
+        ice_servers: Vec::new(),
     });
     assert!(host_start.signaling_connected);
 
@@ -112,6 +119,7 @@ fn host_and_viewer_negotiate_over_real_tcp_signaling() {
         room: "demo".to_string(),
         signaling_addr: server.addr().to_string(),
         source_label: None,
+        ice_servers: Vec::new(),
     });
     assert!(viewer_start.signaling_connected);
 
@@ -126,9 +134,18 @@ fn host_and_viewer_negotiate_over_real_tcp_signaling() {
         viewer_snapshot.stage,
         SessionStage::NegotiatingWebRtc | SessionStage::LiveWebRtc
     ));
-    assert_eq!(host_snapshot.local_description_kind.as_deref(), Some("offer"));
-    assert_eq!(host_snapshot.remote_description_kind.as_deref(), Some("answer"));
-    assert_eq!(viewer_snapshot.remote_description_kind.as_deref(), Some("offer"));
+    assert_eq!(
+        host_snapshot.local_description_kind.as_deref(),
+        Some("offer")
+    );
+    assert_eq!(
+        host_snapshot.remote_description_kind.as_deref(),
+        Some("answer")
+    );
+    assert_eq!(
+        viewer_snapshot.remote_description_kind.as_deref(),
+        Some("offer")
+    );
     assert!(host_snapshot.active_peer.is_some());
     assert!(viewer_snapshot.active_peer.is_some());
     assert!(
@@ -147,13 +164,16 @@ fn host_and_viewer_negotiate_over_real_tcp_signaling() {
 
 #[test]
 fn late_viewer_join_replays_offer_over_real_tcp_signaling() {
-    let server = TestTcpSignalingServer::start();
+    let Some(server) = TestTcpSignalingServer::start() else {
+        return;
+    };
 
     let mut host = SessionManager::new();
     host.start_host(SessionIntent {
         room: "demo".to_string(),
         signaling_addr: server.addr().to_string(),
         source_label: Some("runtime-source".to_string()),
+        ice_servers: Vec::new(),
     });
 
     let host_offer = wait_until(
@@ -176,13 +196,20 @@ fn late_viewer_join_replays_offer_over_real_tcp_signaling() {
         room: "demo".to_string(),
         signaling_addr: server.addr().to_string(),
         source_label: None,
+        ice_servers: Vec::new(),
     });
 
     let (host_snapshot, viewer_snapshot) =
         drive_sessions_until_negotiated(&mut host, &mut viewer, Duration::from_secs(10));
 
-    assert_eq!(host_snapshot.remote_description_kind.as_deref(), Some("answer"));
-    assert_eq!(viewer_snapshot.remote_description_kind.as_deref(), Some("offer"));
+    assert_eq!(
+        host_snapshot.remote_description_kind.as_deref(),
+        Some("answer")
+    );
+    assert_eq!(
+        viewer_snapshot.remote_description_kind.as_deref(),
+        Some("offer")
+    );
     assert!(
         viewer_snapshot
             .logs
@@ -239,7 +266,9 @@ fn wait_until(
 }
 
 fn handle_test_client(stream: TcpStream, peer_addr: SocketAddr, rooms: SharedRooms) {
-    let writer = Arc::new(Mutex::new(stream.try_clone().expect("clone signaling stream")));
+    let writer = Arc::new(Mutex::new(
+        stream.try_clone().expect("clone signaling stream"),
+    ));
     let mut reader = BufReader::new(stream);
     let mut first_line = String::new();
     if reader

@@ -31,6 +31,15 @@
               <span>Signaling</span>
               <input id="signaling" name="signaling" value="127.0.0.1:7000" />
             </label>
+            <label>
+              <span>ICE Servers</span>
+              <textarea
+                id="ice-servers"
+                name="ice_servers"
+                rows="3"
+                placeholder="stun:stun.l.google.com:19302&#10;turn:turn.example.com:3478?transport=udp|username|credential"
+              ></textarea>
+            </label>
             <div class="actions">
               <button type="button" id="save-btn" class="secondary">Save Config</button>
               <button type="button" id="host-btn">Prepare Host</button>
@@ -102,6 +111,7 @@
             <div><dt>Mode</dt><dd>loading...</dd></div>
             <div><dt>Room</dt><dd>loading...</dd></div>
             <div><dt>Signaling</dt><dd>loading...</dd></div>
+            <div><dt>ICE Servers</dt><dd>loading...</dd></div>
             <div><dt>Signal Link</dt><dd>loading...</dd></div>
             <div><dt>Source</dt><dd>loading...</dd></div>
             <div><dt>Selected Source</dt><dd>loading...</dd></div>

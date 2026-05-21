@@ -1,3 +1,4 @@
+use crate::ice_servers::{IceServerEntry, format_ice_server_entries, parse_ice_server_entries};
 use capture_core::CaptureSelection;
 use std::fs;
 use std::path::PathBuf;
@@ -13,6 +14,7 @@ pub struct PersistedSessionConfig {
     pub signaling_addr: Option<String>,
     pub source_label: Option<String>,
     pub capture_selection: Option<CaptureSelection>,
+    pub ice_servers: Vec<IceServerEntry>,
 }
 
 #[derive(Clone, Debug)]
@@ -107,6 +109,13 @@ fn format_preferences(config: &PersistedSessionConfig) -> String {
         config.signaling_addr.as_deref(),
     );
     push_optional_line(&mut lines, "source_label", config.source_label.as_deref());
+    if !config.ice_servers.is_empty() {
+        push_optional_line(
+            &mut lines,
+            "ice_servers",
+            Some(&format_ice_server_entries(&config.ice_servers)),
+        );
+    }
     if let Some(selection) = config.capture_selection.as_ref() {
         push_optional_line(&mut lines, "selected_source_id", Some(&selection.source_id));
         lines.push(format!(
@@ -155,6 +164,10 @@ fn parse_preferences(content: &str) -> Result<PersistedSessionConfig, String> {
             "room" => config.room = Some(value),
             "signaling_addr" => config.signaling_addr = Some(value),
             "source_label" => config.source_label = Some(value),
+            "ice_servers" => {
+                config.ice_servers = parse_ice_server_entries(&value)
+                    .map_err(|error| format!("invalid ice_servers: {error}"))?
+            }
             "selected_source_id" => selected_source_id = Some(value),
             "selected_source_audio" => {
                 selected_source_audio = match value.as_str() {
@@ -196,6 +209,7 @@ fn unescape_value(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{PersistedSessionConfig, PreferencesStore, format_preferences, parse_preferences};
+    use crate::ice_servers::IceServerEntry;
     use capture_core::CaptureSelection;
     use std::fs;
     use std::path::PathBuf;
@@ -207,6 +221,18 @@ mod tests {
             room: Some("demo=room".to_string()),
             signaling_addr: Some("127.0.0.1:7000".to_string()),
             source_label: Some("vlc\nwindow".to_string()),
+            ice_servers: vec![
+                IceServerEntry {
+                    urls: vec!["stun:stun.example.com:3478".to_string()],
+                    username: None,
+                    credential: None,
+                },
+                IceServerEntry {
+                    urls: vec!["turn:turn.example.com:3478?transport=udp".to_string()],
+                    username: Some("demo".to_string()),
+                    credential: Some("s3cr3t".to_string()),
+                },
+            ],
             capture_selection: Some(CaptureSelection {
                 source_id: "window%201".to_string(),
                 include_audio: true,
@@ -226,6 +252,11 @@ mod tests {
             room: Some("demo".to_string()),
             signaling_addr: Some("127.0.0.1:7000".to_string()),
             source_label: Some("VLC".to_string()),
+            ice_servers: vec![IceServerEntry {
+                urls: vec!["stun:stun.example.com:3478".to_string()],
+                username: None,
+                credential: None,
+            }],
             capture_selection: Some(CaptureSelection {
                 source_id: "window-1".to_string(),
                 include_audio: false,
