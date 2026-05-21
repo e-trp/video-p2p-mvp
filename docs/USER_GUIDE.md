@@ -99,6 +99,7 @@ This is still a contract layer overall. Both platform catalogs are best-effort m
 The GUI now surfaces transport-side diagnostics from the Rust `PeerConnection` wrapper:
 
 - current transport stage
+- current ICE path summary, including direct-vs-relay hints when a candidate pair is selected
 - bootstrap data channel readiness
 - current stats report count
 - transport notes describing track attachment and sample counters
@@ -198,5 +199,5 @@ cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
 - macOS source enumeration is metadata-only and still does not capture real media
 - debug `capture-core` payload bursts are still synthetic, not OS-captured media
 - the GUI still falls back to blueprint/example capture sources when runtime enumeration is unavailable
-- ICE server configuration is manual; there is still no bundled TURN service, auth flow, or direct/relay path reporting in the GUI
+- ICE server configuration is manual; there is still no bundled TURN service or auth flow
 - the signaling service is still a minimal two-peer MVP

@@ -85,6 +85,8 @@ pub struct SessionSnapshot {
     pub last_audio_capture_summary: Option<String>,
     pub local_data_channel_ready: bool,
     pub transport_stats_report_count: usize,
+    pub transport_ice_path_kind: String,
+    pub transport_ice_path_summary: String,
     pub transport_notes: Vec<String>,
     pub local_offer_ready: bool,
     pub remote_answer_ready: bool,
@@ -565,6 +567,14 @@ impl SessionManager {
                 .as_ref()
                 .map(|snapshot| snapshot.stats_report_count)
                 .unwrap_or(0),
+            transport_ice_path_kind: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.ice_path_kind.clone())
+                .unwrap_or_else(|| "unknown".to_string()),
+            transport_ice_path_summary: transport_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.ice_path_summary.clone())
+                .unwrap_or_else(|| "candidate pair not selected yet".to_string()),
             transport_notes: transport_snapshot
                 .as_ref()
                 .map(|snapshot| snapshot.notes.clone())

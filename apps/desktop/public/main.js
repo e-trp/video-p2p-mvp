@@ -82,6 +82,7 @@ function setSession(session) {
     <div><dt>Peer</dt><dd>${session.active_peer ?? "n/a"}</dd></div>
     <div><dt>Transport State</dt><dd>${session.transport_state ?? "n/a"}</dd></div>
     <div><dt>Transport Stage</dt><dd>${session.transport_stage ?? "n/a"}</dd></div>
+    <div><dt>ICE Path</dt><dd>${session.transport_ice_path_kind ?? "unknown"} / ${session.transport_ice_path_summary ?? "n/a"}</dd></div>
     <div><dt>Media Tracks</dt><dd>${session.local_media_track_count ?? 0}</dd></div>
     <div><dt>Video Track</dt><dd>${String(session.local_video_track_attached)}</dd></div>
     <div><dt>Audio Track</dt><dd>${String(session.local_audio_track_attached)}</dd></div>
@@ -102,6 +103,7 @@ function setSession(session) {
     session.last_signaling_message ?? "No signaling messages yet.";
   document.getElementById("transport-diagnostics").innerHTML = `
     <div><dt>Transport Stage</dt><dd>${session.transport_stage ?? "n/a"}</dd></div>
+    <div><dt>ICE Path</dt><dd>${session.transport_ice_path_summary ?? "n/a"}</dd></div>
     <div><dt>Data Channel</dt><dd>${String(session.local_data_channel_ready)}</dd></div>
     <div><dt>Stats Reports</dt><dd>${session.transport_stats_report_count ?? 0}</dd></div>
   `;
@@ -156,6 +158,7 @@ async function refresh() {
       <div><dt>Peer</dt><dd>n/a</dd></div>
       <div><dt>Transport State</dt><dd>preview</dd></div>
       <div><dt>Transport Stage</dt><dd>preview</dd></div>
+      <div><dt>ICE Path</dt><dd>unknown / preview</dd></div>
       <div><dt>Media Tracks</dt><dd>0</dd></div>
       <div><dt>Video Track</dt><dd>false</dd></div>
       <div><dt>Audio Track</dt><dd>false</dd></div>
@@ -177,6 +180,7 @@ async function refresh() {
       "Run inside Tauri to preview signaling state.";
     document.getElementById("transport-diagnostics").innerHTML = `
       <div><dt>Transport Stage</dt><dd>preview</dd></div>
+      <div><dt>ICE Path</dt><dd>preview</dd></div>
       <div><dt>Data Channel</dt><dd>false</dd></div>
       <div><dt>Stats Reports</dt><dd>0</dd></div>
     `;

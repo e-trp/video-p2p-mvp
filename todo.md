@@ -106,7 +106,8 @@
 ### Iteration 6 Progress
 
 - Done in part: `transport-webrtc` already accepted ICE server entries, and `app-core`, CLI, Tauri, and persisted desktop session config now expose custom STUN/TURN server configuration end to end
-- Still open: direct-vs-relay path reporting, bundled TURN deployment/auth flow, and production topology documentation
+- Done in part: transport snapshots and the desktop GUI now surface a best-effort ICE candidate-pair summary with direct-vs-relay hints
+- Still open: bundled TURN deployment/auth flow, deeper relay/direct metrics, and production topology documentation
 
 ## Iteration 7: Persistence And App Packaging
 

@@ -40,6 +40,7 @@ The backend around the GUI has moved one step forward:
 - capture picker and audio-toggle changes now apply immediately without a separate confirmation button
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
 - session config now includes editable ICE server entries that persist through the desktop preferences store
+- transport diagnostics now include an ICE path summary derived from candidate-pair stats so the GUI can hint whether the current route looks direct or relay-backed
 
 ## Intended GUI Responsibilities
 
@@ -86,7 +87,7 @@ The current Tauri UI is wired to the session manager and supports:
 - stopping or resetting a session
 - viewing current session status and next action
 - viewing the configured ICE server count and summary in the session snapshot
-- viewing transport connection state, transport stage, bootstrap data-channel readiness, transport notes, local audio/video track attachment, sample counters, last payload summaries, local/remote description kind, and ICE counters
+- viewing transport connection state, transport stage, ICE path summary, bootstrap data-channel readiness, transport notes, local audio/video track attachment, sample counters, last payload summaries, local/remote description kind, and ICE counters
 - viewing and clearing the rolling session log
 
 ## Important Note

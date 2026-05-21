@@ -2,6 +2,7 @@ use bytes::Bytes;
 use capture_core::{AudioBuffer, VideoFrame, VideoPixelFormat};
 use interceptor::registry::Registry;
 use media::Sample;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Mutex};
@@ -18,6 +19,7 @@ use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::sdp_type::RTCSdpType;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
+use webrtc::stats::{ICECandidatePairStats, ICECandidateStats, StatsReport, StatsReportType};
 use webrtc::track::track_local::TrackLocal;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
@@ -106,6 +108,8 @@ pub struct TransportSnapshot {
     pub last_audio_capture_summary: Option<String>,
     pub local_data_channel_ready: bool,
     pub stats_report_count: usize,
+    pub ice_path_kind: String,
+    pub ice_path_summary: String,
     pub notes: Vec<String>,
 }
 
@@ -408,9 +412,11 @@ impl TransportSession {
     }
 
     pub fn snapshot(&self) -> TransportSnapshot {
-        let stats_report_count = self
+        let stats_report = self
             .runtime
-            .block_on(async { self.peer_connection.get_stats().await.reports.len() });
+            .block_on(async { self.peer_connection.get_stats().await });
+        let stats_report_count = stats_report.reports.len();
+        let (ice_path_kind, ice_path_summary) = summarize_ice_path(&stats_report);
 
         let mut shared = self.shared.lock().expect("transport shared state poisoned");
         shared.stats_report_count = stats_report_count;
@@ -419,6 +425,7 @@ impl TransportSession {
         let mut notes = Vec::new();
         notes.push(format!("peer connection state={}", shared.connection_state));
         notes.push(format!("stats reports={}", shared.stats_report_count));
+        notes.push(format!("ICE path={ice_path_summary}"));
         if shared.local_data_channel_ready {
             notes.push("bootstrap data channel opened".to_string());
         } else {
@@ -481,6 +488,8 @@ impl TransportSession {
             last_audio_capture_summary: shared.last_audio_capture_summary.clone(),
             local_data_channel_ready: shared.local_data_channel_ready,
             stats_report_count: shared.stats_report_count,
+            ice_path_kind,
+            ice_path_summary,
             notes,
         }
     }
@@ -612,6 +621,100 @@ fn format_video_pixel_format(format: VideoPixelFormat) -> &'static str {
         VideoPixelFormat::Bgra8 => "bgra8",
         VideoPixelFormat::Nv12 => "nv12",
     }
+}
+
+fn summarize_ice_path(report: &StatsReport) -> (String, String) {
+    let mut local_candidates = HashMap::<String, &ICECandidateStats>::new();
+    let mut remote_candidates = HashMap::<String, &ICECandidateStats>::new();
+    let mut candidate_pairs = Vec::<&ICECandidatePairStats>::new();
+
+    for stats in report.reports.values() {
+        match stats {
+            StatsReportType::LocalCandidate(candidate) => {
+                local_candidates.insert(candidate.id.clone(), candidate);
+            }
+            StatsReportType::RemoteCandidate(candidate) => {
+                remote_candidates.insert(candidate.id.clone(), candidate);
+            }
+            StatsReportType::CandidatePair(pair) => candidate_pairs.push(pair),
+            _ => {}
+        }
+    }
+
+    let Some(pair) = select_active_candidate_pair(&candidate_pairs) else {
+        return (
+            "unknown".to_string(),
+            "candidate pair not selected yet".to_string(),
+        );
+    };
+
+    let local = local_candidates.get(&pair.local_candidate_id).copied();
+    let remote = remote_candidates.get(&pair.remote_candidate_id).copied();
+    let kind = derive_ice_path_kind(local, remote).to_string();
+    let pair_state = pair.state.to_string();
+    let rtt_ms = pair.current_round_trip_time * 1000.0;
+    let nominated = if pair.nominated {
+        "nominated"
+    } else {
+        "not nominated"
+    };
+
+    let summary = format!(
+        "{kind} via {} <-> {} ({pair_state}, {nominated}, rtt={rtt_ms:.1}ms)",
+        describe_candidate_endpoint("local", local),
+        describe_candidate_endpoint("remote", remote),
+    );
+
+    (kind, summary)
+}
+
+fn select_active_candidate_pair<'a>(
+    pairs: &[&'a ICECandidatePairStats],
+) -> Option<&'a ICECandidatePairStats> {
+    fn score(pair: &ICECandidatePairStats) -> (u8, u8, u64) {
+        let state = pair.state.to_string();
+        let is_succeeded = state == "succeeded";
+        let has_traffic = pair.bytes_sent.saturating_add(pair.bytes_received);
+        (
+            u8::from(pair.nominated && is_succeeded),
+            u8::from(is_succeeded),
+            has_traffic,
+        )
+    }
+
+    pairs.iter().copied().max_by_key(|pair| score(pair))
+}
+
+fn derive_ice_path_kind(
+    local: Option<&ICECandidateStats>,
+    remote: Option<&ICECandidateStats>,
+) -> &'static str {
+    if local
+        .iter()
+        .chain(remote.iter())
+        .any(|candidate| candidate.candidate_type.to_string() == "relay")
+    {
+        "relay"
+    } else if local.is_some() && remote.is_some() {
+        "direct"
+    } else {
+        "unknown"
+    }
+}
+
+fn describe_candidate_endpoint(label: &str, candidate: Option<&ICECandidateStats>) -> String {
+    let Some(candidate) = candidate else {
+        return format!("{label} unknown");
+    };
+
+    let mut summary = format!(
+        "{label} {} {}:{} {}",
+        candidate.candidate_type, candidate.ip, candidate.port, candidate.network_type
+    );
+    if !candidate.relay_protocol.is_empty() {
+        summary.push_str(&format!(" relay/{}", candidate.relay_protocol));
+    }
+    summary
 }
 
 fn install_callbacks(peer_connection: &Arc<RTCPeerConnection>, shared: &Arc<Mutex<SharedState>>) {
