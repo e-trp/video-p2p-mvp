@@ -92,7 +92,7 @@ It now exposes commands for:
 - auto-creating and sending the first local SDP offer from the host once signaling is connected
 - publishing debug `capture-core` audio/video payloads into the attached host tracks for smoke testing
 - polling signaling and auto-applying remote offer/answer/ICE state
-- surfacing live transport diagnostics from the `PeerConnection` snapshot
+- surfacing live transport diagnostics from the `PeerConnection` snapshot, including the current direct-vs-relay ICE path summary when available
 - stopping a session
 - reading session logs
 - showing the saved specification
@@ -139,6 +139,7 @@ What changed relative to the earlier scaffold:
 - host source selection now automatically rebinds to the first available source if a refreshed runtime catalog drops the previously selected source
 - session-manager preferences now persist room/signaling/source metadata across resets and Tauri restarts
 - session-manager preferences now also persist custom ICE server entries for later host/viewer reconnects
+- transport snapshots and the Tauri UI now surface an ICE path summary derived from candidate-pair stats, including direct-vs-relay hints when a pair is selected
 - the desktop Tauri config now enables macOS `.app` and `.dmg` bundle targets with a real bundle identifier and baseline metadata
 - desktop release support now includes generated Tauri icon assets, package metadata, and helper scripts for icon refresh plus `cargo tauri build`
 - installation, saved-preferences, and troubleshooting guidance now live in a dedicated `docs/INSTALLATION.md`
