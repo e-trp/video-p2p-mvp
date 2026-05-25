@@ -115,3 +115,4 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - the same desktop preferences store now also carries UI polling preferences so the Tauri shell can restore its auto-refresh cadence without relying on frontend-local storage
 - the session manager can now rebuild the current host/viewer role in place for manual reconnect attempts without requiring a full application reset
 - the session manager now also derives recovery diagnostics from stopped/signaling/transport state so the desktop UI can expose reconnect guidance as first-class state
+- `transport-webrtc` now also derives selected-candidate RTT/bitrate/byte metrics plus packet-loss estimates from remote inbound RTP stats so `app-core` and Tauri can surface richer transport diagnostics

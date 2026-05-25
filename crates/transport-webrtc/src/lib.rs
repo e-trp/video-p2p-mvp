@@ -84,7 +84,7 @@ pub struct TransportSession {
     shared: Arc<Mutex<SharedState>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TransportSnapshot {
     pub room: String,
     pub role: String,
@@ -110,6 +110,13 @@ pub struct TransportSnapshot {
     pub stats_report_count: usize,
     pub ice_path_kind: String,
     pub ice_path_summary: String,
+    pub rtt_ms: Option<f64>,
+    pub available_outgoing_bitrate_bps: Option<f64>,
+    pub available_incoming_bitrate_bps: Option<f64>,
+    pub bytes_sent: Option<u64>,
+    pub bytes_received: Option<u64>,
+    pub packet_loss_fraction: Option<f64>,
+    pub packets_lost: Option<i64>,
     pub notes: Vec<String>,
 }
 
@@ -135,6 +142,16 @@ struct SharedState {
 struct LocalMediaTracks {
     video: Arc<TrackLocalStaticSample>,
     audio: Arc<TrackLocalStaticSample>,
+}
+
+struct TransportMetrics {
+    rtt_ms: Option<f64>,
+    available_outgoing_bitrate_bps: Option<f64>,
+    available_incoming_bitrate_bps: Option<f64>,
+    bytes_sent: Option<u64>,
+    bytes_received: Option<u64>,
+    packet_loss_fraction: Option<f64>,
+    packets_lost: Option<i64>,
 }
 
 #[derive(Debug)]
@@ -417,6 +434,7 @@ impl TransportSession {
             .block_on(async { self.peer_connection.get_stats().await });
         let stats_report_count = stats_report.reports.len();
         let (ice_path_kind, ice_path_summary) = summarize_ice_path(&stats_report);
+        let metrics = summarize_transport_metrics(&stats_report);
 
         let mut shared = self.shared.lock().expect("transport shared state poisoned");
         shared.stats_report_count = stats_report_count;
@@ -426,6 +444,15 @@ impl TransportSession {
         notes.push(format!("peer connection state={}", shared.connection_state));
         notes.push(format!("stats reports={}", shared.stats_report_count));
         notes.push(format!("ICE path={ice_path_summary}"));
+        notes.push(format!(
+            "transport metrics: rtt={} out={} in={} sent={} recv={} loss={}",
+            format_optional_ms(metrics.rtt_ms),
+            format_optional_bitrate(metrics.available_outgoing_bitrate_bps),
+            format_optional_bitrate(metrics.available_incoming_bitrate_bps),
+            format_optional_bytes(metrics.bytes_sent),
+            format_optional_bytes(metrics.bytes_received),
+            format_optional_loss(metrics.packet_loss_fraction, metrics.packets_lost),
+        ));
         if shared.local_data_channel_ready {
             notes.push("bootstrap data channel opened".to_string());
         } else {
@@ -490,6 +517,13 @@ impl TransportSession {
             stats_report_count: shared.stats_report_count,
             ice_path_kind,
             ice_path_summary,
+            rtt_ms: metrics.rtt_ms,
+            available_outgoing_bitrate_bps: metrics.available_outgoing_bitrate_bps,
+            available_incoming_bitrate_bps: metrics.available_incoming_bitrate_bps,
+            bytes_sent: metrics.bytes_sent,
+            bytes_received: metrics.bytes_received,
+            packet_loss_fraction: metrics.packet_loss_fraction,
+            packets_lost: metrics.packets_lost,
             notes,
         }
     }
@@ -666,6 +700,111 @@ fn summarize_ice_path(report: &StatsReport) -> (String, String) {
     );
 
     (kind, summary)
+}
+
+fn summarize_transport_metrics(report: &StatsReport) -> TransportMetrics {
+    let mut candidate_pairs = Vec::<&ICECandidatePairStats>::new();
+    let mut remote_inbound_reports = Vec::new();
+
+    for stats in report.reports.values() {
+        match stats {
+            StatsReportType::CandidatePair(pair) => candidate_pairs.push(pair),
+            StatsReportType::RemoteInboundRTP(stats) => remote_inbound_reports.push(stats),
+            _ => {}
+        }
+    }
+
+    let active_pair = select_active_candidate_pair(&candidate_pairs);
+    let (packet_loss_fraction, packets_lost) = summarize_packet_loss(&remote_inbound_reports);
+
+    TransportMetrics {
+        rtt_ms: active_pair.map(|pair| pair.current_round_trip_time * 1000.0),
+        available_outgoing_bitrate_bps: active_pair
+            .map(|pair| pair.available_outgoing_bitrate)
+            .filter(|value| *value > 0.0),
+        available_incoming_bitrate_bps: active_pair
+            .map(|pair| pair.available_incoming_bitrate)
+            .filter(|value| *value > 0.0),
+        bytes_sent: active_pair.map(|pair| pair.bytes_sent),
+        bytes_received: active_pair.map(|pair| pair.bytes_received),
+        packet_loss_fraction,
+        packets_lost,
+    }
+}
+
+fn summarize_packet_loss(
+    reports: &[&webrtc::stats::RemoteInboundRTPStats],
+) -> (Option<f64>, Option<i64>) {
+    if reports.is_empty() {
+        return (None, None);
+    }
+
+    let packets_lost = reports
+        .iter()
+        .map(|report| report.packets_lost.max(0))
+        .sum::<i64>();
+    let packets_received = reports
+        .iter()
+        .map(|report| report.packets_received)
+        .sum::<u64>();
+    let total_packets = packets_received.saturating_add(packets_lost as u64);
+    let fraction = if total_packets == 0 {
+        None
+    } else {
+        Some(packets_lost as f64 / total_packets as f64)
+    };
+
+    (fraction, Some(packets_lost))
+}
+
+fn format_optional_ms(value: Option<f64>) -> String {
+    value
+        .map(|value| format!("{value:.1}ms"))
+        .unwrap_or_else(|| "n/a".to_string())
+}
+
+fn format_optional_bitrate(value: Option<f64>) -> String {
+    value
+        .map(format_bitrate)
+        .unwrap_or_else(|| "n/a".to_string())
+}
+
+fn format_bitrate(value: f64) -> String {
+    if value >= 1_000_000.0 {
+        format!("{:.2} Mbps", value / 1_000_000.0)
+    } else if value >= 1_000.0 {
+        format!("{:.1} kbps", value / 1_000.0)
+    } else {
+        format!("{value:.0} bps")
+    }
+}
+
+fn format_optional_bytes(value: Option<u64>) -> String {
+    value.map(format_bytes).unwrap_or_else(|| "n/a".to_string())
+}
+
+fn format_bytes(value: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = KIB * 1024.0;
+    let value_f64 = value as f64;
+
+    if value_f64 >= MIB {
+        format!("{:.2} MiB", value_f64 / MIB)
+    } else if value_f64 >= KIB {
+        format!("{:.1} KiB", value_f64 / KIB)
+    } else {
+        format!("{value} B")
+    }
+}
+
+fn format_optional_loss(fraction: Option<f64>, packets_lost: Option<i64>) -> String {
+    match (fraction, packets_lost) {
+        (Some(fraction), Some(packets_lost)) => {
+            format!("{:.2}% ({packets_lost} lost)", fraction * 100.0)
+        }
+        (None, Some(packets_lost)) => format!("{packets_lost} lost"),
+        _ => "n/a".to_string(),
+    }
 }
 
 fn select_active_candidate_pair<'a>(

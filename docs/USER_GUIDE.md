@@ -107,6 +107,10 @@ The GUI now surfaces transport-side diagnostics from the Rust `PeerConnection` w
 
 - current transport stage
 - current ICE path summary, including direct-vs-relay hints when a candidate pair is selected
+- current candidate-pair RTT
+- available outgoing and incoming bitrate reported by the selected candidate pair
+- candidate-pair payload byte counters for sent and received traffic
+- packet-loss percentage and lost-packet count when remote inbound RTP stats are available
 - bootstrap data channel readiness
 - current stats report count
 - transport notes describing track attachment and sample counters
@@ -168,6 +172,7 @@ The GUI currently shows:
 - capture backend and permission state
 - recovery state, recovery reason, and reconnect readiness
 - transport stage and bootstrap data-channel state
+- transport RTT, bitrate, byte counters, packet-loss metrics, and ICE-path summary
 - media track attachment state
 - transport notes and stats report count
 - published debug sample counters and last payload summaries

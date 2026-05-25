@@ -48,7 +48,7 @@ pub struct SessionIntent {
     pub ice_servers: Vec<IceServerEntry>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SessionSnapshot {
     pub mode: SessionMode,
     pub stage: SessionStage,
@@ -87,6 +87,13 @@ pub struct SessionSnapshot {
     pub transport_stats_report_count: usize,
     pub transport_ice_path_kind: String,
     pub transport_ice_path_summary: String,
+    pub transport_rtt_ms: Option<f64>,
+    pub transport_available_outgoing_bitrate_bps: Option<f64>,
+    pub transport_available_incoming_bitrate_bps: Option<f64>,
+    pub transport_bytes_sent: Option<u64>,
+    pub transport_bytes_received: Option<u64>,
+    pub transport_packet_loss_fraction: Option<f64>,
+    pub transport_packets_lost: Option<i64>,
     pub transport_notes: Vec<String>,
     pub local_offer_ready: bool,
     pub remote_answer_ready: bool,
@@ -672,6 +679,27 @@ impl SessionManager {
                 .as_ref()
                 .map(|snapshot| snapshot.ice_path_summary.clone())
                 .unwrap_or_else(|| "candidate pair not selected yet".to_string()),
+            transport_rtt_ms: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.rtt_ms),
+            transport_available_outgoing_bitrate_bps: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.available_outgoing_bitrate_bps),
+            transport_available_incoming_bitrate_bps: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.available_incoming_bitrate_bps),
+            transport_bytes_sent: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.bytes_sent),
+            transport_bytes_received: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.bytes_received),
+            transport_packet_loss_fraction: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.packet_loss_fraction),
+            transport_packets_lost: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.packets_lost),
             transport_notes: transport_snapshot
                 .as_ref()
                 .map(|snapshot| snapshot.notes.clone())
