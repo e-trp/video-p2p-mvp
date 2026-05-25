@@ -250,6 +250,26 @@ fn stop_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult
 }
 
 #[tauri::command]
+fn reconnect_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+    let mut state = state.lock().expect("session state poisoned");
+    match state.reconnect() {
+        Ok(snapshot) => CommandResult {
+            ok: true,
+            message: "session reconnected with the current configuration".to_string(),
+            session: map_snapshot(snapshot),
+        },
+        Err(error) => {
+            let snapshot = state.snapshot();
+            CommandResult {
+                ok: false,
+                message: format!("cannot reconnect session: {error}"),
+                session: map_snapshot(snapshot),
+            }
+        }
+    }
+}
+
+#[tauri::command]
 fn clear_session_logs(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state.lock().expect("session state poisoned").clear_logs();
 
@@ -313,6 +333,7 @@ fn main() {
             select_capture_source,
             publish_debug_capture_samples,
             stop_session,
+            reconnect_session,
             clear_session_logs,
             reset_session,
             update_ui_preferences,
