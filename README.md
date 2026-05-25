@@ -87,11 +87,12 @@ It now exposes commands for:
 - applying capture source changes immediately from the picker
 - defaulting the host session to the first available capture source when none was selected explicitly
 - persisting last-used room, signaling address, and capture-source selection across session-manager restarts
+- persisting desktop auto-refresh enablement and polling interval across restarts
 - preparing host and viewer sessions against the live signaling server
 - configuring custom ICE server entries for STUN/TURN-assisted traversal
 - auto-creating and sending the first local SDP offer from the host once signaling is connected
 - publishing debug `capture-core` audio/video payloads into the attached host tracks for smoke testing
-- polling signaling and auto-applying remote offer/answer/ICE state
+- polling signaling with a persisted auto-refresh cadence and auto-applying remote offer/answer/ICE state
 - surfacing live transport diagnostics from the `PeerConnection` snapshot, including the current direct-vs-relay ICE path summary when available
 - stopping a session
 - reading session logs
@@ -139,6 +140,8 @@ What changed relative to the earlier scaffold:
 - host source selection now automatically rebinds to the first available source if a refreshed runtime catalog drops the previously selected source
 - session-manager preferences now persist room/signaling/source metadata across resets and Tauri restarts
 - session-manager preferences now also persist custom ICE server entries for later host/viewer reconnects
+- session-manager preferences now also persist desktop auto-refresh enablement and refresh interval
+- desktop session-form drafts now survive background refresh polling until a successful save/start/reset syncs them explicitly
 - transport snapshots and the Tauri UI now surface an ICE path summary derived from candidate-pair stats, including direct-vs-relay hints when a pair is selected
 - the desktop Tauri config now enables macOS `.app` and `.dmg` bundle targets with a real bundle identifier and baseline metadata
 - desktop release support now includes generated Tauri icon assets, package metadata, and helper scripts for icon refresh plus `cargo tauri build`

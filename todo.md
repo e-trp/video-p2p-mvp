@@ -84,6 +84,7 @@
 - Done in part: the main GUI path no longer exposes manual answer/ICE or legacy mock/WebRTC staging controls
 - Done in part: macOS GUI source selection now uses runtime enumeration when available
 - Done in part: Linux GUI source selection now uses `wmctrl`-based runtime enumeration when available
+- Done in part: background GUI polling no longer overwrites in-progress room/signaling/ICE draft edits, and the desktop shell now exposes persisted auto-refresh controls for tuning that polling loop
 - Still open: replace metadata-only runtime catalogs with real capture-session enumeration and Wayland portal flow
 
 ## Iteration 5: Audio/Video Pipeline Hardening
@@ -120,11 +121,12 @@
 ### Iteration 7 Progress
 
 - Done in part: `app-core::SessionManager` now persists last-used room, signaling address, source label, and selected capture-source metadata to a lightweight local preferences file
+- Done in part: the desktop preferences store now also persists auto-refresh enablement and polling interval for the Tauri GUI
 - Done in part: session-manager reset now restores persisted preferences after clearing the active live session
 - Done in part: `apps/desktop/src-tauri/tauri.conf.json` now enables macOS `.app` and `.dmg` bundle targets with a project-specific bundle identifier and baseline bundle metadata
 - Done in part: desktop release packaging now has generated icon assets, crate/bundle metadata, and helper scripts for icon generation plus `cargo tauri build`
 - Done in part: installation, release-build, saved-preferences, and troubleshooting guidance now live in `docs/INSTALLATION.md`
-- Still open: broader UI preference persistence and notarization/signing details
+- Still open: additional desktop UI preference persistence beyond polling controls, plus notarization/signing details
 
 ## Iteration 8: Testing And Release Readiness
 
@@ -137,5 +139,5 @@
 ### Iteration 8 Progress
 
 - Done in part: `app-core` now has broader unit coverage for signaling parser edge cases plus viewer/debug-capture session transition behavior
-- Done in part: `app-core/tests/host_viewer_flow.rs` now exercises host/viewer negotiation and late-join offer replay over a real local TCP signaling path
+- Done in part: `app-core/tests/host_viewer_flow.rs` now exercises host/viewer negotiation and late-join offer replay over a real local TCP signaling path, isolated from any user-local desktop preferences
 - Still open: broader QA checklists and real-network validation
