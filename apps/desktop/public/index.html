@@ -40,6 +40,22 @@
                 placeholder="stun:stun.l.google.com:19302&#10;turn:turn.example.com:3478?transport=udp|username|credential"
               ></textarea>
             </label>
+            <div class="inline-fields">
+              <label class="toggle">
+                <input id="auto-refresh-enabled" type="checkbox" checked />
+                <span>Auto Refresh</span>
+              </label>
+              <label>
+                <span>Refresh Every</span>
+                <select id="refresh-interval">
+                  <option value="1">1 second</option>
+                  <option value="3">3 seconds</option>
+                  <option value="5">5 seconds</option>
+                  <option value="10">10 seconds</option>
+                  <option value="15">15 seconds</option>
+                </select>
+              </label>
+            </div>
             <div class="actions">
               <button type="button" id="save-btn" class="secondary">Save Config</button>
               <button type="button" id="host-btn">Prepare Host</button>
