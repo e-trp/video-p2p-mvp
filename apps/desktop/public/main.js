@@ -98,6 +98,28 @@ function syncCaptureAudioState(catalog) {
   }
 }
 
+function syncReconnectControl(session) {
+  const button = document.getElementById("reconnect-btn");
+  if (!button) {
+    return;
+  }
+
+  button.disabled = !session.can_reconnect;
+  button.classList.toggle("secondary", Boolean(session.reconnect_recommended));
+  button.classList.toggle("ghost", !session.reconnect_recommended);
+  button.title = session.recovery_reason ?? "";
+}
+
+function setRecoveryStatus(session) {
+  const container = document.getElementById("recovery-status");
+  container.innerHTML = `
+    <div><dt>State</dt><dd>${session.recovery_state ?? "unknown"}</dd></div>
+    <div><dt>Reconnect</dt><dd>${session.can_reconnect ? (session.reconnect_recommended ? "recommended" : "available") : "unavailable"}</dd></div>
+    <div><dt>Reason</dt><dd>${session.recovery_reason ?? "n/a"}</dd></div>
+  `;
+  syncReconnectControl(session);
+}
+
 function setSession(session, { forceFormSync = false } = {}) {
   const container = document.getElementById("session");
   container.innerHTML = `
@@ -127,6 +149,7 @@ function setSession(session, { forceFormSync = false } = {}) {
     <div><dt>Remote Desc</dt><dd>${session.remote_description_kind ?? "n/a"} / ${String(session.remote_description_ready)}</dd></div>
     <div><dt>Local ICE</dt><dd>${session.local_candidate_count ?? 0}</dd></div>
     <div><dt>Remote ICE</dt><dd>${session.remote_candidate_count ?? 0}</dd></div>
+    <div><dt>Recovery</dt><dd>${session.recovery_state ?? "unknown"} / ${session.recovery_reason ?? "n/a"}</dd></div>
     <div><dt>Next Action</dt><dd>${session.next_action ?? "n/a"}</dd></div>
   `;
   document.getElementById("session-log").textContent = session.logs.join("\n");
@@ -140,6 +163,7 @@ function setSession(session, { forceFormSync = false } = {}) {
   `;
   document.getElementById("transport-notes").textContent =
     session.transport_notes?.join("\n") || "No transport diagnostics yet.";
+  setRecoveryStatus(session);
   syncSessionFieldValue("room", session.room, forceFormSync);
   syncSessionFieldValue("signaling", session.signaling_addr, forceFormSync);
   syncSessionFieldValue("ice-servers", session.ice_servers, forceFormSync);
@@ -255,6 +279,7 @@ async function performRefresh() {
       <div><dt>Remote Desc</dt><dd>n/a / false</dd></div>
       <div><dt>Local ICE</dt><dd>0</dd></div>
       <div><dt>Remote ICE</dt><dd>0</dd></div>
+      <div><dt>Recovery</dt><dd>preview / n/a</dd></div>
       <div><dt>Next Action</dt><dd>run inside Tauri</dd></div>
     `;
     document.getElementById("session-log").textContent =
@@ -269,6 +294,16 @@ async function performRefresh() {
     `;
     document.getElementById("transport-notes").textContent =
       "Run inside Tauri to inspect Rust-side transport diagnostics.";
+    document.getElementById("recovery-status").innerHTML = `
+      <div><dt>State</dt><dd>preview</dd></div>
+      <div><dt>Reconnect</dt><dd>unavailable</dd></div>
+      <div><dt>Reason</dt><dd>Run inside Tauri to inspect session recovery diagnostics.</dd></div>
+    `;
+    syncReconnectControl({
+      can_reconnect: false,
+      reconnect_recommended: false,
+      recovery_reason: "Run inside Tauri to inspect session recovery diagnostics.",
+    });
     configureRefreshTimer({
       auto_refresh_enabled: false,
       refresh_interval_secs: defaultRefreshIntervalSeconds,

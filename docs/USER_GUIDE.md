@@ -129,6 +129,18 @@ When you prepare a host session, the session log and next-action hint now also r
 
 If the selected host source disappears after a later catalog refresh, the session manager now rebinds to the first available source automatically and records that change in the session log.
 
+### Recovery
+
+The GUI now surfaces recovery diagnostics directly instead of leaving recovery guidance only in logs or `Next Action` text:
+
+- `healthy`: the peer connection is live
+- `negotiating`: signaling and transport setup are still in progress
+- `signaling_unavailable`: signaling is down or unreachable; reconnect is recommended after fixing reachability
+- `stopped`: the session was stopped intentionally; reconnect can rebuild it
+- `transport_disconnected`, `transport_failed`, `transport_closed`: the peer connection degraded or shut down; reconnect is recommended
+
+The `Reconnect` button is disabled only when no host/viewer session has been prepared yet. When recovery is recommended, the reconnect button is also highlighted in the session controls.
+
 ### Transport Smoke Test
 
 - `Push Debug Capture Burst`: synthesize `capture-core` video/audio payloads and write them into the attached host tracks
@@ -154,6 +166,7 @@ The GUI currently shows:
 - signaling connectivity
 - selected source id and audio flag
 - capture backend and permission state
+- recovery state, recovery reason, and reconnect readiness
 - transport stage and bootstrap data-channel state
 - media track attachment state
 - transport notes and stats report count
