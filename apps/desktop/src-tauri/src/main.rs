@@ -60,6 +60,8 @@ struct SessionView {
     local_candidate_count: usize,
     remote_candidate_count: usize,
     last_signaling_message: Option<String>,
+    ui_auto_refresh_enabled: bool,
+    ui_refresh_interval_secs: u32,
     logs: Vec<String>,
 }
 
@@ -128,12 +130,15 @@ fn start_host(
         Ok(value) => value,
         Err(result) => return result,
     };
-    let snapshot = state.lock().expect("session state poisoned").start_host(SessionIntent {
-        room: room.clone(),
-        signaling_addr: signaling_addr.clone(),
-        source_label,
-        ice_servers: parsed_ice_servers,
-    });
+    let snapshot = state
+        .lock()
+        .expect("session state poisoned")
+        .start_host(SessionIntent {
+            room: room.clone(),
+            signaling_addr: signaling_addr.clone(),
+            source_label,
+            ice_servers: parsed_ice_servers,
+        });
     let message = if snapshot.local_offer_ready {
         format!("host session prepared for room={room}; local offer sent automatically")
     } else {
@@ -158,12 +163,15 @@ fn join_room(
         Ok(value) => value,
         Err(result) => return result,
     };
-    let snapshot = state.lock().expect("session state poisoned").start_viewer(SessionIntent {
-        room: room.clone(),
-        signaling_addr: signaling_addr.clone(),
-        source_label: None,
-        ice_servers: parsed_ice_servers,
-    });
+    let snapshot = state
+        .lock()
+        .expect("session state poisoned")
+        .start_viewer(SessionIntent {
+            room: room.clone(),
+            signaling_addr: signaling_addr.clone(),
+            source_label: None,
+            ice_servers: parsed_ice_servers,
+        });
 
     CommandResult {
         ok: true,
@@ -217,9 +225,7 @@ fn select_capture_source(
 }
 
 #[tauri::command]
-fn publish_debug_capture_samples(
-    state: tauri::State<'_, Mutex<SessionManager>>,
-) -> CommandResult {
+fn publish_debug_capture_samples(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state
         .lock()
         .expect("session state poisoned")
@@ -266,6 +272,30 @@ fn reset_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResul
 }
 
 #[tauri::command]
+fn update_ui_preferences(
+    auto_refresh_enabled: Option<bool>,
+    refresh_interval_secs: Option<u32>,
+    state: tauri::State<'_, Mutex<SessionManager>>,
+) -> CommandResult {
+    let mut state = state.lock().expect("session state poisoned");
+    match state.update_ui_preferences(auto_refresh_enabled, refresh_interval_secs) {
+        Ok(snapshot) => CommandResult {
+            ok: true,
+            message: "desktop UI preferences updated".to_string(),
+            session: map_snapshot(snapshot),
+        },
+        Err(error) => {
+            let snapshot = state.snapshot();
+            CommandResult {
+                ok: false,
+                message: format!("invalid desktop UI preferences: {error}"),
+                session: map_snapshot(snapshot),
+            }
+        }
+    }
+}
+
+#[tauri::command]
 fn specification_markdown() -> String {
     include_str!("../../../../docs/SPECIFICATION.md").to_string()
 }
@@ -285,6 +315,7 @@ fn main() {
             stop_session,
             clear_session_logs,
             reset_session,
+            update_ui_preferences,
             specification_markdown
         ])
         .run(tauri::generate_context!())
@@ -335,6 +366,8 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         local_candidate_count: snapshot.local_candidate_count,
         remote_candidate_count: snapshot.remote_candidate_count,
         last_signaling_message: snapshot.last_signaling_message,
+        ui_auto_refresh_enabled: snapshot.ui_auto_refresh_enabled,
+        ui_refresh_interval_secs: snapshot.ui_refresh_interval_secs,
         logs: snapshot.logs,
     }
 }

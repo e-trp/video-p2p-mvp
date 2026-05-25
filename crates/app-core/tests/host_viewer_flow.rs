@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -40,6 +40,8 @@ struct TestTcpSignalingServer {
     shutdown: Arc<AtomicBool>,
     accept_thread: Option<JoinHandle<()>>,
 }
+
+const CONFIG_DIR_OVERRIDE: &str = "VIDEO_P2P_MVP_CONFIG_DIR";
 
 impl TestTcpSignalingServer {
     fn start() -> Option<Self> {
@@ -101,121 +103,157 @@ impl Drop for TestTcpSignalingServer {
 
 #[test]
 fn host_and_viewer_negotiate_over_real_tcp_signaling() {
-    let Some(server) = TestTcpSignalingServer::start() else {
-        return;
-    };
+    with_isolated_preferences("host-viewer-negotiate", || {
+        let Some(server) = TestTcpSignalingServer::start() else {
+            return;
+        };
 
-    let mut host = SessionManager::new();
-    let host_start = host.start_host(SessionIntent {
-        room: "demo".to_string(),
-        signaling_addr: server.addr().to_string(),
-        source_label: Some("runtime-source".to_string()),
-        ice_servers: Vec::new(),
+        let mut host = SessionManager::new();
+        let host_start = host.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: server.addr().to_string(),
+            source_label: Some("runtime-source".to_string()),
+            ice_servers: Vec::new(),
+        });
+        assert!(host_start.signaling_connected);
+
+        let mut viewer = SessionManager::new();
+        let viewer_start = viewer.start_viewer(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: server.addr().to_string(),
+            source_label: None,
+            ice_servers: Vec::new(),
+        });
+        assert!(viewer_start.signaling_connected);
+
+        let (host_snapshot, viewer_snapshot) =
+            drive_sessions_until_negotiated(&mut host, &mut viewer, Duration::from_secs(10));
+
+        assert!(matches!(
+            host_snapshot.stage,
+            SessionStage::NegotiatingWebRtc | SessionStage::LiveWebRtc
+        ));
+        assert!(matches!(
+            viewer_snapshot.stage,
+            SessionStage::NegotiatingWebRtc | SessionStage::LiveWebRtc
+        ));
+        assert_eq!(
+            host_snapshot.local_description_kind.as_deref(),
+            Some("offer")
+        );
+        assert_eq!(
+            host_snapshot.remote_description_kind.as_deref(),
+            Some("answer")
+        );
+        assert_eq!(
+            viewer_snapshot.remote_description_kind.as_deref(),
+            Some("offer")
+        );
+        assert!(host_snapshot.active_peer.is_some());
+        assert!(viewer_snapshot.active_peer.is_some());
+        assert!(
+            host_snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("connected to signaling server"))
+        );
+        assert!(
+            viewer_snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("remote SDP offer received"))
+        );
     });
-    assert!(host_start.signaling_connected);
-
-    let mut viewer = SessionManager::new();
-    let viewer_start = viewer.start_viewer(SessionIntent {
-        room: "demo".to_string(),
-        signaling_addr: server.addr().to_string(),
-        source_label: None,
-        ice_servers: Vec::new(),
-    });
-    assert!(viewer_start.signaling_connected);
-
-    let (host_snapshot, viewer_snapshot) =
-        drive_sessions_until_negotiated(&mut host, &mut viewer, Duration::from_secs(10));
-
-    assert!(matches!(
-        host_snapshot.stage,
-        SessionStage::NegotiatingWebRtc | SessionStage::LiveWebRtc
-    ));
-    assert!(matches!(
-        viewer_snapshot.stage,
-        SessionStage::NegotiatingWebRtc | SessionStage::LiveWebRtc
-    ));
-    assert_eq!(
-        host_snapshot.local_description_kind.as_deref(),
-        Some("offer")
-    );
-    assert_eq!(
-        host_snapshot.remote_description_kind.as_deref(),
-        Some("answer")
-    );
-    assert_eq!(
-        viewer_snapshot.remote_description_kind.as_deref(),
-        Some("offer")
-    );
-    assert!(host_snapshot.active_peer.is_some());
-    assert!(viewer_snapshot.active_peer.is_some());
-    assert!(
-        host_snapshot
-            .logs
-            .iter()
-            .any(|line| line.contains("connected to signaling server"))
-    );
-    assert!(
-        viewer_snapshot
-            .logs
-            .iter()
-            .any(|line| line.contains("remote SDP offer received"))
-    );
 }
 
 #[test]
 fn late_viewer_join_replays_offer_over_real_tcp_signaling() {
-    let Some(server) = TestTcpSignalingServer::start() else {
-        return;
-    };
+    with_isolated_preferences("late-viewer-replay", || {
+        let Some(server) = TestTcpSignalingServer::start() else {
+            return;
+        };
 
-    let mut host = SessionManager::new();
-    host.start_host(SessionIntent {
-        room: "demo".to_string(),
-        signaling_addr: server.addr().to_string(),
-        source_label: Some("runtime-source".to_string()),
-        ice_servers: Vec::new(),
+        let mut host = SessionManager::new();
+        host.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: server.addr().to_string(),
+            source_label: Some("runtime-source".to_string()),
+            ice_servers: Vec::new(),
+        });
+
+        let host_offer = wait_until(
+            &mut host,
+            Duration::from_secs(5),
+            |snapshot| snapshot.local_offer_ready,
+            "host local offer to be created before viewer joins",
+        );
+        assert_eq!(host_offer.local_description_kind.as_deref(), Some("offer"));
+        assert!(host_offer.active_peer.is_none());
+        assert!(
+            host_offer
+                .logs
+                .iter()
+                .any(|line| line.contains("signaling server is waiting for the second peer"))
+        );
+
+        let mut viewer = SessionManager::new();
+        viewer.start_viewer(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: server.addr().to_string(),
+            source_label: None,
+            ice_servers: Vec::new(),
+        });
+
+        let (host_snapshot, viewer_snapshot) =
+            drive_sessions_until_negotiated(&mut host, &mut viewer, Duration::from_secs(10));
+
+        assert_eq!(
+            host_snapshot.remote_description_kind.as_deref(),
+            Some("answer")
+        );
+        assert_eq!(
+            viewer_snapshot.remote_description_kind.as_deref(),
+            Some("offer")
+        );
+        assert!(
+            viewer_snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("remote SDP offer received"))
+        );
     });
+}
 
-    let host_offer = wait_until(
-        &mut host,
-        Duration::from_secs(5),
-        |snapshot| snapshot.local_offer_ready,
-        "host local offer to be created before viewer joins",
-    );
-    assert_eq!(host_offer.local_description_kind.as_deref(), Some("offer"));
-    assert!(host_offer.active_peer.is_none());
-    assert!(
-        host_offer
-            .logs
-            .iter()
-            .any(|line| line.contains("signaling server is waiting for the second peer"))
-    );
+fn with_isolated_preferences(prefix: &str, test: impl FnOnce()) {
+    let _guard = preferences_test_lock()
+        .lock()
+        .expect("preferences test lock poisoned");
+    let config_dir = unique_temp_dir(prefix);
+    // The process-wide env mutation is serialized behind a test lock.
+    unsafe {
+        std::env::set_var(CONFIG_DIR_OVERRIDE, &config_dir);
+    }
+    test();
+    unsafe {
+        std::env::remove_var(CONFIG_DIR_OVERRIDE);
+    }
+    let _ = std::fs::remove_dir_all(config_dir);
+}
 
-    let mut viewer = SessionManager::new();
-    viewer.start_viewer(SessionIntent {
-        room: "demo".to_string(),
-        signaling_addr: server.addr().to_string(),
-        source_label: None,
-        ice_servers: Vec::new(),
-    });
+fn preferences_test_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
 
-    let (host_snapshot, viewer_snapshot) =
-        drive_sessions_until_negotiated(&mut host, &mut viewer, Duration::from_secs(10));
-
-    assert_eq!(
-        host_snapshot.remote_description_kind.as_deref(),
-        Some("answer")
-    );
-    assert_eq!(
-        viewer_snapshot.remote_description_kind.as_deref(),
-        Some("offer")
-    );
-    assert!(
-        viewer_snapshot
-            .logs
-            .iter()
-            .any(|line| line.contains("remote SDP offer received"))
-    );
+fn unique_temp_dir(prefix: &str) -> std::path::PathBuf {
+    static COUNTER: OnceLock<std::sync::atomic::AtomicUsize> = OnceLock::new();
+    let counter = COUNTER.get_or_init(|| std::sync::atomic::AtomicUsize::new(0));
+    let unique = counter.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "video-p2p-mvp-{prefix}-{}-{}",
+        std::process::id(),
+        unique
+    ))
 }
 
 fn drive_sessions_until_negotiated(

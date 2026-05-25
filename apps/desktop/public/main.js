@@ -6,12 +6,39 @@ async function invoke(command) {
 }
 
 const isTauri = Boolean(window.__TAURI__?.core?.invoke);
+const sessionFieldIds = ["room", "signaling", "ice-servers"];
+const defaultRefreshIntervalSeconds = 3;
+const allowedRefreshIntervalSeconds = new Set([1, 3, 5, 10, 15]);
+const dirtySessionFields = new Set();
+let refreshTimerId = null;
+let refreshInFlight = null;
 
 async function invokeWithArgs(command, args = {}) {
   if (!isTauri) {
     return null;
   }
   return window.__TAURI__.core.invoke(command, args);
+}
+
+function markSessionFieldDirty(event) {
+  dirtySessionFields.add(event.target.id);
+}
+
+function clearSessionFieldDrafts() {
+  dirtySessionFields.clear();
+}
+
+function syncSessionFieldValue(id, value, force = false) {
+  const field = document.getElementById(id);
+  if (!field) {
+    return;
+  }
+
+  if (!force && (dirtySessionFields.has(id) || document.activeElement === field)) {
+    return;
+  }
+
+  field.value = value ?? "";
 }
 
 function setStatus(status) {
@@ -67,7 +94,7 @@ function syncCaptureAudioState(catalog) {
   }
 }
 
-function setSession(session) {
+function setSession(session, { forceFormSync = false } = {}) {
   const container = document.getElementById("session");
   container.innerHTML = `
     <div><dt>Mode</dt><dd>${session.mode}</dd></div>
@@ -109,10 +136,57 @@ function setSession(session) {
   `;
   document.getElementById("transport-notes").textContent =
     session.transport_notes?.join("\n") || "No transport diagnostics yet.";
-  document.getElementById("room").value = session.room ?? document.getElementById("room").value;
-  document.getElementById("signaling").value =
-    session.signaling_addr ?? document.getElementById("signaling").value;
-  document.getElementById("ice-servers").value = session.ice_servers ?? "";
+  syncSessionFieldValue("room", session.room, forceFormSync);
+  syncSessionFieldValue("signaling", session.signaling_addr, forceFormSync);
+  syncSessionFieldValue("ice-servers", session.ice_servers, forceFormSync);
+}
+
+function normalizeRefreshIntervalSeconds(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed) || !allowedRefreshIntervalSeconds.has(parsed)) {
+    return defaultRefreshIntervalSeconds;
+  }
+  return parsed;
+}
+
+function syncUiPreferenceControls(session) {
+  const autoRefreshToggle = document.getElementById("auto-refresh-enabled");
+  const refreshIntervalField = document.getElementById("refresh-interval");
+  if (!autoRefreshToggle || !refreshIntervalField) {
+    return;
+  }
+
+  autoRefreshToggle.checked = Boolean(session.ui_auto_refresh_enabled);
+  refreshIntervalField.value = String(
+    normalizeRefreshIntervalSeconds(session.ui_refresh_interval_secs),
+  );
+  refreshIntervalField.disabled = !autoRefreshToggle.checked;
+}
+
+function uiPreferenceValues() {
+  return {
+    auto_refresh_enabled: document.getElementById("auto-refresh-enabled").checked,
+    refresh_interval_secs: normalizeRefreshIntervalSeconds(
+      document.getElementById("refresh-interval").value,
+    ),
+  };
+}
+
+function configureRefreshTimer({ auto_refresh_enabled, refresh_interval_secs }) {
+  if (refreshTimerId !== null) {
+    window.clearInterval(refreshTimerId);
+    refreshTimerId = null;
+  }
+
+  document.getElementById("refresh-interval").disabled = !auto_refresh_enabled;
+  if (!isTauri || !auto_refresh_enabled) {
+    return;
+  }
+
+  refreshTimerId = window.setInterval(
+    refresh,
+    normalizeRefreshIntervalSeconds(refresh_interval_secs) * 1000,
+  );
 }
 
 function formValues() {
@@ -123,7 +197,7 @@ function formValues() {
   };
 }
 
-async function refresh() {
+async function performRefresh() {
   const [status, session, captureCatalog] = await Promise.all([
     invoke("project_status"),
     invoke("session_snapshot"),
@@ -144,6 +218,11 @@ async function refresh() {
 
   if (session) {
     setSession(session);
+    syncUiPreferenceControls(session);
+    configureRefreshTimer({
+      auto_refresh_enabled: session.ui_auto_refresh_enabled,
+      refresh_interval_secs: session.ui_refresh_interval_secs,
+    });
   } else {
     document.getElementById("session").innerHTML = `
       <div><dt>Mode</dt><dd>preview</dd></div>
@@ -186,6 +265,10 @@ async function refresh() {
     `;
     document.getElementById("transport-notes").textContent =
       "Run inside Tauri to inspect Rust-side transport diagnostics.";
+    configureRefreshTimer({
+      auto_refresh_enabled: false,
+      refresh_interval_secs: defaultRefreshIntervalSeconds,
+    });
   }
 
   if (captureCatalog) {
@@ -203,19 +286,48 @@ async function refresh() {
   }
 }
 
-async function runCommand(command, args = {}) {
+async function refresh() {
+  if (refreshInFlight) {
+    return refreshInFlight;
+  }
+
+  refreshInFlight = performRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+async function runCommand(command, args = {}, options = {}) {
+  const { forceFormSync = false, clearDraftOnSuccess = false } = options;
   const result = await invokeWithArgs(command, args);
   if (!result) {
     document.getElementById("command-result").textContent =
       `Preview mode: skipped ${command}`;
-    return;
+    return null;
   }
 
   document.getElementById("command-result").textContent = result.message;
-  setSession(result.session);
+  setSession(result.session, { forceFormSync: forceFormSync && result.ok });
+  if (result.ok && clearDraftOnSuccess) {
+    clearSessionFieldDrafts();
+  }
   const status = await invoke("project_status");
   if (status) {
     setStatus(status);
+  }
+  return result;
+}
+
+async function updateUiPreferences() {
+  const preferences = uiPreferenceValues();
+  configureRefreshTimer(preferences);
+  const result = await runCommand("update_ui_preferences", preferences);
+  if (result?.session) {
+    syncUiPreferenceControls(result.session);
+    configureRefreshTimer({
+      auto_refresh_enabled: result.session.ui_auto_refresh_enabled,
+      refresh_interval_secs: result.session.ui_refresh_interval_secs,
+    });
   }
 }
 
@@ -241,19 +353,32 @@ async function load() {
   document.getElementById("spec").textContent =
     specification ?? "Run inside Tauri to load the saved specification from the Rust backend.";
 
+  sessionFieldIds.forEach((id) => {
+    document.getElementById(id).addEventListener("input", markSessionFieldDirty);
+  });
+
   document.getElementById("save-btn").addEventListener("click", async () => {
     const values = formValues();
-    await runCommand("update_session_config", values);
+    await runCommand("update_session_config", values, {
+      forceFormSync: true,
+      clearDraftOnSuccess: true,
+    });
   });
 
   document.getElementById("host-btn").addEventListener("click", async () => {
     const values = formValues();
-    await runCommand("start_host", values);
+    await runCommand("start_host", values, {
+      forceFormSync: true,
+      clearDraftOnSuccess: true,
+    });
   });
 
   document.getElementById("join-btn").addEventListener("click", async () => {
-    const { room, signaling_addr } = formValues();
-    await runCommand("join_room", { room, signaling_addr });
+    const values = formValues();
+    await runCommand("join_room", values, {
+      forceFormSync: true,
+      clearDraftOnSuccess: true,
+    });
   });
 
   document.getElementById("source-picker").addEventListener("change", async () => {
@@ -266,6 +391,11 @@ async function load() {
 
   document.getElementById("source-audio").addEventListener("change", applySelectedSource);
 
+  document
+    .getElementById("auto-refresh-enabled")
+    .addEventListener("change", updateUiPreferences);
+  document.getElementById("refresh-interval").addEventListener("change", updateUiPreferences);
+
   document.getElementById("publish-media-btn").addEventListener("click", async () => {
     await runCommand("publish_debug_capture_samples");
   });
@@ -275,7 +405,10 @@ async function load() {
   });
 
   document.getElementById("reset-btn").addEventListener("click", async () => {
-    await runCommand("reset_session");
+    await runCommand("reset_session", {}, {
+      forceFormSync: true,
+      clearDraftOnSuccess: true,
+    });
   });
 
   document.getElementById("clear-logs-btn").addEventListener("click", async () => {
@@ -283,10 +416,6 @@ async function load() {
   });
 
   document.getElementById("refresh-btn").addEventListener("click", refresh);
-
-  if (isTauri) {
-    window.setInterval(refresh, 3000);
-  }
 }
 
 load().catch((error) => {

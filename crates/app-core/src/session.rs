@@ -3,7 +3,7 @@ use crate::capture_catalog::{
     selected_source_label,
 };
 use crate::ice_servers::{IceServerEntry, format_ice_server_entries, summarize_ice_server_entries};
-use crate::preferences::{PersistedSessionConfig, PreferencesStore};
+use crate::preferences::{PersistedSessionConfig, PreferencesStore, UiPreferences};
 use crate::protocol::{
     IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage,
 };
@@ -93,6 +93,8 @@ pub struct SessionSnapshot {
     pub local_candidate_count: usize,
     pub remote_candidate_count: usize,
     pub last_signaling_message: Option<String>,
+    pub ui_auto_refresh_enabled: bool,
+    pub ui_refresh_interval_secs: u32,
 }
 
 pub struct SessionManager {
@@ -110,6 +112,7 @@ struct SessionState {
     source_label: Option<String>,
     capture_catalog: CaptureCatalogSnapshot,
     capture_selection: Option<CaptureSelection>,
+    ui_preferences: UiPreferences,
     active_peer: Option<String>,
     logs: Vec<String>,
     webrtc: Option<TransportSession>,
@@ -130,6 +133,7 @@ impl Default for SessionState {
             source_label: None,
             capture_catalog: current_capture_catalog(),
             capture_selection: None,
+            ui_preferences: UiPreferences::default(),
             active_peer: None,
             logs: vec![stamp("session manager initialized")],
             webrtc: None,
@@ -291,6 +295,36 @@ impl SessionManager {
     pub fn capture_catalog(&mut self) -> CaptureCatalogSnapshot {
         self.sync_capture_catalog();
         self.state.capture_catalog.clone()
+    }
+
+    pub fn update_ui_preferences(
+        &mut self,
+        auto_refresh_enabled: Option<bool>,
+        refresh_interval_secs: Option<u32>,
+    ) -> Result<SessionSnapshot, String> {
+        if let Some(auto_refresh_enabled) = auto_refresh_enabled {
+            self.state.ui_preferences.auto_refresh_enabled = auto_refresh_enabled;
+            self.push_log(format!(
+                "UI auto-refresh {}",
+                if auto_refresh_enabled {
+                    "enabled"
+                } else {
+                    "disabled"
+                }
+            ));
+        }
+        if let Some(refresh_interval_secs) = refresh_interval_secs {
+            if refresh_interval_secs == 0 {
+                return Err("refresh interval must be greater than zero seconds".to_string());
+            }
+            self.state.ui_preferences.refresh_interval_secs = refresh_interval_secs;
+            self.push_log(format!(
+                "UI refresh interval updated to {}s",
+                refresh_interval_secs
+            ));
+        }
+        self.persist_preferences();
+        Ok(self.snapshot())
     }
 
     pub fn select_capture_source(
@@ -596,6 +630,8 @@ impl SessionManager {
                 .map(|snapshot| snapshot.remote_candidate_count)
                 .unwrap_or(0),
             last_signaling_message: self.state.last_signaling_message.clone(),
+            ui_auto_refresh_enabled: self.state.ui_preferences.auto_refresh_enabled,
+            ui_refresh_interval_secs: self.state.ui_preferences.refresh_interval_secs,
         }
     }
 
@@ -1059,6 +1095,7 @@ impl SessionManager {
         self.state.ice_servers = persisted.ice_servers;
         self.state.source_label = persisted.source_label;
         self.state.capture_selection = persisted.capture_selection;
+        self.state.ui_preferences = persisted.ui_preferences;
 
         if let Some(label) = selected_source_label(
             &self.state.capture_catalog,
@@ -1075,6 +1112,7 @@ impl SessionManager {
             source_label: self.state.source_label.clone(),
             capture_selection: self.state.capture_selection.clone(),
             ice_servers: self.state.ice_servers.clone(),
+            ui_preferences: self.state.ui_preferences,
         };
 
         if let Err(error) = self.preferences.save(&persisted) {
@@ -1291,7 +1329,7 @@ fn debug_audio_buffer() -> AudioBuffer {
 #[cfg(test)]
 mod tests {
     use super::{SessionIntent, SessionManager, SessionMode, SessionStage, SessionTransport};
-    use crate::preferences::PreferencesStore;
+    use crate::preferences::{PreferencesStore, UiPreferences};
     use crate::protocol::{
         PeerAnnouncement, Role, decode_signaling_message, encode_peer, encode_waiting,
         parse_join_request,
@@ -1670,6 +1708,8 @@ mod tests {
 
         assert_eq!(snapshot.room.as_deref(), Some("saved-room"));
         assert_eq!(snapshot.signaling_addr.as_deref(), Some("127.0.0.1:7100"));
+        assert!(snapshot.ui_auto_refresh_enabled);
+        assert_eq!(snapshot.ui_refresh_interval_secs, 3);
         if let Some(selected_source_id) = snapshot.selected_source_id.as_deref() {
             assert_eq!(selected_source_id, source.id.as_str());
             assert!(!snapshot.selected_source_audio);
@@ -1685,6 +1725,43 @@ mod tests {
         );
 
         let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn session_manager_persists_ui_preferences() {
+        let config_dir = unique_temp_dir("session-ui-prefs");
+        let mut first =
+            SessionManager::new_for_tests(PreferencesStore::from_config_dir(config_dir.clone()));
+
+        let snapshot = first
+            .update_ui_preferences(Some(false), Some(10))
+            .expect("update ui preferences");
+        assert!(!snapshot.ui_auto_refresh_enabled);
+        assert_eq!(snapshot.ui_refresh_interval_secs, 10);
+
+        let restored =
+            SessionManager::new_for_tests(PreferencesStore::from_config_dir(config_dir.clone()));
+        let snapshot = restored.snapshot();
+        assert!(!snapshot.ui_auto_refresh_enabled);
+        assert_eq!(snapshot.ui_refresh_interval_secs, 10);
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn session_manager_rejects_zero_refresh_interval() {
+        let (mut manager, _config_dir) = new_test_manager("session-ui-interval");
+
+        let error = manager
+            .update_ui_preferences(None, Some(0))
+            .expect_err("zero interval should be rejected");
+        assert_eq!(error, "refresh interval must be greater than zero seconds");
+
+        let snapshot = manager.snapshot();
+        assert_eq!(
+            snapshot.ui_refresh_interval_secs,
+            UiPreferences::default().refresh_interval_secs
+        );
     }
 
     #[test]

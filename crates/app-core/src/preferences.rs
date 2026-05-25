@@ -7,6 +7,22 @@ const HEADER: &str = "video-p2p-mvp-session-v1";
 const APP_DIR: &str = "video-p2p-mvp";
 const CONFIG_FILE: &str = "session.conf";
 const CONFIG_DIR_OVERRIDE: &str = "VIDEO_P2P_MVP_CONFIG_DIR";
+const DEFAULT_REFRESH_INTERVAL_SECS: u32 = 3;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct UiPreferences {
+    pub auto_refresh_enabled: bool,
+    pub refresh_interval_secs: u32,
+}
+
+impl Default for UiPreferences {
+    fn default() -> Self {
+        Self {
+            auto_refresh_enabled: true,
+            refresh_interval_secs: DEFAULT_REFRESH_INTERVAL_SECS,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PersistedSessionConfig {
@@ -15,6 +31,7 @@ pub struct PersistedSessionConfig {
     pub source_label: Option<String>,
     pub capture_selection: Option<CaptureSelection>,
     pub ice_servers: Vec<IceServerEntry>,
+    pub ui_preferences: UiPreferences,
 }
 
 #[derive(Clone, Debug)]
@@ -127,6 +144,18 @@ fn format_preferences(config: &PersistedSessionConfig) -> String {
             }
         ));
     }
+    lines.push(format!(
+        "ui_auto_refresh={}",
+        if config.ui_preferences.auto_refresh_enabled {
+            "true"
+        } else {
+            "false"
+        }
+    ));
+    lines.push(format!(
+        "ui_refresh_interval_secs={}",
+        config.ui_preferences.refresh_interval_secs
+    ));
     lines.push(String::new());
     lines.join("\n")
 }
@@ -176,6 +205,22 @@ fn parse_preferences(content: &str) -> Result<PersistedSessionConfig, String> {
                     _ => return Err(format!("invalid selected_source_audio value: {value}")),
                 };
             }
+            "ui_auto_refresh" => {
+                config.ui_preferences.auto_refresh_enabled = match value.as_str() {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err(format!("invalid ui_auto_refresh value: {value}")),
+                };
+            }
+            "ui_refresh_interval_secs" => {
+                let parsed: u32 = value.parse().map_err(|error| {
+                    format!("invalid ui_refresh_interval_secs value `{value}`: {error}")
+                })?;
+                if parsed == 0 {
+                    return Err("ui_refresh_interval_secs must be greater than zero".to_string());
+                }
+                config.ui_preferences.refresh_interval_secs = parsed;
+            }
             _ => {}
         }
     }
@@ -208,7 +253,10 @@ fn unescape_value(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{PersistedSessionConfig, PreferencesStore, format_preferences, parse_preferences};
+    use super::{
+        PersistedSessionConfig, PreferencesStore, UiPreferences, format_preferences,
+        parse_preferences,
+    };
     use crate::ice_servers::IceServerEntry;
     use capture_core::CaptureSelection;
     use std::fs;
@@ -237,6 +285,10 @@ mod tests {
                 source_id: "window%201".to_string(),
                 include_audio: true,
             }),
+            ui_preferences: UiPreferences {
+                auto_refresh_enabled: false,
+                refresh_interval_secs: 10,
+            },
         };
 
         let encoded = format_preferences(&config);
@@ -261,6 +313,10 @@ mod tests {
                 source_id: "window-1".to_string(),
                 include_audio: false,
             }),
+            ui_preferences: UiPreferences {
+                auto_refresh_enabled: true,
+                refresh_interval_secs: 5,
+            },
         };
 
         store.save(&config).expect("save preferences");
