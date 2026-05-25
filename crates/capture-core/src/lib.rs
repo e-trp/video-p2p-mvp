@@ -102,6 +102,9 @@ mod tests {
 
         assert_eq!(frame.format, VideoPixelFormat::Bgra8);
         assert_eq!(audio.channels, 2);
-        assert_eq!(CapturePermissionState::Granted, CapturePermissionState::Granted);
+        assert_eq!(
+            CapturePermissionState::Granted,
+            CapturePermissionState::Granted
+        );
     }
 }

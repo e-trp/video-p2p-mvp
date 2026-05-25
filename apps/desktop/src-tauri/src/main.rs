@@ -2,7 +2,7 @@
 
 use app_core::{
     CaptureCatalogSnapshot, SessionIntent, SessionManager, SessionMode, SessionSnapshot,
-    SessionStage, SessionTransport,
+    SessionStage, SessionTransport, parse_ice_server_entries,
 };
 use serde::Serialize;
 use std::sync::Mutex;
@@ -22,9 +22,13 @@ struct SessionView {
     stage: String,
     transport: String,
     transport_state: String,
+    transport_stage: Option<String>,
     signaling_connected: bool,
     room: Option<String>,
     signaling_addr: Option<String>,
+    ice_server_count: usize,
+    ice_server_summary: String,
+    ice_servers: String,
     source_label: Option<String>,
     selected_source_id: Option<String>,
     selected_source_audio: bool,
@@ -44,11 +48,20 @@ struct SessionView {
     published_audio_sample_count: usize,
     last_video_sample_bytes: usize,
     last_audio_sample_bytes: usize,
+    last_video_capture_summary: Option<String>,
+    last_audio_capture_summary: Option<String>,
+    local_data_channel_ready: bool,
+    transport_stats_report_count: usize,
+    transport_ice_path_kind: String,
+    transport_ice_path_summary: String,
+    transport_notes: Vec<String>,
     local_offer_ready: bool,
     remote_answer_ready: bool,
     local_candidate_count: usize,
     remote_candidate_count: usize,
     last_signaling_message: Option<String>,
+    ui_auto_refresh_enabled: bool,
+    ui_refresh_interval_secs: u32,
     logs: Vec<String>,
 }
 
@@ -72,6 +85,8 @@ struct CaptureSourceView {
 struct CaptureCatalogView {
     backend: String,
     permission_state: String,
+    origin: String,
+    notes: Vec<String>,
     selected_source_id: Option<String>,
     selected_source_audio: bool,
     sources: Vec<CaptureSourceView>,
@@ -97,7 +112,7 @@ fn session_snapshot(state: tauri::State<'_, Mutex<SessionManager>>) -> SessionVi
 
 #[tauri::command]
 fn capture_catalog(state: tauri::State<'_, Mutex<SessionManager>>) -> CaptureCatalogView {
-    let state = state.lock().expect("session state poisoned");
+    let mut state = state.lock().expect("session state poisoned");
     let catalog = state.capture_catalog();
     let snapshot = state.snapshot();
     map_capture_catalog(catalog, snapshot)
@@ -108,8 +123,13 @@ fn start_host(
     room: String,
     signaling_addr: String,
     source_label: Option<String>,
+    ice_servers: Option<String>,
     state: tauri::State<'_, Mutex<SessionManager>>,
 ) -> CommandResult {
+    let parsed_ice_servers = match parse_ice_servers_for_command(&state, ice_servers) {
+        Ok(value) => value,
+        Err(result) => return result,
+    };
     let snapshot = state
         .lock()
         .expect("session state poisoned")
@@ -117,11 +137,17 @@ fn start_host(
             room: room.clone(),
             signaling_addr: signaling_addr.clone(),
             source_label,
+            ice_servers: parsed_ice_servers,
         });
+    let message = if snapshot.local_offer_ready {
+        format!("host session prepared for room={room}; local offer sent automatically")
+    } else {
+        format!("host session prepared for room={room}")
+    };
 
     CommandResult {
         ok: true,
-        message: format!("host session prepared for room={room}"),
+        message,
         session: map_snapshot(snapshot),
     }
 }
@@ -130,8 +156,13 @@ fn start_host(
 fn join_room(
     room: String,
     signaling_addr: String,
+    ice_servers: Option<String>,
     state: tauri::State<'_, Mutex<SessionManager>>,
 ) -> CommandResult {
+    let parsed_ice_servers = match parse_ice_servers_for_command(&state, ice_servers) {
+        Ok(value) => value,
+        Err(result) => return result,
+    };
     let snapshot = state
         .lock()
         .expect("session state poisoned")
@@ -139,6 +170,7 @@ fn join_room(
             room: room.clone(),
             signaling_addr: signaling_addr.clone(),
             source_label: None,
+            ice_servers: parsed_ice_servers,
         });
 
     CommandResult {
@@ -153,61 +185,23 @@ fn update_session_config(
     room: Option<String>,
     signaling_addr: Option<String>,
     source_label: Option<String>,
+    ice_servers: Option<String>,
     state: tauri::State<'_, Mutex<SessionManager>>,
 ) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .update_config(room, signaling_addr, source_label);
+    let parsed_ice_servers = match parse_ice_servers_for_command(&state, ice_servers) {
+        Ok(value) => value,
+        Err(result) => return result,
+    };
+    let snapshot = state.lock().expect("session state poisoned").update_config(
+        room,
+        signaling_addr,
+        source_label,
+        Some(parsed_ice_servers),
+    );
 
     CommandResult {
         ok: true,
         message: "session configuration updated".to_string(),
-        session: map_snapshot(snapshot),
-    }
-}
-
-#[tauri::command]
-fn mark_mock_streaming(
-    peer: String,
-    state: tauri::State<'_, Mutex<SessionManager>>,
-) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .mark_mock_streaming(peer.clone());
-
-    CommandResult {
-        ok: true,
-        message: format!("mock streaming activated with peer={peer}"),
-        session: map_snapshot(snapshot),
-    }
-}
-
-#[tauri::command]
-fn mark_webrtc_planned(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .mark_webrtc_ready();
-
-    CommandResult {
-        ok: true,
-        message: "session moved to planned WebRTC state".to_string(),
-        session: map_snapshot(snapshot),
-    }
-}
-
-#[tauri::command]
-fn create_local_offer(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .create_local_offer();
-
-    CommandResult {
-        ok: true,
-        message: "local SDP offer created".to_string(),
         session: map_snapshot(snapshot),
     }
 }
@@ -231,51 +225,15 @@ fn select_capture_source(
 }
 
 #[tauri::command]
-fn publish_placeholder_media(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+fn publish_debug_capture_samples(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state
         .lock()
         .expect("session state poisoned")
-        .publish_placeholder_media();
+        .publish_debug_capture_samples();
 
     CommandResult {
         ok: true,
-        message: "placeholder media samples published".to_string(),
-        session: map_snapshot(snapshot),
-    }
-}
-
-#[tauri::command]
-fn accept_remote_answer(
-    sdp: String,
-    state: tauri::State<'_, Mutex<SessionManager>>,
-) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .accept_remote_answer(sdp);
-
-    CommandResult {
-        ok: true,
-        message: "remote SDP answer accepted".to_string(),
-        session: map_snapshot(snapshot),
-    }
-}
-
-#[tauri::command]
-fn add_remote_ice_candidate(
-    candidate: String,
-    sdp_mid: Option<String>,
-    sdp_mline_index: Option<u16>,
-    state: tauri::State<'_, Mutex<SessionManager>>,
-) -> CommandResult {
-    let snapshot = state
-        .lock()
-        .expect("session state poisoned")
-        .add_remote_ice_candidate(candidate, sdp_mid, sdp_mline_index);
-
-    CommandResult {
-        ok: true,
-        message: "remote ICE candidate added".to_string(),
+        message: "debug capture samples published".to_string(),
         session: map_snapshot(snapshot),
     }
 }
@@ -289,11 +247,6 @@ fn stop_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult
         message: "session stopped".to_string(),
         session: map_snapshot(snapshot),
     }
-}
-
-#[tauri::command]
-fn session_logs(state: tauri::State<'_, Mutex<SessionManager>>) -> Vec<String> {
-    state.lock().expect("session state poisoned").logs()
 }
 
 #[tauri::command]
@@ -319,6 +272,30 @@ fn reset_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResul
 }
 
 #[tauri::command]
+fn update_ui_preferences(
+    auto_refresh_enabled: Option<bool>,
+    refresh_interval_secs: Option<u32>,
+    state: tauri::State<'_, Mutex<SessionManager>>,
+) -> CommandResult {
+    let mut state = state.lock().expect("session state poisoned");
+    match state.update_ui_preferences(auto_refresh_enabled, refresh_interval_secs) {
+        Ok(snapshot) => CommandResult {
+            ok: true,
+            message: "desktop UI preferences updated".to_string(),
+            session: map_snapshot(snapshot),
+        },
+        Err(error) => {
+            let snapshot = state.snapshot();
+            CommandResult {
+                ok: false,
+                message: format!("invalid desktop UI preferences: {error}"),
+                session: map_snapshot(snapshot),
+            }
+        }
+    }
+}
+
+#[tauri::command]
 fn specification_markdown() -> String {
     include_str!("../../../../docs/SPECIFICATION.md").to_string()
 }
@@ -333,17 +310,12 @@ fn main() {
             start_host,
             join_room,
             update_session_config,
-            mark_mock_streaming,
-            mark_webrtc_planned,
-            create_local_offer,
             select_capture_source,
-            publish_placeholder_media,
-            accept_remote_answer,
-            add_remote_ice_candidate,
+            publish_debug_capture_samples,
             stop_session,
-            session_logs,
             clear_session_logs,
             reset_session,
+            update_ui_preferences,
             specification_markdown
         ])
         .run(tauri::generate_context!())
@@ -356,9 +328,13 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         stage: format_session_stage(snapshot.stage).to_string(),
         transport: format_session_transport(snapshot.transport).to_string(),
         transport_state: snapshot.transport_state,
+        transport_stage: snapshot.transport_stage,
         signaling_connected: snapshot.signaling_connected,
         room: snapshot.room,
         signaling_addr: snapshot.signaling_addr,
+        ice_server_count: snapshot.ice_server_count,
+        ice_server_summary: snapshot.ice_server_summary,
+        ice_servers: snapshot.ice_servers,
         source_label: snapshot.source_label,
         selected_source_id: snapshot.selected_source_id,
         selected_source_audio: snapshot.selected_source_audio,
@@ -378,19 +354,47 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         published_audio_sample_count: snapshot.published_audio_sample_count,
         last_video_sample_bytes: snapshot.last_video_sample_bytes,
         last_audio_sample_bytes: snapshot.last_audio_sample_bytes,
+        last_video_capture_summary: snapshot.last_video_capture_summary,
+        last_audio_capture_summary: snapshot.last_audio_capture_summary,
+        local_data_channel_ready: snapshot.local_data_channel_ready,
+        transport_stats_report_count: snapshot.transport_stats_report_count,
+        transport_ice_path_kind: snapshot.transport_ice_path_kind,
+        transport_ice_path_summary: snapshot.transport_ice_path_summary,
+        transport_notes: snapshot.transport_notes,
         local_offer_ready: snapshot.local_offer_ready,
         remote_answer_ready: snapshot.remote_answer_ready,
         local_candidate_count: snapshot.local_candidate_count,
         remote_candidate_count: snapshot.remote_candidate_count,
         last_signaling_message: snapshot.last_signaling_message,
+        ui_auto_refresh_enabled: snapshot.ui_auto_refresh_enabled,
+        ui_refresh_interval_secs: snapshot.ui_refresh_interval_secs,
         logs: snapshot.logs,
     }
 }
 
-fn map_capture_catalog(catalog: CaptureCatalogSnapshot, snapshot: SessionSnapshot) -> CaptureCatalogView {
+fn parse_ice_servers_for_command(
+    state: &tauri::State<'_, Mutex<SessionManager>>,
+    ice_servers: Option<String>,
+) -> Result<Vec<app_core::IceServerEntry>, CommandResult> {
+    parse_ice_server_entries(ice_servers.as_deref().unwrap_or_default()).map_err(|error| {
+        let snapshot = state.lock().expect("session state poisoned").snapshot();
+        CommandResult {
+            ok: false,
+            message: format!("invalid ICE server configuration: {error}"),
+            session: map_snapshot(snapshot),
+        }
+    })
+}
+
+fn map_capture_catalog(
+    catalog: CaptureCatalogSnapshot,
+    snapshot: SessionSnapshot,
+) -> CaptureCatalogView {
     CaptureCatalogView {
         backend: catalog.backend,
         permission_state: snapshot.capture_permission_state,
+        origin: catalog.origin,
+        notes: catalog.notes,
         selected_source_id: snapshot.selected_source_id,
         selected_source_audio: snapshot.selected_source_audio,
         sources: catalog

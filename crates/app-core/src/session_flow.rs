@@ -1,3 +1,4 @@
+use crate::ice_servers::IceServerEntry;
 use crate::session::{SessionIntent, SessionManager};
 use std::error::Error;
 use std::thread;
@@ -8,13 +9,16 @@ pub struct WebRtcHostConfig {
     pub room: String,
     pub signaling_addr: String,
     pub source_label: String,
+    pub ice_servers: Vec<IceServerEntry>,
     pub timeout_ms: u64,
+    pub push_debug_capture: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct WebRtcViewerConfig {
     pub room: String,
     pub signaling_addr: String,
+    pub ice_servers: Vec<IceServerEntry>,
     pub timeout_ms: u64,
 }
 
@@ -24,18 +28,31 @@ pub fn run_webrtc_host(config: WebRtcHostConfig) -> Result<(), Box<dyn Error>> {
         room: config.room.clone(),
         signaling_addr: config.signaling_addr.clone(),
         source_label: Some(config.source_label.clone()),
+        ice_servers: config.ice_servers.clone(),
     });
     println!(
         "webrtc host prepared: room={} signaling={} transport_state={}",
         config.room, config.signaling_addr, snapshot.transport_state
     );
 
-    let snapshot = manager.create_local_offer();
-    println!(
-        "local offer path armed: signaling_connected={} transport_state={}",
-        snapshot.signaling_connected, snapshot.transport_state
-    );
-    wait_until_live(&mut manager, config.timeout_ms)
+    wait_until_live(&mut manager, config.timeout_ms)?;
+
+    if config.push_debug_capture {
+        let snapshot = manager.publish_debug_capture_samples();
+        println!(
+            "debug capture burst published: video_samples={} audio_samples={} video_payload={:?} audio_payload={:?}",
+            snapshot.published_video_sample_count,
+            snapshot.published_audio_sample_count,
+            snapshot.last_video_capture_summary,
+            snapshot.last_audio_capture_summary
+        );
+    } else {
+        println!(
+            "host connected without debug capture burst; pass --push-debug-capture to exercise the session media bridge"
+        );
+    }
+
+    Ok(())
 }
 
 pub fn run_webrtc_viewer(config: WebRtcViewerConfig) -> Result<(), Box<dyn Error>> {
@@ -44,15 +61,20 @@ pub fn run_webrtc_viewer(config: WebRtcViewerConfig) -> Result<(), Box<dyn Error
         room: config.room.clone(),
         signaling_addr: config.signaling_addr.clone(),
         source_label: None,
+        ice_servers: config.ice_servers.clone(),
     });
     println!(
         "webrtc viewer prepared: room={} signaling={} transport_state={}",
         config.room, config.signaling_addr, snapshot.transport_state
     );
-    wait_until_live(&mut manager, config.timeout_ms)
+    wait_until_live(&mut manager, config.timeout_ms)?;
+    Ok(())
 }
 
-fn wait_until_live(manager: &mut SessionManager, timeout_ms: u64) -> Result<(), Box<dyn Error>> {
+fn wait_until_live(
+    manager: &mut SessionManager,
+    timeout_ms: u64,
+) -> Result<crate::session::SessionSnapshot, Box<dyn Error>> {
     let started = Instant::now();
     let mut last_log_len = manager.logs().len();
 
@@ -73,7 +95,7 @@ fn wait_until_live(manager: &mut SessionManager, timeout_ms: u64) -> Result<(), 
                 snapshot.local_candidate_count,
                 snapshot.remote_candidate_count
             );
-            return Ok(());
+            return Ok(snapshot);
         }
 
         if started.elapsed() >= Duration::from_millis(timeout_ms) {

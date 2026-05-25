@@ -1,5 +1,6 @@
 use crate::protocol::{
-    MediaPacket, PeerAnnouncement, Role, decode_media_packet, encode_media_packet, parse_peer_message,
+    MediaPacket, PeerAnnouncement, Role, decode_media_packet, encode_media_packet,
+    parse_peer_message,
 };
 use std::error::Error;
 use std::io::{BufRead, BufReader, Write};
@@ -28,7 +29,12 @@ pub struct ReceiverConfig {
 pub fn run_sender(config: SenderConfig) -> Result<(), Box<dyn Error>> {
     let socket = UdpSocket::bind(&config.udp_bind)?;
     let local_addr = socket.local_addr()?;
-    let peer = wait_for_peer(&config.signaling_addr, &config.room, Role::Sender, local_addr.port())?;
+    let peer = wait_for_peer(
+        &config.signaling_addr,
+        &config.room,
+        Role::Sender,
+        local_addr.port(),
+    )?;
     let frame_interval = frame_interval(config.fps);
 
     println!(
@@ -55,7 +61,12 @@ pub fn run_sender(config: SenderConfig) -> Result<(), Box<dyn Error>> {
 pub fn run_receiver(config: ReceiverConfig) -> Result<(), Box<dyn Error>> {
     let socket = UdpSocket::bind(&config.udp_bind)?;
     let local_addr = socket.local_addr()?;
-    let peer = wait_for_peer(&config.signaling_addr, &config.room, Role::Receiver, local_addr.port())?;
+    let peer = wait_for_peer(
+        &config.signaling_addr,
+        &config.room,
+        Role::Receiver,
+        local_addr.port(),
+    )?;
 
     println!("receiver ready: udp={}, peer={}", local_addr, peer.addr);
 

@@ -140,6 +140,15 @@ h1 {
   gap: 10px;
 }
 
+.inline-fields .toggle {
+  align-self: end;
+  min-height: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
 .toggle input {
   width: auto;
   margin: 0;
@@ -196,6 +205,21 @@ button.ghost {
 
 .result {
   margin: 16px 0 0;
+  color: var(--muted);
+}
+
+.debug-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.debug-panel summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
   color: var(--muted);
 }
 
@@ -261,6 +285,10 @@ pre {
   font-family: "SFMono-Regular", "Menlo", monospace;
   font-size: 0.88rem;
   line-height: 1.4;
+}
+
+#transport-notes {
+  min-height: 180px;
 }
 
 @media (max-width: 800px) {

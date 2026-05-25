@@ -58,13 +58,16 @@ This repository's MVP is intentionally smaller than the final product. It provid
 - a TCP signaling server
 - sender and receiver CLI roles
 - direct UDP transfer of mock media packets between peers
+- a live WebRTC negotiation path with attached host audio/video tracks
+- debug `capture-core` payload publishing for transport smoke tests
+- a session-facing capture publish path that validates the selected source and audio opt-in before transport publication
 - saved specification and documentation
 
 This MVP does **not** yet provide:
 
 - real screen capture
 - real audio capture
-- WebRTC
+- real captured media flowing through WebRTC
 - STUN/TURN
 - codecs
 - encryption
@@ -80,7 +83,7 @@ This MVP does **not** yet provide:
 ## Functional Goals For The Next Iteration
 
 1. Replace mock UDP media with WebRTC tracks.
-2. Implement macOS capture using ScreenCaptureKit.
+2. Replace debug `capture-core` bursts with real macOS capture using ScreenCaptureKit.
 3. Implement Linux Wayland capture using Portal + PipeWire.
 4. Add room lifecycle and authentication to signaling.
 5. Add connection diagnostics and bitrate controls.

@@ -1,3 +1,4 @@
+use crate::ice_servers::{IceServerEntry, parse_ice_server_entries};
 use crate::mock_media::{ReceiverConfig, SenderConfig};
 use crate::session_flow::{WebRtcHostConfig, WebRtcViewerConfig};
 use std::error::Error;
@@ -34,10 +35,10 @@ pub fn parse_cli_args(args: &[String]) -> Result<AppCommand, Box<dyn Error>> {
         "spec" => Ok(AppCommand::PrintSpec),
         "sender" => {
             let room = required_flag(&args[1..], "--room")?;
-            let signaling_addr = parse_flag(&args[1..], "--signal")?
-                .unwrap_or_else(|| "127.0.0.1:7000".to_string());
-            let udp_bind = parse_flag(&args[1..], "--udp-bind")?
-                .unwrap_or_else(|| "0.0.0.0:0".to_string());
+            let signaling_addr =
+                parse_flag(&args[1..], "--signal")?.unwrap_or_else(|| "127.0.0.1:7000".to_string());
+            let udp_bind =
+                parse_flag(&args[1..], "--udp-bind")?.unwrap_or_else(|| "0.0.0.0:0".to_string());
             let fps = parse_flag(&args[1..], "--fps")?
                 .map(|value| value.parse())
                 .transpose()?
@@ -46,8 +47,8 @@ pub fn parse_cli_args(args: &[String]) -> Result<AppCommand, Box<dyn Error>> {
                 .map(|value| value.parse())
                 .transpose()?
                 .unwrap_or(120);
-            let source = parse_flag(&args[1..], "--source")?
-                .unwrap_or_else(|| "mock-window".to_string());
+            let source =
+                parse_flag(&args[1..], "--source")?.unwrap_or_else(|| "mock-window".to_string());
 
             Ok(AppCommand::Sender(SenderConfig {
                 room,
@@ -60,10 +61,10 @@ pub fn parse_cli_args(args: &[String]) -> Result<AppCommand, Box<dyn Error>> {
         }
         "receiver" => {
             let room = required_flag(&args[1..], "--room")?;
-            let signaling_addr = parse_flag(&args[1..], "--signal")?
-                .unwrap_or_else(|| "127.0.0.1:7000".to_string());
-            let udp_bind = parse_flag(&args[1..], "--udp-bind")?
-                .unwrap_or_else(|| "0.0.0.0:0".to_string());
+            let signaling_addr =
+                parse_flag(&args[1..], "--signal")?.unwrap_or_else(|| "127.0.0.1:7000".to_string());
+            let udp_bind =
+                parse_flag(&args[1..], "--udp-bind")?.unwrap_or_else(|| "0.0.0.0:0".to_string());
             let expected_frames = parse_flag(&args[1..], "--expected-frames")?
                 .map(|value| value.parse())
                 .transpose()?;
@@ -77,34 +78,40 @@ pub fn parse_cli_args(args: &[String]) -> Result<AppCommand, Box<dyn Error>> {
         }
         "webrtc-host" => {
             let room = required_flag(&args[1..], "--room")?;
-            let signaling_addr = parse_flag(&args[1..], "--signal")?
-                .unwrap_or_else(|| "127.0.0.1:7000".to_string());
-            let source_label = parse_flag(&args[1..], "--source")?
-                .unwrap_or_else(|| "mock-window".to_string());
+            let signaling_addr =
+                parse_flag(&args[1..], "--signal")?.unwrap_or_else(|| "127.0.0.1:7000".to_string());
+            let source_label =
+                parse_flag(&args[1..], "--source")?.unwrap_or_else(|| "mock-window".to_string());
             let timeout_ms = parse_flag(&args[1..], "--timeout-ms")?
                 .map(|value| value.parse())
                 .transpose()?
                 .unwrap_or(10_000);
+            let push_debug_capture = has_flag(&args[1..], "--push-debug-capture");
+            let ice_servers = parse_ice_server_flags(&args[1..])?;
 
             Ok(AppCommand::WebRtcHost(WebRtcHostConfig {
                 room,
                 signaling_addr,
                 source_label,
+                ice_servers,
                 timeout_ms,
+                push_debug_capture,
             }))
         }
         "webrtc-viewer" => {
             let room = required_flag(&args[1..], "--room")?;
-            let signaling_addr = parse_flag(&args[1..], "--signal")?
-                .unwrap_or_else(|| "127.0.0.1:7000".to_string());
+            let signaling_addr =
+                parse_flag(&args[1..], "--signal")?.unwrap_or_else(|| "127.0.0.1:7000".to_string());
             let timeout_ms = parse_flag(&args[1..], "--timeout-ms")?
                 .map(|value| value.parse())
                 .transpose()?
                 .unwrap_or(10_000);
+            let ice_servers = parse_ice_server_flags(&args[1..])?;
 
             Ok(AppCommand::WebRtcViewer(WebRtcViewerConfig {
                 room,
                 signaling_addr,
+                ice_servers,
                 timeout_ms,
             }))
         }
@@ -127,7 +134,40 @@ fn parse_flag(args: &[String], flag: &str) -> Result<Option<String>, Box<dyn Err
 }
 
 fn required_flag(args: &[String], flag: &str) -> Result<String, Box<dyn Error>> {
-    parse_flag(args, flag)?.ok_or_else(|| Box::new(CliError(format!("required flag missing: {flag}"))) as Box<dyn Error>)
+    parse_flag(args, flag)?.ok_or_else(|| {
+        Box::new(CliError(format!("required flag missing: {flag}"))) as Box<dyn Error>
+    })
+}
+
+fn has_flag(args: &[String], flag: &str) -> bool {
+    args.iter().any(|value| value == flag)
+}
+
+fn parse_repeated_flag(args: &[String], flag: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    let mut values = Vec::new();
+    let mut index = 0;
+    while index < args.len() {
+        if args[index] == flag {
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| CliError(format!("missing value for {flag}")))?;
+            values.push(value.clone());
+            index += 2;
+        } else {
+            index += 1;
+        }
+    }
+    Ok(values)
+}
+
+fn parse_ice_server_flags(args: &[String]) -> Result<Vec<IceServerEntry>, Box<dyn Error>> {
+    let mut entries = Vec::new();
+    for spec in parse_repeated_flag(args, "--ice-server")? {
+        let parsed = parse_ice_server_entries(&spec)
+            .map_err(|error| CliError(format!("invalid --ice-server value `{spec}`: {error}")))?;
+        entries.extend(parsed);
+    }
+    Ok(entries)
 }
 
 pub fn print_help() {
@@ -140,11 +180,75 @@ Commands:
   spec
   sender --room demo --signal 127.0.0.1:7000 [--udp-bind 0.0.0.0:0] [--fps 10] [--frames 120] [--source mock-window]
   receiver --room demo --signal 127.0.0.1:7000 [--udp-bind 0.0.0.0:0] [--expected-frames 120]
-  webrtc-host --room demo --signal 127.0.0.1:7000 [--source mock-window] [--timeout-ms 10000]
-  webrtc-viewer --room demo --signal 127.0.0.1:7000 [--timeout-ms 10000]
+  webrtc-host --room demo --signal 127.0.0.1:7000 [--source mock-window] [--ice-server stun:stun.example.com:3478] [--timeout-ms 10000] [--push-debug-capture]
+  webrtc-viewer --room demo --signal 127.0.0.1:7000 [--ice-server stun:stun.example.com:3478] [--timeout-ms 10000]
 
 This MVP uses TCP for signaling and direct UDP for mock media packets.
 It now also has a live WebRTC negotiation path that uses the same signaling server,
-but media capture and media tracks are still not attached yet."
+with attached host audio/video tracks and optional debug `capture-core` payload publishing.
+
+ICE server format:
+  --ice-server 'stun:stun.l.google.com:19302'
+  --ice-server 'turn:turn.example.com:3478?transport=udp|username|credential'"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AppCommand, parse_cli_args};
+
+    #[test]
+    fn webrtc_host_flag_enables_debug_capture() {
+        let args = vec![
+            "webrtc-host".to_string(),
+            "--room".to_string(),
+            "demo".to_string(),
+            "--push-debug-capture".to_string(),
+        ];
+
+        let command = parse_cli_args(&args).expect("parse host command");
+        let AppCommand::WebRtcHost(config) = command else {
+            panic!("expected host command");
+        };
+
+        assert!(config.push_debug_capture);
+    }
+
+    #[test]
+    fn webrtc_host_defaults_debug_capture_to_disabled() {
+        let args = vec![
+            "webrtc-host".to_string(),
+            "--room".to_string(),
+            "demo".to_string(),
+        ];
+
+        let command = parse_cli_args(&args).expect("parse host command");
+        let AppCommand::WebRtcHost(config) = command else {
+            panic!("expected host command");
+        };
+
+        assert!(!config.push_debug_capture);
+    }
+
+    #[test]
+    fn webrtc_viewer_parses_repeatable_ice_server_flags() {
+        let args = vec![
+            "webrtc-viewer".to_string(),
+            "--room".to_string(),
+            "demo".to_string(),
+            "--ice-server".to_string(),
+            "stun:stun.example.com:3478".to_string(),
+            "--ice-server".to_string(),
+            "turn:turn.example.com:3478?transport=udp|demo|secret".to_string(),
+        ];
+
+        let command = parse_cli_args(&args).expect("parse viewer command");
+        let AppCommand::WebRtcViewer(config) = command else {
+            panic!("expected viewer command");
+        };
+
+        assert_eq!(config.ice_servers.len(), 2);
+        assert_eq!(config.ice_servers[0].urls[0], "stun:stun.example.com:3478");
+        assert_eq!(config.ice_servers[1].username.as_deref(), Some("demo"));
+    }
 }

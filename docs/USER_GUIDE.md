@@ -7,11 +7,14 @@ This repository is still an MVP. Today it can already provide:
 - a TCP signaling server for room pairing and WebRTC signaling relay
 - a Tauri desktop GUI for host/viewer session control
 - a live WebRTC negotiation path between host and viewer
+- configurable ICE server entries for custom STUN/TURN traversal
 - attached placeholder host audio/video tracks
-- placeholder media sample publishing for transport smoke testing
+- debug `capture-core` media payload publishing for transport smoke testing
 - a source picker fed by the current `capture-core` platform blueprint data
 
-It does **not** yet provide real OS screen capture, real system audio capture, STUN/TURN, or production invite/auth flows.
+It does **not** yet provide real OS screen capture, real system audio capture, bundled STUN/TURN deployment defaults, or production invite/auth flows.
+
+For setup, release build notes, and troubleshooting, see `docs/INSTALLATION.md`.
 
 ## Requirements
 
@@ -40,10 +43,27 @@ Keep it running while you test the GUI or CLI peers.
 Open another terminal in the repository root:
 
 ```bash
-cargo tauri dev --manifest-path apps/desktop/src-tauri/Cargo.toml
+cd apps/desktop/src-tauri
+cargo tauri dev
 ```
 
 This launches the desktop shell from `apps/desktop`.
+
+## Build A Desktop Release Bundle
+
+Refresh the generated icon assets:
+
+```bash
+./scripts/generate-desktop-icons.sh
+```
+
+Build the Tauri release bundle:
+
+```bash
+./scripts/build-desktop-release.sh
+```
+
+This regenerates the desktop icons, changes into `apps/desktop/src-tauri`, and runs `cargo tauri build`.
 
 ## Current GUI Workflow
 
@@ -51,36 +71,76 @@ This launches the desktop shell from `apps/desktop`.
 
 - `Room`: room name for host/viewer pairing
 - `Signaling`: TCP address of the signaling server
-- `Source Label`: manual label stored in the session snapshot
-- `Save Config`: save the current room/signaling/source label into the in-memory session state
-- `Prepare Host`: create a host-side WebRTC session and connect signaling
+- `ICE Servers`: optional newline-separated STUN/TURN entries using `url` or `url|username|credential`
+- `Auto Refresh`: enable or disable the background polling loop that refreshes session, signaling, and capture state
+- `Refresh Every`: choose the persisted polling interval used by that background refresh loop
+- `Save Config`: save the current room, signaling address, and ICE server list into the local session-preferences file used by the desktop shell
+- `Prepare Host`: create a host-side WebRTC session, connect signaling, and automatically send the first local offer when signaling is available
 - `Prepare Viewer`: create a viewer-side WebRTC session and connect signaling
-- `Mock Streaming`: switch the session snapshot into the legacy mock UDP stage
-- `Arm WebRTC`: move the session snapshot into the live WebRTC negotiation stage
 - `Stop`: close the current session
 - `Reset`: reset session state back to idle
+
+While auto-refresh is running, the desktop shell now keeps in-progress `Room`, `Signaling`, and `ICE Servers` edits intact instead of overwriting them with the latest snapshot on every poll. Those fields are synchronized explicitly after successful save/start/reset actions.
 
 ### Capture Source
 
 - `Available Source`: current platform blueprint source list
 - `Include Audio`: stores whether the chosen source should include audio when capture is wired for real
-- `Use Source`: selects the source and updates the session source label
+- changing the picker or audio toggle applies the host-side capture selection immediately
+- the most recent room, signaling address, source selection, and auto-refresh preferences are restored automatically on the next desktop launch or session-manager reset
 
-Today this picker is backed by example sources from the platform blueprint crates:
+If you never touch the picker before starting a host session, the first available source is selected automatically.
 
-- macOS: `ScreenCaptureKit`-shaped sources
-- Linux: `Portal + PipeWire`-shaped sources
+Today this picker is backed by:
 
-This is a contract layer only. It is not yet reading the real OS window list.
+- macOS: runtime application/window enumeration when available, with a fallback to `ScreenCaptureKit`-shaped blueprint sources
+- Linux: runtime X11 window enumeration through `wmctrl` when available, with a fallback to `Portal + PipeWire`-shaped blueprint sources
 
-### WebRTC Signaling
+This is still a contract layer overall. Both platform catalogs are best-effort metadata enumeration, not real capture sessions, and they fall back to blueprint data when the host environment blocks runtime discovery.
 
-- `Create Offer`: create and send a local SDP offer from the host side
-- `Push Placeholder Media`: write placeholder audio/video samples into the attached host tracks
-- `Accept Answer`: manually apply a remote SDP answer for debugging
-- `Add ICE`: manually apply a remote ICE candidate for debugging
+### Transport Diagnostics
 
-Offer/answer and ICE can already flow automatically through the signaling server during refresh, but the manual fields are still available for debugging.
+The GUI now surfaces transport-side diagnostics from the Rust `PeerConnection` wrapper:
+
+- current transport stage
+- current ICE path summary, including direct-vs-relay hints when a candidate pair is selected
+- bootstrap data channel readiness
+- current stats report count
+- transport notes describing track attachment and sample counters
+
+The capture panel also now shows:
+
+- backend label
+- catalog origin (`runtime`, `blueprint_fallback`, or `unavailable`)
+- permission state derived from the current runtime probe
+- backend notes explaining runtime enumeration success or fallback reason
+
+This data is refreshed through the session manager rather than staying fixed from initial app startup.
+
+When you prepare a host session, the session log and next-action hint now also react to capture readiness:
+
+- `granted`: the host catalog is ready for real source selection
+- `required`: OS permission is still needed or the app is still running on fallback metadata
+- `denied`: host capture needs explicit OS approval
+- `unknown`: the desktop session or capture tooling could not be verified cleanly
+
+If the selected host source disappears after a later catalog refresh, the session manager now rebinds to the first available source automatically and records that change in the session log.
+
+### Transport Smoke Test
+
+- `Push Debug Capture Burst`: synthesize `capture-core` video/audio payloads and write them into the attached host tracks
+
+The debug burst respects the selected source audio toggle:
+
+- if `Include Audio` is enabled, both video and audio payload summaries are updated
+- if `Include Audio` is disabled, only the video payload is published during the smoke test
+
+This smoke path now goes through the same session-facing publish validation that future native capture backends are expected to use:
+
+- the selected source id must match the payload source being published
+- audio payloads are rejected when the current selection has `Include Audio` turned off
+
+Host-side offer creation, answer delivery, and ICE now flow automatically through the signaling server during refresh. The remaining manual control is only there to smoke-test media publication before real capture is wired.
 
 ### Status And Snapshot
 
@@ -89,8 +149,10 @@ The GUI currently shows:
 - signaling connectivity
 - selected source id and audio flag
 - capture backend and permission state
+- transport stage and bootstrap data-channel state
 - media track attachment state
-- published placeholder sample counters
+- transport notes and stats report count
+- published debug sample counters and last payload summaries
 - local/remote SDP state
 - ICE counters
 - session logs
@@ -115,6 +177,20 @@ Host:
 cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000
 ```
 
+Host with one debug capture burst after connect:
+
+```bash
+cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 --push-debug-capture
+```
+
+Host with explicit STUN/TURN:
+
+```bash
+cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 \
+  --ice-server 'stun:stun.l.google.com:19302' \
+  --ice-server 'turn:turn.example.com:3478?transport=udp|username|credential'
+```
+
 Viewer:
 
 ```bash
@@ -123,7 +199,9 @@ cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
 
 ## Current Limits
 
-- capture sources are blueprint/example data, not OS-enumerated windows
-- placeholder media is not real encoded screen/audio content
-- the GUI still exposes several debug controls
+- Linux runtime enumeration currently depends on X11-style `wmctrl` metadata and does not cover the real Wayland portal flow yet
+- macOS source enumeration is metadata-only and still does not capture real media
+- debug `capture-core` payload bursts are still synthetic, not OS-captured media
+- the GUI still falls back to blueprint/example capture sources when runtime enumeration is unavailable
+- ICE server configuration is manual; there is still no bundled TURN service or auth flow
 - the signaling service is still a minimal two-peer MVP

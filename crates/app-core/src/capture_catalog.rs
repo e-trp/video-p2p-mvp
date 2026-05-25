@@ -4,27 +4,33 @@ use capture_core::{CapturePermissionState, CaptureSelection, CaptureSource};
 pub struct CaptureCatalogSnapshot {
     pub backend: String,
     pub permission_state: CapturePermissionState,
+    pub origin: String,
+    pub notes: Vec<String>,
     pub sources: Vec<CaptureSource>,
 }
 
 pub fn current_capture_catalog() -> CaptureCatalogSnapshot {
     #[cfg(target_os = "macos")]
     {
-        let blueprint = capture_macos::blueprint();
+        let catalog = capture_macos::current_catalog();
         return CaptureCatalogSnapshot {
-            backend: blueprint.sources_api.to_string(),
-            permission_state: blueprint.permission_state,
-            sources: blueprint.example_sources,
+            backend: catalog.backend_label,
+            permission_state: catalog.permission_state,
+            origin: format!("{:?}", catalog.origin).to_lowercase(),
+            notes: catalog.notes,
+            sources: catalog.sources,
         };
     }
 
     #[cfg(target_os = "linux")]
     {
-        let blueprint = capture_linux::blueprint();
+        let catalog = capture_linux::current_catalog();
         return CaptureCatalogSnapshot {
-            backend: format!("{:?}", blueprint.preferred_backend),
-            permission_state: blueprint.permission_state,
-            sources: blueprint.example_sources,
+            backend: catalog.backend_label,
+            permission_state: catalog.permission_state,
+            origin: format!("{:?}", catalog.origin).to_lowercase(),
+            notes: catalog.notes,
+            sources: catalog.sources,
         };
     }
 
@@ -33,6 +39,8 @@ pub fn current_capture_catalog() -> CaptureCatalogSnapshot {
         CaptureCatalogSnapshot {
             backend: "unsupported_platform".to_string(),
             permission_state: CapturePermissionState::Unknown,
+            origin: "unavailable".to_string(),
+            notes: vec!["runtime capture catalog is not implemented for this platform".to_string()],
             sources: Vec::new(),
         }
     }
@@ -74,6 +82,8 @@ mod tests {
         let catalog = CaptureCatalogSnapshot {
             backend: "test".to_string(),
             permission_state: CapturePermissionState::Granted,
+            origin: "runtime".to_string(),
+            notes: vec!["test note".to_string()],
             sources: vec![CaptureSource {
                 id: "source-1".to_string(),
                 kind: CaptureSourceKind::Window,
@@ -96,7 +106,10 @@ mod tests {
 
     #[test]
     fn permission_state_description_is_stable() {
-        assert_eq!(describe_permission_state(CapturePermissionState::Required), "required");
+        assert_eq!(
+            describe_permission_state(CapturePermissionState::Required),
+            "required"
+        );
     }
 
     #[test]

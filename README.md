@@ -16,6 +16,7 @@ The repository now has two layers:
 - `apps/desktop`: Tauri GUI scaffold
 - `docs/SPECIFICATION.md`: saved product instruction
 - `docs/USER_GUIDE.md`: how to run the Tauri GUI and what works today
+- `docs/INSTALLATION.md`: setup, release build, and troubleshooting notes
 - `docs/ARCHITECTURE.md`: architecture notes
 - `docs/GUI_TAURI.md`: GUI plan
 - `todo.md`: remaining project work by iteration
@@ -46,6 +47,20 @@ Run the live WebRTC negotiation host:
 cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000
 ```
 
+Run the host with explicit STUN/TURN entries:
+
+```bash
+cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 \
+  --ice-server 'stun:stun.l.google.com:19302' \
+  --ice-server 'turn:turn.example.com:3478?transport=udp|username|credential'
+```
+
+Run the host and publish one debug capture burst after the peer connection comes up:
+
+```bash
+cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 --push-debug-capture
+```
+
 Run the live WebRTC negotiation viewer:
 
 ```bash
@@ -69,12 +84,16 @@ It now exposes commands for:
 
 - reading project and session status
 - listing current capture sources and selecting one in-session
+- applying capture source changes immediately from the picker
+- defaulting the host session to the first available capture source when none was selected explicitly
+- persisting last-used room, signaling address, and capture-source selection across session-manager restarts
+- persisting desktop auto-refresh enablement and polling interval across restarts
 - preparing host and viewer sessions against the live signaling server
-- creating and sending a local SDP offer
-- publishing placeholder audio/video samples into the attached host tracks for smoke testing
-- polling signaling and auto-applying remote offer/answer/ICE state
-- accepting manual remote SDP answer state for debugging
-- adding manual remote ICE candidate state for debugging
+- configuring custom ICE server entries for STUN/TURN-assisted traversal
+- auto-creating and sending the first local SDP offer from the host once signaling is connected
+- publishing debug `capture-core` audio/video payloads into the attached host tracks for smoke testing
+- polling signaling with a persisted auto-refresh cadence and auto-applying remote offer/answer/ICE state
+- surfacing live transport diagnostics from the `PeerConnection` snapshot, including the current direct-vs-relay ICE path summary when available
 - stopping a session
 - reading session logs
 - showing the saved specification
@@ -93,7 +112,7 @@ This is not yet a real screen-sharing application. It does not currently include
 - real source enumeration from the operating system
 - real captured samples flowing through the attached tracks
 - real audio/video codecs
-- STUN/TURN
+- bundled STUN/TURN deployment defaults
 - production GUI workflow
 
 What changed relative to the earlier scaffold:
@@ -104,14 +123,33 @@ What changed relative to the earlier scaffold:
 - `app-core` now has a live signaling client used by CLI and Tauri session flow
 - CLI now has `webrtc-host` and `webrtc-viewer` commands for real negotiation
 - `transport-webrtc` now wraps a real `PeerConnection` with attached placeholder audio/video tracks, ICE gathering, and connection-state snapshots
+- the CLI host path now relies on the same automatic first-offer behavior as the GUI instead of forcing a second manual offer attempt
+- host session refresh now auto-creates its local offer when signaling is available
 - session snapshots and the Tauri UI now expose local media-track attachment state
-- session manager and transport now expose placeholder media-sample publishing state
+- session manager and transport now expose capture-payload publishing state and payload summaries
+- session manager now exposes source-validated capture video/audio publishing APIs above `transport-webrtc`, and the debug burst uses that same path
+- session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes
+- the CLI host path can now push one debug `capture-core` burst after the peer connection connects
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
 - the Tauri shell now exposes capture backend, permission state, and source selection from `app-core`
+- macOS capture-source listing now attempts runtime application/window enumeration and falls back to blueprint data when the environment blocks it
+- Linux capture-source listing now attempts `wmctrl`-based runtime window enumeration and falls back to blueprint data when the environment blocks it
+- capture catalog diagnostics now surface runtime-vs-fallback origin and backend notes in the GUI
+- capture permission state is now derived from runtime probing and refreshed with the catalog instead of staying a static scaffold value
+- host session guidance now reacts to capture permission readiness instead of only signaling/transport state
+- host source selection now automatically rebinds to the first available source if a refreshed runtime catalog drops the previously selected source
+- session-manager preferences now persist room/signaling/source metadata across resets and Tauri restarts
+- session-manager preferences now also persist custom ICE server entries for later host/viewer reconnects
+- session-manager preferences now also persist desktop auto-refresh enablement and refresh interval
+- desktop session-form drafts now survive background refresh polling until a successful save/start/reset syncs them explicitly
+- transport snapshots and the Tauri UI now surface an ICE path summary derived from candidate-pair stats, including direct-vs-relay hints when a pair is selected
+- the desktop Tauri config now enables macOS `.app` and `.dmg` bundle targets with a real bundle identifier and baseline metadata
+- desktop release support now includes generated Tauri icon assets, package metadata, and helper scripts for icon refresh plus `cargo tauri build`
+- installation, saved-preferences, and troubleshooting guidance now live in a dedicated `docs/INSTALLATION.md`
 
 ## Recommended Next Build Steps
 
-1. Replace placeholder media samples with real captured audio/video input.
+1. Replace debug `capture-core` media bursts with real captured audio/video input.
 2. Implement the `capture-macos` ScreenCaptureKit bridge on top of `capture-core`.
-3. Replace the remaining manual/debug signaling fields in the Tauri GUI with production UX.
+3. Replace the debug `capture-core` payload generator with real permission-aware capture/session bridging on top of the new runtime source catalogs.
 4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.

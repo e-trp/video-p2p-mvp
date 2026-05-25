@@ -6,6 +6,8 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io::{Read, Write};
 use std::net::TcpStream;
+#[cfg(test)]
+use std::os::unix::net::UnixStream;
 
 #[derive(Debug)]
 pub struct SignalingError(pub String);
@@ -26,7 +28,7 @@ pub enum SignalingEvent {
 }
 
 pub struct SignalingConnection {
-    stream: TcpStream,
+    stream: SignalingStream,
     read_buffer: Vec<u8>,
 }
 
@@ -37,19 +39,50 @@ impl SignalingConnection {
         role: Role,
         udp_port: u16,
     ) -> Result<Self, SignalingError> {
-        let mut stream = TcpStream::connect(signaling_addr)
-            .map_err(|error| SignalingError(format!("failed to connect signaling server: {error}")))?;
+        let mut stream = TcpStream::connect(signaling_addr).map_err(|error| {
+            SignalingError(format!("failed to connect signaling server: {error}"))
+        })?;
         let request = format!("JOIN {room} {role} {udp_port}\n");
         stream
             .write_all(request.as_bytes())
             .and_then(|_| stream.flush())
-            .map_err(|error| SignalingError(format!("failed to send signaling join request: {error}")))?;
-        stream
-            .set_nonblocking(true)
-            .map_err(|error| SignalingError(format!("failed to switch signaling socket to nonblocking: {error}")))?;
+            .map_err(|error| {
+                SignalingError(format!("failed to send signaling join request: {error}"))
+            })?;
+        stream.set_nonblocking(true).map_err(|error| {
+            SignalingError(format!(
+                "failed to switch signaling socket to nonblocking: {error}"
+            ))
+        })?;
 
         Ok(Self {
-            stream,
+            stream: SignalingStream::Tcp(stream),
+            read_buffer: Vec::new(),
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_unix_stream_for_tests(
+        mut stream: UnixStream,
+        room: &str,
+        role: Role,
+        udp_port: u16,
+    ) -> Result<Self, SignalingError> {
+        let request = format!("JOIN {room} {role} {udp_port}\n");
+        stream
+            .write_all(request.as_bytes())
+            .and_then(|_| stream.flush())
+            .map_err(|error| {
+                SignalingError(format!("failed to send signaling join request: {error}"))
+            })?;
+        stream.set_nonblocking(true).map_err(|error| {
+            SignalingError(format!(
+                "failed to switch signaling socket to nonblocking: {error}"
+            ))
+        })?;
+
+        Ok(Self {
+            stream: SignalingStream::Unix(stream),
             read_buffer: Vec::new(),
         })
     }
@@ -87,8 +120,9 @@ impl SignalingConnection {
 
             if trimmed.starts_with("SIG|") {
                 events.push(SignalingEvent::Message(
-                    decode_signaling_message(trimmed)
-                        .map_err(|error| SignalingError(format!("invalid signaling message: {error}")))?,
+                    decode_signaling_message(trimmed).map_err(|error| {
+                        SignalingError(format!("invalid signaling message: {error}"))
+                    })?,
                 ));
                 continue;
             }
@@ -99,7 +133,7 @@ impl SignalingConnection {
                 Err(error) => {
                     return Err(SignalingError(format!(
                         "unexpected signaling server response: {error}"
-                    )))
+                    )));
                 }
             }
         }
@@ -113,5 +147,39 @@ impl SignalingConnection {
             .write_all(encoded.as_bytes())
             .and_then(|_| self.stream.flush())
             .map_err(|error| SignalingError(format!("failed to send signaling message: {error}")))
+    }
+}
+
+enum SignalingStream {
+    Tcp(TcpStream),
+    #[cfg(test)]
+    Unix(UnixStream),
+}
+
+impl Read for SignalingStream {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Tcp(stream) => stream.read(buf),
+            #[cfg(test)]
+            Self::Unix(stream) => stream.read(buf),
+        }
+    }
+}
+
+impl Write for SignalingStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Tcp(stream) => stream.write(buf),
+            #[cfg(test)]
+            Self::Unix(stream) => stream.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Tcp(stream) => stream.flush(),
+            #[cfg(test)]
+            Self::Unix(stream) => stream.flush(),
+        }
     }
 }
