@@ -113,3 +113,4 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - `capture-core` as the shared Rust-side model for future native capture backends
 - a lightweight local session-preferences store in `app-core` for restoring room/signaling/source choices between desktop launches
 - the same desktop preferences store now also carries UI polling preferences so the Tauri shell can restore its auto-refresh cadence without relying on frontend-local storage
+- the session manager can now rebuild the current host/viewer role in place for manual reconnect attempts without requiring a full application reset

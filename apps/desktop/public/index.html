@@ -21,7 +21,7 @@
       <section class="grid">
         <article class="card">
           <h2>Session Control</h2>
-          <p class="hint">This interface now drives the Rust session manager, signaling TCP link, attached host media tracks, and the real PeerConnection bootstrap path through Tauri commands.</p>
+          <p class="hint">This interface now drives the Rust session manager, signaling TCP link, attached host media tracks, the real PeerConnection bootstrap path, and manual reconnect attempts through Tauri commands.</p>
           <form id="session-form" class="form">
             <label>
               <span>Room</span>
@@ -60,6 +60,7 @@
               <button type="button" id="save-btn" class="secondary">Save Config</button>
               <button type="button" id="host-btn">Prepare Host</button>
               <button type="button" id="join-btn" class="secondary">Prepare Viewer</button>
+              <button type="button" id="reconnect-btn" class="ghost">Reconnect</button>
               <button type="button" id="stop-btn" class="ghost">Stop</button>
               <button type="button" id="reset-btn" class="ghost">Reset</button>
             </div>

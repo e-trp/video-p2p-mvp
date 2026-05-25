@@ -77,10 +77,13 @@ This regenerates the desktop icons, changes into `apps/desktop/src-tauri`, and r
 - `Save Config`: save the current room, signaling address, and ICE server list into the local session-preferences file used by the desktop shell
 - `Prepare Host`: create a host-side WebRTC session, connect signaling, and automatically send the first local offer when signaling is available
 - `Prepare Viewer`: create a viewer-side WebRTC session and connect signaling
+- `Reconnect`: rebuild the current host or viewer session with the active room, signaling address, and ICE server configuration
 - `Stop`: close the current session
 - `Reset`: reset session state back to idle
 
 While auto-refresh is running, the desktop shell now keeps in-progress `Room`, `Signaling`, and `ICE Servers` edits intact instead of overwriting them with the latest snapshot on every poll. Those fields are synchronized explicitly after successful save/start/reset actions.
+
+If those fields have unsaved edits when you click `Reconnect`, the GUI first saves the edited room/signaling/ICE values into the session manager and then starts the reconnect attempt with that updated configuration.
 
 ### Capture Source
 
@@ -141,6 +144,8 @@ This smoke path now goes through the same session-facing publish validation that
 - audio payloads are rejected when the current selection has `Include Audio` turned off
 
 Host-side offer creation, answer delivery, and ICE now flow automatically through the signaling server during refresh. The remaining manual control is only there to smoke-test media publication before real capture is wired.
+
+If signaling dies or you stop a session intentionally, the `Reconnect` action reinitializes the current host/viewer role instead of forcing a full `Reset` followed by another manual prepare step.
 
 ### Status And Snapshot
 

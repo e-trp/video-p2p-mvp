@@ -43,6 +43,7 @@ The backend around the GUI has moved one step forward:
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
 - session config now includes editable ICE server entries that persist through the desktop preferences store
 - transport diagnostics now include an ICE path summary derived from candidate-pair stats so the GUI can hint whether the current route looks direct or relay-backed
+- the desktop shell now exposes a reconnect action that reuses the active backend session configuration instead of requiring a full reset/re-prepare cycle
 
 ## Intended GUI Responsibilities
 
@@ -84,6 +85,7 @@ The current Tauri UI is wired to the session manager and supports:
 - saving session configuration
 - preparing host or viewer session states with a live signaling connection
 - auto-creating and sending the first local offer from the host path
+- reconnecting the current host/viewer session after a stop or signaling failure
 - publishing synthetic `capture-core` audio/video payloads into the attached host tracks
 - polling signaling through repeated snapshot refresh
 - auto-applying remote offer/answer/ICE during refresh

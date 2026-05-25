@@ -28,6 +28,10 @@ function clearSessionFieldDrafts() {
   dirtySessionFields.clear();
 }
 
+function hasDirtySessionFields() {
+  return dirtySessionFields.size > 0;
+}
+
 function syncSessionFieldValue(id, value, force = false) {
   const field = document.getElementById(id);
   if (!field) {
@@ -331,6 +335,24 @@ async function updateUiPreferences() {
   }
 }
 
+async function reconnectSession() {
+  if (hasDirtySessionFields()) {
+    const values = formValues();
+    const updateResult = await runCommand("update_session_config", values, {
+      forceFormSync: true,
+      clearDraftOnSuccess: true,
+    });
+    if (!updateResult?.ok) {
+      return;
+    }
+  }
+
+  await runCommand("reconnect_session", {}, {
+    forceFormSync: true,
+    clearDraftOnSuccess: true,
+  });
+}
+
 async function applySelectedSource() {
   if (!isTauri) {
     return;
@@ -403,6 +425,8 @@ async function load() {
   document.getElementById("stop-btn").addEventListener("click", async () => {
     await runCommand("stop_session");
   });
+
+  document.getElementById("reconnect-btn").addEventListener("click", reconnectSession);
 
   document.getElementById("reset-btn").addEventListener("click", async () => {
     await runCommand("reset_session", {}, {

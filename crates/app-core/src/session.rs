@@ -466,6 +466,57 @@ impl SessionManager {
         self.publish_debug_capture_samples()
     }
 
+    pub fn reconnect(&mut self) -> Result<SessionSnapshot, String> {
+        let mode = self.state.mode;
+        if mode == SessionMode::Idle {
+            return Err("cannot reconnect before preparing a host or viewer session".to_string());
+        }
+
+        let room = self
+            .state
+            .room
+            .clone()
+            .ok_or_else(|| "cannot reconnect without a configured room".to_string())?;
+        let signaling_addr =
+            self.state.signaling_addr.clone().ok_or_else(|| {
+                "cannot reconnect without a configured signaling address".to_string()
+            })?;
+        let source_label = self.state.source_label.clone();
+        let ice_servers = self.state.ice_servers.clone();
+
+        self.disconnect_active_session();
+
+        let snapshot = match mode {
+            SessionMode::Host => {
+                self.push_log(format!(
+                    "reconnecting host session for room={} signaling={}",
+                    room, signaling_addr
+                ));
+                self.start_host(SessionIntent {
+                    room,
+                    signaling_addr,
+                    source_label,
+                    ice_servers,
+                })
+            }
+            SessionMode::Viewer => {
+                self.push_log(format!(
+                    "reconnecting viewer session for room={} signaling={}",
+                    room, signaling_addr
+                ));
+                self.start_viewer(SessionIntent {
+                    room,
+                    signaling_addr,
+                    source_label: None,
+                    ice_servers,
+                })
+            }
+            SessionMode::Idle => unreachable!(),
+        };
+
+        Ok(snapshot)
+    }
+
     pub fn stop(&mut self) -> SessionSnapshot {
         if let Some(webrtc) = self.state.webrtc.as_mut() {
             if let Err(error) = webrtc.close() {
@@ -849,6 +900,18 @@ impl SessionManager {
         }
     }
 
+    fn disconnect_active_session(&mut self) {
+        if let Some(webrtc) = self.state.webrtc.as_mut() {
+            if let Err(error) = webrtc.close() {
+                self.push_log(format!("failed to close WebRTC transport: {error}"));
+            }
+        }
+        self.state.signaling = None;
+        self.state.signaling_connected = false;
+        self.state.active_peer = None;
+        self.state.last_signaling_message = None;
+    }
+
     fn validate_capture_publish_request(
         &self,
         source_id: &str,
@@ -1140,7 +1203,7 @@ impl SessionManager {
             (_, _, SessionTransport::MockUdp) => {
                 "legacy mock UDP mode is still available for media scaffold work"
             }
-            (_, SessionStage::Stopped, _) => "restart or reset session",
+            (_, SessionStage::Stopped, _) => "reconnect, restart, or reset session",
             (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
                 "peer connection is live; feed capture samples into the attached tracks or push debug capture samples for transport smoke testing"
             }
@@ -1172,7 +1235,7 @@ impl SessionManager {
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
                 if !self.state.signaling_connected =>
             {
-                "start signaling server or fix the signaling address"
+                "start signaling server or fix the signaling address, then reconnect"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
                 if transport_snapshot
@@ -1192,7 +1255,7 @@ impl SessionManager {
             (SessionMode::Viewer, _, SessionTransport::LiveWebRtc)
                 if !self.state.signaling_connected =>
             {
-                "start signaling server or fix the signaling address"
+                "start signaling server or fix the signaling address, then reconnect"
             }
             (SessionMode::Viewer, _, SessionTransport::LiveWebRtc) if !remote_description_ready => {
                 "wait for host offer and keep refreshing signaling"
@@ -1424,7 +1487,7 @@ mod tests {
         assert!(!snapshot.local_audio_track_attached);
         assert!(matches!(
             snapshot.next_action.as_str(),
-            "start signaling server or fix the signaling address"
+            "start signaling server or fix the signaling address, then reconnect"
                 | "wait for host offer or refresh signaling"
                 | "wait for host offer and keep refreshing signaling"
                 | "keep refreshing signaling until the peer connection is connected"
@@ -1518,6 +1581,75 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("session stopped"))
         );
+        assert_eq!(snapshot.next_action, "reconnect, restart, or reset session");
+    }
+
+    #[test]
+    fn reconnect_rejects_idle_session() {
+        let mut manager = SessionManager::new();
+
+        let error = manager
+            .reconnect()
+            .expect_err("idle session should not reconnect");
+        assert_eq!(
+            error,
+            "cannot reconnect before preparing a host or viewer session"
+        );
+    }
+
+    #[test]
+    fn stopped_host_session_can_reconnect_with_existing_config() {
+        let (mut manager, config_dir) = new_test_manager("reconnect-stopped-host");
+        manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
+        });
+        manager.stop();
+
+        let snapshot = manager.reconnect().expect("reconnect host");
+
+        assert_eq!(snapshot.mode, SessionMode::Host);
+        assert_eq!(snapshot.room.as_deref(), Some("demo"));
+        assert_eq!(snapshot.signaling_addr.as_deref(), Some("127.0.0.1:7000"));
+        assert_eq!(snapshot.transport, SessionTransport::LiveWebRtc);
+        assert_eq!(snapshot.local_media_track_count, 2);
+        assert!(snapshot.logs.iter().any(|line| {
+            line.contains("reconnecting host session for room=demo signaling=127.0.0.1:7000")
+        }));
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn stopped_viewer_session_reconnects_with_updated_config() {
+        let (mut manager, config_dir) = new_test_manager("reconnect-stopped-viewer");
+        manager.start_viewer(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: None,
+            ice_servers: Vec::new(),
+        });
+        manager.stop();
+        manager.update_config(
+            Some("second-room".to_string()),
+            Some("127.0.0.1:7200".to_string()),
+            None,
+            Some(Vec::new()),
+        );
+
+        let snapshot = manager.reconnect().expect("reconnect viewer");
+
+        assert_eq!(snapshot.mode, SessionMode::Viewer);
+        assert_eq!(snapshot.room.as_deref(), Some("second-room"));
+        assert_eq!(snapshot.signaling_addr.as_deref(), Some("127.0.0.1:7200"));
+        assert_eq!(snapshot.transport, SessionTransport::LiveWebRtc);
+        assert!(snapshot.logs.iter().any(|line| line.contains(
+            "reconnecting viewer session for room=second-room signaling=127.0.0.1:7200"
+        )));
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]
