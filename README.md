@@ -94,6 +94,7 @@ It now exposes commands for:
 - publishing debug `capture-core` audio/video payloads into the attached host tracks for smoke testing
 - polling signaling with a persisted auto-refresh cadence and auto-applying remote offer/answer/ICE state
 - reconnecting the current host/viewer session with the active room, signaling, and ICE settings after a stop or signaling failure
+- surfacing explicit recovery-state diagnostics in the desktop UI so reconnect guidance is visible without digging through logs
 - surfacing live transport diagnostics from the `PeerConnection` snapshot, including the current direct-vs-relay ICE path summary when available
 - stopping a session
 - reading session logs
@@ -144,6 +145,7 @@ What changed relative to the earlier scaffold:
 - session-manager preferences now also persist desktop auto-refresh enablement and refresh interval
 - desktop session-form drafts now survive background refresh polling until a successful save/start/reset syncs them explicitly
 - the desktop shell now exposes a reconnect action that rebuilds the current host/viewer session using the active backend configuration
+- session snapshots and the desktop GUI now also expose recovery state, recovery reason, and whether reconnect is currently available or recommended
 - transport snapshots and the Tauri UI now surface an ICE path summary derived from candidate-pair stats, including direct-vs-relay hints when a pair is selected
 - the desktop Tauri config now enables macOS `.app` and `.dmg` bundle targets with a real bundle identifier and baseline metadata
 - desktop release support now includes generated Tauri icon assets, package metadata, and helper scripts for icon refresh plus `cargo tauri build`

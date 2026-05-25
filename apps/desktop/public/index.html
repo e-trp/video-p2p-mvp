@@ -102,6 +102,16 @@
         </article>
 
         <article class="card">
+          <h2>Recovery</h2>
+          <p class="hint">This panel summarizes whether the current session looks healthy, whether reconnect is available, and when manual recovery is recommended.</p>
+          <dl id="recovery-status">
+            <div><dt>State</dt><dd>loading...</dd></div>
+            <div><dt>Reconnect</dt><dd>loading...</dd></div>
+            <div><dt>Reason</dt><dd>loading...</dd></div>
+          </dl>
+        </article>
+
+        <article class="card">
           <h2>Transport Smoke Test</h2>
           <p class="hint">Host and viewer signaling now run automatically during refresh. This control synthesizes `capture-core` video/audio payloads and pushes them into the attached host tracks so you can verify the session-facing media bridge before real capture is wired.</p>
           <form class="form">

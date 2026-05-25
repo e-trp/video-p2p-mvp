@@ -86,6 +86,7 @@
 - Done in part: Linux GUI source selection now uses `wmctrl`-based runtime enumeration when available
 - Done in part: background GUI polling no longer overwrites in-progress room/signaling/ICE draft edits, and the desktop shell now exposes persisted auto-refresh controls for tuning that polling loop
 - Done in part: the desktop shell now supports an explicit reconnect action that rebuilds the current host/viewer session with the active room, signaling, and ICE configuration
+- Done in part: the desktop GUI now surfaces explicit recovery-state diagnostics so stopped, disconnected, failed, and healthy session states are visible alongside reconnect guidance
 - Still open: replace metadata-only runtime catalogs with real capture-session enumeration and Wayland portal flow
 
 ## Iteration 5: Audio/Video Pipeline Hardening
@@ -142,4 +143,5 @@
 - Done in part: `app-core` now has broader unit coverage for signaling parser edge cases plus viewer/debug-capture session transition behavior
 - Done in part: `app-core/tests/host_viewer_flow.rs` now exercises host/viewer negotiation and late-join offer replay over a real local TCP signaling path, isolated from any user-local desktop preferences
 - Done in part: `app-core` now has unit coverage for reconnecting stopped host/viewer sessions and rejecting reconnect attempts from idle state
+- Done in part: `app-core` now has unit coverage for recovery diagnostics when signaling is unavailable, plus more stable isolated capture-selection tests
 - Still open: broader QA checklists and real-network validation
