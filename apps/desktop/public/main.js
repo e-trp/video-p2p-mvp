@@ -85,6 +85,50 @@ function setCaptureCatalog(catalog) {
   picker.disabled = catalog.sources.length === 0;
 }
 
+function formatMetricMs(value) {
+  return Number.isFinite(value) ? `${value.toFixed(1)}ms` : "n/a";
+}
+
+function formatMetricBitrate(value) {
+  if (!Number.isFinite(value)) {
+    return "n/a";
+  }
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(2)} Mbps`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)} kbps`;
+  }
+  return `${value.toFixed(0)} bps`;
+}
+
+function formatMetricBytes(value) {
+  if (!Number.isFinite(value)) {
+    return "n/a";
+  }
+  if (value >= 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(2)} MiB`;
+  }
+  if (value >= 1024) {
+    return `${(value / 1024).toFixed(1)} KiB`;
+  }
+  return `${value.toFixed(0)} B`;
+}
+
+function formatPacketLoss(session) {
+  if (!Number.isFinite(session.transport_packet_loss_fraction)) {
+    return Number.isFinite(session.transport_packets_lost)
+      ? `${session.transport_packets_lost} lost`
+      : "n/a";
+  }
+
+  const percent = (session.transport_packet_loss_fraction * 100).toFixed(2);
+  if (Number.isFinite(session.transport_packets_lost)) {
+    return `${percent}% / ${session.transport_packets_lost} lost`;
+  }
+  return `${percent}%`;
+}
+
 function syncCaptureAudioState(catalog) {
   const picker = document.getElementById("source-picker");
   const audioToggle = document.getElementById("source-audio");
@@ -136,6 +180,11 @@ function setSession(session, { forceFormSync = false } = {}) {
     <div><dt>Transport State</dt><dd>${session.transport_state ?? "n/a"}</dd></div>
     <div><dt>Transport Stage</dt><dd>${session.transport_stage ?? "n/a"}</dd></div>
     <div><dt>ICE Path</dt><dd>${session.transport_ice_path_kind ?? "unknown"} / ${session.transport_ice_path_summary ?? "n/a"}</dd></div>
+    <div><dt>RTT</dt><dd>${formatMetricMs(session.transport_rtt_ms)}</dd></div>
+    <div><dt>Outgoing Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_outgoing_bitrate_bps)}</dd></div>
+    <div><dt>Incoming Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_incoming_bitrate_bps)}</dd></div>
+    <div><dt>Link Bytes</dt><dd>${formatMetricBytes(session.transport_bytes_sent)} sent / ${formatMetricBytes(session.transport_bytes_received)} recv</dd></div>
+    <div><dt>Packet Loss</dt><dd>${formatPacketLoss(session)}</dd></div>
     <div><dt>Media Tracks</dt><dd>${session.local_media_track_count ?? 0}</dd></div>
     <div><dt>Video Track</dt><dd>${String(session.local_video_track_attached)}</dd></div>
     <div><dt>Audio Track</dt><dd>${String(session.local_audio_track_attached)}</dd></div>
@@ -158,6 +207,11 @@ function setSession(session, { forceFormSync = false } = {}) {
   document.getElementById("transport-diagnostics").innerHTML = `
     <div><dt>Transport Stage</dt><dd>${session.transport_stage ?? "n/a"}</dd></div>
     <div><dt>ICE Path</dt><dd>${session.transport_ice_path_summary ?? "n/a"}</dd></div>
+    <div><dt>RTT</dt><dd>${formatMetricMs(session.transport_rtt_ms)}</dd></div>
+    <div><dt>Outgoing Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_outgoing_bitrate_bps)}</dd></div>
+    <div><dt>Incoming Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_incoming_bitrate_bps)}</dd></div>
+    <div><dt>Link Bytes</dt><dd>${formatMetricBytes(session.transport_bytes_sent)} sent / ${formatMetricBytes(session.transport_bytes_received)} recv</dd></div>
+    <div><dt>Packet Loss</dt><dd>${formatPacketLoss(session)}</dd></div>
     <div><dt>Data Channel</dt><dd>${String(session.local_data_channel_ready)}</dd></div>
     <div><dt>Stats Reports</dt><dd>${session.transport_stats_report_count ?? 0}</dd></div>
   `;
@@ -266,6 +320,11 @@ async function performRefresh() {
       <div><dt>Transport State</dt><dd>preview</dd></div>
       <div><dt>Transport Stage</dt><dd>preview</dd></div>
       <div><dt>ICE Path</dt><dd>unknown / preview</dd></div>
+      <div><dt>RTT</dt><dd>n/a</dd></div>
+      <div><dt>Outgoing Bitrate</dt><dd>n/a</dd></div>
+      <div><dt>Incoming Bitrate</dt><dd>n/a</dd></div>
+      <div><dt>Link Bytes</dt><dd>n/a / n/a</dd></div>
+      <div><dt>Packet Loss</dt><dd>n/a</dd></div>
       <div><dt>Media Tracks</dt><dd>0</dd></div>
       <div><dt>Video Track</dt><dd>false</dd></div>
       <div><dt>Audio Track</dt><dd>false</dd></div>
@@ -289,6 +348,11 @@ async function performRefresh() {
     document.getElementById("transport-diagnostics").innerHTML = `
       <div><dt>Transport Stage</dt><dd>preview</dd></div>
       <div><dt>ICE Path</dt><dd>preview</dd></div>
+      <div><dt>RTT</dt><dd>n/a</dd></div>
+      <div><dt>Outgoing Bitrate</dt><dd>n/a</dd></div>
+      <div><dt>Incoming Bitrate</dt><dd>n/a</dd></div>
+      <div><dt>Link Bytes</dt><dd>n/a / n/a</dd></div>
+      <div><dt>Packet Loss</dt><dd>n/a</dd></div>
       <div><dt>Data Channel</dt><dd>false</dd></div>
       <div><dt>Stats Reports</dt><dd>0</dd></div>
     `;
