@@ -89,7 +89,7 @@ This currently:
 
 ## Saved Session Preferences
 
-The desktop shell persists room, signaling address, configured ICE servers, and selected source metadata into a local preferences file.
+The desktop shell persists room, signaling address, configured ICE servers, selected source metadata, and desktop auto-refresh preferences into a local preferences file.
 
 Default locations:
 
@@ -109,6 +109,8 @@ ICE server entries are stored as newline-separated values in one of these forms:
 
 - `stun:stun.l.google.com:19302`
 - `turn:turn.example.com:3478?transport=udp|username|credential`
+
+The same file also stores whether automatic GUI refresh polling is enabled and which refresh interval the desktop shell should use on the next launch.
 
 ## STUN/TURN Configuration
 

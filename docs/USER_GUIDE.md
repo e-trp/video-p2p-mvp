@@ -72,18 +72,22 @@ This regenerates the desktop icons, changes into `apps/desktop/src-tauri`, and r
 - `Room`: room name for host/viewer pairing
 - `Signaling`: TCP address of the signaling server
 - `ICE Servers`: optional newline-separated STUN/TURN entries using `url` or `url|username|credential`
+- `Auto Refresh`: enable or disable the background polling loop that refreshes session, signaling, and capture state
+- `Refresh Every`: choose the persisted polling interval used by that background refresh loop
 - `Save Config`: save the current room, signaling address, and ICE server list into the local session-preferences file used by the desktop shell
 - `Prepare Host`: create a host-side WebRTC session, connect signaling, and automatically send the first local offer when signaling is available
 - `Prepare Viewer`: create a viewer-side WebRTC session and connect signaling
 - `Stop`: close the current session
 - `Reset`: reset session state back to idle
 
+While auto-refresh is running, the desktop shell now keeps in-progress `Room`, `Signaling`, and `ICE Servers` edits intact instead of overwriting them with the latest snapshot on every poll. Those fields are synchronized explicitly after successful save/start/reset actions.
+
 ### Capture Source
 
 - `Available Source`: current platform blueprint source list
 - `Include Audio`: stores whether the chosen source should include audio when capture is wired for real
 - changing the picker or audio toggle applies the host-side capture selection immediately
-- the most recent room, signaling address, and source selection are restored automatically on the next desktop launch or session-manager reset
+- the most recent room, signaling address, source selection, and auto-refresh preferences are restored automatically on the next desktop launch or session-manager reset
 
 If you never touch the picker before starting a host session, the first available source is selected automatically.
 

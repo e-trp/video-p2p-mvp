@@ -38,6 +38,8 @@ The backend around the GUI has moved one step forward:
 - host source selection now auto-rebinds when a refreshed runtime catalog drops the previously selected source
 - host startup now defaults to the first available capture source when the user has not selected one explicitly
 - capture picker and audio-toggle changes now apply immediately without a separate confirmation button
+- desktop polling is now user-configurable from the GUI, and its enabled/disabled state plus interval persist through the shared session-preferences store
+- room/signaling/ICE draft edits now survive background refresh polling until a successful session action re-syncs them
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
 - session config now includes editable ICE server entries that persist through the desktop preferences store
 - transport diagnostics now include an ICE path summary derived from candidate-pair stats so the GUI can hint whether the current route looks direct or relay-backed
@@ -76,6 +78,7 @@ This gives the Tauri shell a stable API before the real transport and capture la
 The current Tauri UI is wired to the session manager and supports:
 
 - editing room, signaling, and ICE server fields
+- tuning persisted auto-refresh polling behavior for the desktop shell
 - selecting a platform source and audio preference
 - applying capture-source changes immediately from the picker state
 - saving session configuration
