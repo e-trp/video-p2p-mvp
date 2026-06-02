@@ -68,7 +68,7 @@ This MVP does **not** yet provide:
 - real screen capture
 - real audio capture
 - real captured media flowing through WebRTC
-- STUN/TURN
+- bundled STUN/TURN deployment defaults
 - codecs
 - encryption
 
@@ -86,4 +86,4 @@ This MVP does **not** yet provide:
 2. Replace debug `capture-core` bursts with real macOS capture using ScreenCaptureKit.
 3. Implement Linux Wayland capture using Portal + PipeWire.
 4. Add room lifecycle and authentication to signaling.
-5. Add connection diagnostics and bitrate controls.
+5. Add bitrate controls and production network/deployment guidance.

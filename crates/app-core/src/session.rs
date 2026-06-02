@@ -1534,6 +1534,7 @@ fn debug_audio_buffer() -> AudioBuffer {
 #[cfg(test)]
 mod tests {
     use super::{SessionIntent, SessionManager, SessionMode, SessionStage, SessionTransport};
+    use crate::ice_servers::IceServerEntry;
     use crate::preferences::{PreferencesStore, UiPreferences};
     use crate::protocol::{
         PeerAnnouncement, Role, decode_signaling_message, encode_peer, encode_waiting,
@@ -1798,6 +1799,56 @@ mod tests {
     }
 
     #[test]
+    fn reconnect_uses_updated_ice_server_configuration() {
+        let (mut manager, config_dir) = new_test_manager("reconnect-ice-servers");
+        manager.start_viewer(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: None,
+            ice_servers: Vec::new(),
+        });
+        manager.stop();
+
+        manager.update_config(
+            None,
+            None,
+            None,
+            Some(vec![
+                IceServerEntry {
+                    urls: vec!["stun:stun.example.com:3478".to_string()],
+                    username: None,
+                    credential: None,
+                },
+                IceServerEntry {
+                    urls: vec!["turn:turn.example.com:3478?transport=udp".to_string()],
+                    username: Some("viewer".to_string()),
+                    credential: Some("secret".to_string()),
+                },
+            ]),
+        );
+
+        let snapshot = manager.reconnect().expect("reconnect viewer");
+
+        assert_eq!(snapshot.ice_server_count, 2);
+        assert!(snapshot.ice_servers.contains("stun:stun.example.com:3478"));
+        assert!(
+            snapshot
+                .ice_servers
+                .contains("turn:turn.example.com:3478?transport=udp|viewer|secret")
+        );
+        assert!(snapshot.ice_server_summary.contains("auth user viewer"));
+        assert!(
+            snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("ICE server configuration:")
+                    && line.contains("auth user viewer"))
+        );
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
     fn host_session_can_publish_debug_capture_media() {
         let (mut manager, config_dir) = new_test_manager("debug-capture-publish");
         manager.start_host(SessionIntent {
@@ -1902,21 +1953,28 @@ mod tests {
 
         for _ in 0..5 {
             let _ = manager.reset();
-            let (source, _requested_audio, selected_snapshot) =
+            let (_source, _requested_audio, selected_snapshot) =
                 select_source_with_retry(&mut manager, |source| {
                     source.has_audio.then_some((source, false))
                 });
             assert!(!selected_snapshot.selected_source_audio);
 
-            manager.start_host(SessionIntent {
+            let host_snapshot = manager.start_host(SessionIntent {
                 room: "demo".to_string(),
                 signaling_addr: "127.0.0.1:7000".to_string(),
                 source_label: Some("vlc".to_string()),
                 ice_servers: Vec::new(),
             });
 
-            let snapshot =
-                manager.publish_capture_audio_buffer(source.id, super::debug_audio_buffer());
+            let Some(selected_source_id) = host_snapshot.selected_source_id.clone() else {
+                continue;
+            };
+            if host_snapshot.selected_source_audio {
+                continue;
+            }
+
+            let snapshot = manager
+                .publish_capture_audio_buffer(selected_source_id, super::debug_audio_buffer());
 
             if snapshot.published_audio_sample_count == 0 {
                 assert!(snapshot.logs.iter().any(|line| {
@@ -2475,6 +2533,7 @@ mod tests {
         manager: &mut SessionManager,
     ) -> super::SessionSnapshot {
         for _ in 0..5 {
+            let before = manager.snapshot();
             let (_source, _requested_audio, selected_snapshot) =
                 select_source_with_retry(manager, |source| {
                     source.has_audio.then_some((source, false))
@@ -2482,8 +2541,8 @@ mod tests {
             assert!(!selected_snapshot.selected_source_audio);
 
             let snapshot = manager.publish_debug_capture_samples();
-            if snapshot.published_video_sample_count == 1
-                && snapshot.published_audio_sample_count == 0
+            if snapshot.published_video_sample_count > before.published_video_sample_count
+                && snapshot.published_audio_sample_count == before.published_audio_sample_count
             {
                 return snapshot;
             }
@@ -2496,6 +2555,7 @@ mod tests {
         manager: &mut SessionManager,
     ) -> super::SessionSnapshot {
         for _ in 0..5 {
+            let before = manager.snapshot();
             let (_source, _requested_audio, selected_snapshot) =
                 select_source_with_retry(manager, |source| {
                     source.has_audio.then_some((source, true))
@@ -2503,8 +2563,8 @@ mod tests {
             assert!(selected_snapshot.selected_source_audio);
 
             let snapshot = manager.publish_debug_capture_samples();
-            if snapshot.published_video_sample_count == 1
-                && snapshot.published_audio_sample_count == 1
+            if snapshot.published_video_sample_count > before.published_video_sample_count
+                && snapshot.published_audio_sample_count > before.published_audio_sample_count
             {
                 return snapshot;
             }

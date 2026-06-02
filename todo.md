@@ -145,4 +145,5 @@
 - Done in part: `app-core/tests/host_viewer_flow.rs` now exercises host/viewer negotiation and late-join offer replay over a real local TCP signaling path, isolated from any user-local desktop preferences
 - Done in part: `app-core` now has unit coverage for reconnecting stopped host/viewer sessions and rejecting reconnect attempts from idle state
 - Done in part: `app-core` now has unit coverage for recovery diagnostics when signaling is unavailable, plus more stable isolated capture-selection tests
+- Done in part: manual QA coverage for current MVP behavior now lives in `docs/QA_CHECKLIST.md`
 - Still open: broader QA checklists and real-network validation

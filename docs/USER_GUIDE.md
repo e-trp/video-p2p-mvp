@@ -10,11 +10,12 @@ This repository is still an MVP. Today it can already provide:
 - configurable ICE server entries for custom STUN/TURN traversal
 - attached placeholder host audio/video tracks
 - debug `capture-core` media payload publishing for transport smoke testing
-- a source picker fed by the current `capture-core` platform blueprint data
+- a source picker fed by current platform capture metadata, with runtime enumeration when available and blueprint fallback otherwise
 
 It does **not** yet provide real OS screen capture, real system audio capture, bundled STUN/TURN deployment defaults, or production invite/auth flows.
 
 For setup, release build notes, and troubleshooting, see `docs/INSTALLATION.md`.
+For manual validation before a release candidate, see `docs/QA_CHECKLIST.md`.
 
 ## Requirements
 
