@@ -1,3 +1,6 @@
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CapturePermissionState {
     Unknown,
@@ -132,12 +135,75 @@ impl CaptureStreamEvent {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaptureStreamError {
+    message: String,
+}
+
+impl CaptureStreamError {
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+impl Display for CaptureStreamError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl Error for CaptureStreamError {}
+
+pub type CaptureStreamResult<T> = Result<T, CaptureStreamError>;
+
+pub trait CaptureStreamRuntime {
+    fn start(&mut self, config: CaptureStreamConfig) -> CaptureStreamResult<()>;
+    fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>>;
+    fn stop(&mut self) -> CaptureStreamResult<()>;
+    fn status(&self) -> CaptureStreamStatus;
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         AudioBuffer, CapturePermissionState, CaptureSelection, CaptureSource, CaptureSourceKind,
-        CaptureStreamConfig, CaptureStreamEvent, CaptureStreamStatus, VideoFrame, VideoPixelFormat,
+        CaptureStreamConfig, CaptureStreamError, CaptureStreamEvent, CaptureStreamResult,
+        CaptureStreamRuntime, CaptureStreamStatus, VideoFrame, VideoPixelFormat,
     };
+
+    struct RecordingRuntime {
+        status: CaptureStreamStatus,
+        events: Vec<CaptureStreamEvent>,
+    }
+
+    impl CaptureStreamRuntime for RecordingRuntime {
+        fn start(&mut self, config: CaptureStreamConfig) -> CaptureStreamResult<()> {
+            self.status = CaptureStreamStatus::Running;
+            self.events.push(CaptureStreamEvent::Started {
+                source_id: config.source_id().to_string(),
+            });
+            Ok(())
+        }
+
+        fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Ok(std::mem::take(&mut self.events))
+        }
+
+        fn stop(&mut self) -> CaptureStreamResult<()> {
+            self.status = CaptureStreamStatus::Stopped;
+            Ok(())
+        }
+
+        fn status(&self) -> CaptureStreamStatus {
+            self.status
+        }
+    }
 
     #[test]
     fn capture_source_label_prefers_app_name_when_present() {
@@ -213,5 +279,40 @@ mod tests {
 
         assert_eq!(frame_event.source_id(), Some("window-1"));
         assert_eq!(status_event.source_id(), None);
+    }
+
+    #[test]
+    fn stream_runtime_contract_drains_events_and_tracks_status() {
+        let mut runtime = RecordingRuntime {
+            status: CaptureStreamStatus::Stopped,
+            events: Vec::new(),
+        };
+
+        runtime
+            .start(CaptureStreamConfig {
+                selection: CaptureSelection {
+                    source_id: "window-1".to_string(),
+                    include_audio: false,
+                },
+                target_fps: None,
+                max_width: None,
+                max_height: None,
+            })
+            .expect("start runtime");
+
+        assert_eq!(runtime.status(), CaptureStreamStatus::Running);
+        assert_eq!(runtime.poll_events().expect("poll events").len(), 1);
+        assert!(runtime.poll_events().expect("poll again").is_empty());
+
+        runtime.stop().expect("stop runtime");
+        assert_eq!(runtime.status(), CaptureStreamStatus::Stopped);
+    }
+
+    #[test]
+    fn stream_error_displays_message() {
+        let error = CaptureStreamError::new("capture backend unavailable");
+
+        assert_eq!(error.message(), "capture backend unavailable");
+        assert_eq!(error.to_string(), "capture backend unavailable");
     }
 }

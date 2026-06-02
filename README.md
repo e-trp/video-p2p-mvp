@@ -134,6 +134,7 @@ What changed relative to the earlier scaffold:
 - session manager and transport now expose capture-payload publishing state and payload summaries
 - session manager now exposes source-validated capture video/audio publishing APIs above `transport-webrtc`, and the debug burst uses that same path
 - `capture-core` now defines live capture stream config/status/event contracts, and `app-core` can ingest those events into the same source-validated WebRTC publishing path
+- `capture-core` now also exposes a shared capture stream runtime trait, with planned macOS/Linux runtime scaffolds ready for native bridge implementations
 - session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes
 - the CLI host path can now push one debug `capture-core` burst after the peer connection connects
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads

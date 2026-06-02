@@ -54,12 +54,14 @@ Cross-platform capture contracts that now exist in code:
 - source and permission metadata
 - capture selection payloads
 - live capture stream config, status, and event payloads
+- a shared capture stream runtime trait for platform backends to implement
 - raw video frame and audio buffer shapes
 - a shared Rust model that macOS/Linux backends can target
 
 ### `capture-macos`
 
 - native ScreenCaptureKit bridge
+- shared runtime scaffold that reports structured planned/permission status until the native bridge lands
 - video frame extraction
 - audio sample extraction
 - permission handling
@@ -67,6 +69,7 @@ Cross-platform capture contracts that now exist in code:
 ### `capture-linux-wayland`
 
 - portal session lifecycle
+- shared runtime scaffold that reports structured planned/permission status until Portal/PipeWire capture lands
 - PipeWire stream setup
 - frame and audio sample handling
 

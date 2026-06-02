@@ -38,6 +38,7 @@
 
 - Done in part: `capture-core` now exists for shared source, permission, video-frame, and audio-buffer types
 - Done in part: `capture-core` now also defines live capture stream config/status/event contracts for native backends to emit video/audio samples without using the debug burst path
+- Done in part: `capture-core` now exposes a common capture stream runtime trait, and macOS/Linux crates provide planned runtime scaffolds that emit structured status/stop events until native bridges are implemented
 - Done in part: `capture-macos` now exposes a best-effort runtime application/window catalog with blueprint fallback
 - Done in part: runtime probing on macOS now maps catalog results into live permission-state diagnostics
 - Done in part: Tauri/app-core now surface the current platform capture catalog and selected source metadata
@@ -58,6 +59,7 @@
 
 - Done in part: `capture-linux` now exposes a best-effort `wmctrl`-based runtime window catalog with blueprint fallback
 - Done in part: runtime probing on Linux now maps catalog results into live permission-state diagnostics
+- Done in part: `capture-linux` now has a planned Portal/PipeWire runtime scaffold implementing the shared capture stream runtime contract
 - Still open: real portal session lifecycle, PipeWire media consumption, and robust Wayland coverage
 
 ## Iteration 4: Tauri Production Flow
