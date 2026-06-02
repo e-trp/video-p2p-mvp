@@ -20,6 +20,7 @@ The repository now includes a desktop scaffold in `apps/desktop`:
 - initial commands for reading project status and the saved specification
 - session manager hooks for `host`, `join`, `stop`, `status`, and `logs`
 - UI controls for config save, host/viewer prep, transport smoke testing, reset, refresh, and log clearing
+- manual QA coverage is now tracked in `docs/QA_CHECKLIST.md`
 
 The backend around the GUI has moved one step forward:
 

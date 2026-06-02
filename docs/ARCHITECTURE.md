@@ -88,7 +88,7 @@ Cross-platform capture contracts that now exist in code:
 
 - no attempt at production NAT traversal
 - no media relay
-- no persistence layer
+- no production persistence layer beyond local desktop session preferences
 - no encryption beyond what the transport would later provide
 
 ## Current Signaling Progress

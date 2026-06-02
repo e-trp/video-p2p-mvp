@@ -17,6 +17,7 @@ The repository now has two layers:
 - `docs/SPECIFICATION.md`: saved product instruction
 - `docs/USER_GUIDE.md`: how to run the Tauri GUI and what works today
 - `docs/INSTALLATION.md`: setup, release build, and troubleshooting notes
+- `docs/QA_CHECKLIST.md`: manual QA checklist for current MVP behavior
 - `docs/ARCHITECTURE.md`: architecture notes
 - `docs/GUI_TAURI.md`: GUI plan
 - `todo.md`: remaining project work by iteration
@@ -116,6 +117,7 @@ This is not yet a real screen-sharing application. It does not currently include
 - real audio/video codecs
 - bundled STUN/TURN deployment defaults
 - production GUI workflow
+- production signing/notarization flow
 
 What changed relative to the earlier scaffold:
 
