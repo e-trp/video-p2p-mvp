@@ -37,11 +37,13 @@
 ### Iteration 2 Progress
 
 - Done in part: `capture-core` now exists for shared source, permission, video-frame, and audio-buffer types
+- Done in part: `capture-core` now also defines live capture stream config/status/event contracts for native backends to emit video/audio samples without using the debug burst path
 - Done in part: `capture-macos` now exposes a best-effort runtime application/window catalog with blueprint fallback
 - Done in part: runtime probing on macOS now maps catalog results into live permission-state diagnostics
 - Done in part: Tauri/app-core now surface the current platform capture catalog and selected source metadata
 - Done in part: session manager and `transport-webrtc` now accept debug `capture-core` video/audio payloads, including source-audio opt-out during smoke tests
 - Done in part: `app-core::SessionManager` now exposes source-validated capture video/audio publish APIs that future native backends can target directly
+- Done in part: `app-core::SessionManager` now ingests live `capture-core` stream events and maps media events into the same source-validated WebRTC publishing pipeline
 - Still open: the actual ScreenCaptureKit bridge, permission flow, and live sample delivery
 
 ## Iteration 3: Linux Capture Backend
@@ -72,6 +74,7 @@
 - Done in part: GUI session actions already drive real signaling, negotiation, and debug capture media publishing
 - Done in part: GUI transport smoke test now drives a debug `capture-core` media bridge instead of hardcoded anonymous sample bytes
 - Done in part: the debug GUI publish path now uses the same source-validated session ingest API planned for future native capture backends
+- Done in part: session orchestration now has a production-facing live capture event ingestion API, so native backend events can enter the pipeline without going through GUI debug publishing
 - Done in part: source picker UI now exists, backed by the current platform capture catalog blueprint data
 - Done in part: GUI now surfaces transport-stage, data-channel, and transport-note diagnostics from the live WebRTC layer
 - Done in part: GUI now surfaces capture-catalog origin and backend notes for runtime-vs-fallback diagnostics

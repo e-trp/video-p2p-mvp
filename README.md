@@ -133,6 +133,7 @@ What changed relative to the earlier scaffold:
 - session snapshots and the Tauri UI now expose local media-track attachment state
 - session manager and transport now expose capture-payload publishing state and payload summaries
 - session manager now exposes source-validated capture video/audio publishing APIs above `transport-webrtc`, and the debug burst uses that same path
+- `capture-core` now defines live capture stream config/status/event contracts, and `app-core` can ingest those events into the same source-validated WebRTC publishing path
 - session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes
 - the CLI host path can now push one debug `capture-core` burst after the peer connection connects
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
@@ -160,5 +161,5 @@ What changed relative to the earlier scaffold:
 
 1. Replace debug `capture-core` media bursts with real captured audio/video input.
 2. Implement the `capture-macos` ScreenCaptureKit bridge on top of `capture-core`.
-3. Replace the debug `capture-core` payload generator with real permission-aware capture/session bridging on top of the new runtime source catalogs.
+3. Wire native capture stream events into the existing `SessionManager::ingest_capture_stream_event` path with real permission-aware capture/session lifecycle control.
 4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.

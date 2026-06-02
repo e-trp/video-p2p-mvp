@@ -12,6 +12,7 @@ The current repository can already provide:
 - live WebRTC negotiation between host and viewer
 - configurable STUN/TURN ICE server settings for CLI and desktop runs
 - debug `capture-core` media bursts for transport validation
+- backend-facing live capture stream events and session ingestion for future native samples
 
 It does **not** yet provide:
 
@@ -198,6 +199,7 @@ Today the repo supports:
 - live WebRTC negotiation
 - attached placeholder tracks
 - debug `capture-core` payload publishing
+- a `capture-core` stream event contract that native capture backends can feed later
 
 It does not yet support real OS-captured audio/video delivery into those tracks.
 

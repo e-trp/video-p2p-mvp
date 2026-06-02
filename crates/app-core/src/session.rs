@@ -9,7 +9,8 @@ use crate::protocol::{
 };
 use crate::signaling::{SignalingConnection, SignalingEvent};
 use capture_core::{
-    AudioBuffer, CapturePermissionState, CaptureSelection, VideoFrame, VideoPixelFormat,
+    AudioBuffer, CapturePermissionState, CaptureSelection, CaptureStreamEvent, CaptureStreamStatus,
+    VideoFrame, VideoPixelFormat,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 use transport_webrtc::{
@@ -448,6 +449,53 @@ impl SessionManager {
         }
 
         self.snapshot()
+    }
+
+    pub fn ingest_capture_stream_event(&mut self, event: CaptureStreamEvent) -> SessionSnapshot {
+        match event {
+            CaptureStreamEvent::Started { source_id } => {
+                if let Err(message) = self.validate_capture_publish_request(&source_id, false) {
+                    self.push_log(message);
+                } else {
+                    self.push_log(format!("capture stream started for source={source_id}"));
+                }
+                self.snapshot()
+            }
+            CaptureStreamEvent::StatusChanged {
+                source_id,
+                status,
+                message,
+            } => {
+                let source = source_id.unwrap_or_else(|| "unknown".to_string());
+                let detail = message.unwrap_or_else(|| "no detail".to_string());
+                self.push_log(format!(
+                    "capture stream status changed for source={source}: {} ({detail})",
+                    format_capture_stream_status(status)
+                ));
+                self.snapshot()
+            }
+            CaptureStreamEvent::VideoFrame { source_id, frame } => {
+                self.publish_capture_video_frame(source_id, frame)
+            }
+            CaptureStreamEvent::AudioBuffer { source_id, buffer } => {
+                self.publish_capture_audio_buffer(source_id, buffer)
+            }
+            CaptureStreamEvent::Stopped { source_id, reason } => {
+                let source = source_id.unwrap_or_else(|| "unknown".to_string());
+                let reason = reason.unwrap_or_else(|| "no reason provided".to_string());
+                self.push_log(format!(
+                    "capture stream stopped for source={source}: {reason}"
+                ));
+                self.snapshot()
+            }
+            CaptureStreamEvent::Error { source_id, message } => {
+                let source = source_id.unwrap_or_else(|| "unknown".to_string());
+                self.push_log(format!(
+                    "capture stream error for source={source}: {message}"
+                ));
+                self.snapshot()
+            }
+        }
     }
 
     pub fn publish_debug_capture_samples(&mut self) -> SessionSnapshot {
@@ -1468,6 +1516,17 @@ fn format_transport_stage(stage: TransportStage) -> String {
     .to_string()
 }
 
+fn format_capture_stream_status(status: CaptureStreamStatus) -> &'static str {
+    match status {
+        CaptureStreamStatus::Starting => "starting",
+        CaptureStreamStatus::Running => "running",
+        CaptureStreamStatus::Stopped => "stopped",
+        CaptureStreamStatus::PermissionRequired => "permission_required",
+        CaptureStreamStatus::PermissionDenied => "permission_denied",
+        CaptureStreamStatus::Failed => "failed",
+    }
+}
+
 fn stamp(message: &str) -> String {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1541,7 +1600,7 @@ mod tests {
         parse_join_request,
     };
     use crate::signaling::SignalingConnection;
-    use capture_core::{CaptureSource, CaptureSourceKind};
+    use capture_core::{CaptureSource, CaptureSourceKind, CaptureStreamEvent, CaptureStreamStatus};
     use std::collections::HashMap;
     use std::fs;
     use std::io::{BufRead, BufReader, Write};
@@ -1911,6 +1970,76 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("audio skipped by capture selection"))
         );
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn host_session_ingests_capture_stream_media_events() {
+        let (mut manager, config_dir) = new_test_manager("capture-stream-events");
+        let (source, _requested_audio, _snapshot) =
+            select_source_with_retry(&mut manager, |source| {
+                source.has_audio.then_some((source, true))
+            });
+
+        manager.select_capture_source(source.id.clone(), true);
+        let host_snapshot = manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
+        });
+        let source_id = host_snapshot
+            .selected_source_id
+            .expect("host source should be selected");
+
+        manager.ingest_capture_stream_event(CaptureStreamEvent::Started {
+            source_id: source_id.clone(),
+        });
+        let after_video = manager.ingest_capture_stream_event(CaptureStreamEvent::VideoFrame {
+            source_id: source_id.clone(),
+            frame: super::debug_video_frame(&source_id),
+        });
+        let after_audio = manager.ingest_capture_stream_event(CaptureStreamEvent::AudioBuffer {
+            source_id: source_id.clone(),
+            buffer: super::debug_audio_buffer(),
+        });
+
+        assert_eq!(after_video.published_video_sample_count, 1);
+        assert_eq!(after_audio.published_audio_sample_count, 1);
+        assert!(
+            after_audio
+                .logs
+                .iter()
+                .any(|line| line.contains("capture stream started for source="))
+        );
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn capture_stream_status_and_error_events_are_logged() {
+        let (mut manager, config_dir) = new_test_manager("capture-stream-status-events");
+
+        let status_snapshot =
+            manager.ingest_capture_stream_event(CaptureStreamEvent::StatusChanged {
+                source_id: Some("source-1".to_string()),
+                status: CaptureStreamStatus::PermissionRequired,
+                message: Some("screen recording approval is required".to_string()),
+            });
+        let error_snapshot = manager.ingest_capture_stream_event(CaptureStreamEvent::Error {
+            source_id: Some("source-1".to_string()),
+            message: "capture backend disconnected".to_string(),
+        });
+
+        assert!(status_snapshot.logs.iter().any(|line| {
+            line.contains("capture stream status changed for source=source-1")
+                && line.contains("permission_required")
+        }));
+        assert!(error_snapshot.logs.iter().any(|line| {
+            line.contains("capture stream error for source=source-1")
+                && line.contains("capture backend disconnected")
+        }));
 
         let _ = fs::remove_dir_all(config_dir);
     }

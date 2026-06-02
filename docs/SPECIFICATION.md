@@ -61,6 +61,7 @@ This repository's MVP is intentionally smaller than the final product. It provid
 - a live WebRTC negotiation path with attached host audio/video tracks
 - debug `capture-core` payload publishing for transport smoke tests
 - a session-facing capture publish path that validates the selected source and audio opt-in before transport publication
+- a live capture stream event contract in `capture-core` plus session-manager ingestion for future native capture samples
 - saved specification and documentation
 
 This MVP does **not** yet provide:
