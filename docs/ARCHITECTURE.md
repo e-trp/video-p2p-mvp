@@ -84,6 +84,8 @@ Cross-platform capture contracts that now exist in code:
 - stream status
 - diagnostics
 
+For signaling/STUN/TURN deployment shape and security assumptions, see `docs/NETWORKING.md`.
+
 ## Non-Goals Of The Current MVP
 
 - no attempt at production NAT traversal

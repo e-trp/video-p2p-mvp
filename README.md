@@ -18,6 +18,7 @@ The repository now has two layers:
 - `docs/USER_GUIDE.md`: how to run the Tauri GUI and what works today
 - `docs/INSTALLATION.md`: setup, release build, and troubleshooting notes
 - `docs/QA_CHECKLIST.md`: manual QA checklist for current MVP behavior
+- `docs/NETWORKING.md`: signaling, STUN/TURN, deployment, and security assumptions
 - `docs/ARCHITECTURE.md`: architecture notes
 - `docs/GUI_TAURI.md`: GUI plan
 - `todo.md`: remaining project work by iteration
@@ -153,6 +154,7 @@ What changed relative to the earlier scaffold:
 - the desktop Tauri config now enables macOS `.app` and `.dmg` bundle targets with a real bundle identifier and baseline metadata
 - desktop release support now includes generated Tauri icon assets, package metadata, and helper scripts for icon refresh plus `cargo tauri build`
 - installation, saved-preferences, and troubleshooting guidance now live in a dedicated `docs/INSTALLATION.md`
+- networking and deployment assumptions now live in `docs/NETWORKING.md`
 
 ## Recommended Next Build Steps
 
