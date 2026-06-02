@@ -189,7 +189,9 @@ with attached host audio/video tracks and optional debug `capture-core` payload 
 
 ICE server format:
   --ice-server 'stun:stun.l.google.com:19302'
-  --ice-server 'turn:turn.example.com:3478?transport=udp|username|credential'"
+  --ice-server 'turn:turn.example.com:3478?transport=udp|username|credential'
+
+Accepted ICE URL schemes: stun:, stuns:, turn:, turns:"
     );
 }
 

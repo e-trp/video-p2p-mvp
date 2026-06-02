@@ -73,6 +73,7 @@ This regenerates the desktop icons, changes into `apps/desktop/src-tauri`, and r
 - `Room`: room name for host/viewer pairing
 - `Signaling`: TCP address of the signaling server
 - `ICE Servers`: optional newline-separated STUN/TURN entries using `url` or `url|username|credential`
+  Accepted URL schemes are `stun:`, `stuns:`, `turn:`, and `turns:`.
 - `Auto Refresh`: enable or disable the background polling loop that refreshes session, signaling, and capture state
 - `Refresh Every`: choose the persisted polling interval used by that background refresh loop
 - `Save Config`: save the current room, signaling address, and ICE server list into the local session-preferences file used by the desktop shell
