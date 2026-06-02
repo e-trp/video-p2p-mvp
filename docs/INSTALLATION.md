@@ -110,6 +110,8 @@ ICE server entries are stored as newline-separated values in one of these forms:
 - `stun:stun.l.google.com:19302`
 - `turn:turn.example.com:3478?transport=udp|username|credential`
 
+Accepted URL schemes are `stun:`, `stuns:`, `turn:`, and `turns:`.
+
 The same file also stores whether automatic GUI refresh polling is enabled and which refresh interval the desktop shell should use on the next launch.
 
 ## STUN/TURN Configuration
@@ -129,6 +131,7 @@ cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 \
 ```
 
 In the Tauri desktop shell, enter one ICE server per line in the `ICE Servers` field, then save or prepare the session.
+Invalid URL schemes are rejected before the session is started or saved.
 
 ## Troubleshooting
 

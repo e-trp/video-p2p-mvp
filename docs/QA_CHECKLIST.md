@@ -140,6 +140,7 @@ For local tests, an empty ICE server list is acceptable. For cross-network tests
 3. Add a TURN server with `url|username|credential` format.
 4. Confirm the configured ICE server count and summary are visible in CLI or desktop snapshots.
 5. Check the ICE path summary for direct-vs-relay hints when a selected candidate pair is available.
+6. Try an invalid ICE URL such as `https://turn.example.com` and confirm CLI or desktop validation rejects it before starting the session.
 
 Current limitation:
 
