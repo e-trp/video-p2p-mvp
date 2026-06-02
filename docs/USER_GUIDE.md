@@ -10,6 +10,7 @@ This repository is still an MVP. Today it can already provide:
 - configurable ICE server entries for custom STUN/TURN traversal
 - attached placeholder host audio/video tracks
 - debug `capture-core` media payload publishing for transport smoke testing
+- a backend-facing live capture event ingestion path that native capture implementations can use once they produce OS samples
 - a source picker fed by current platform capture metadata, with runtime enumeration when available and blueprint fallback otherwise
 
 It does **not** yet provide real OS screen capture, real system audio capture, bundled STUN/TURN deployment defaults, or production invite/auth flows.
@@ -160,6 +161,8 @@ This smoke path now goes through the same session-facing publish validation that
 
 - the selected source id must match the payload source being published
 - audio payloads are rejected when the current selection has `Include Audio` turned off
+
+The backend also now accepts live `capture-core` stream events through `SessionManager::ingest_capture_stream_event`. That API is not a user-facing GUI control yet; it is the route native ScreenCaptureKit or Portal/PipeWire implementations should use when they begin emitting real frames and audio buffers.
 
 Host-side offer creation, answer delivery, and ICE now flow automatically through the signaling server during refresh. The remaining manual control is only there to smoke-test media publication before real capture is wired.
 

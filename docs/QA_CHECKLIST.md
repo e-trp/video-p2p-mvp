@@ -42,6 +42,7 @@ Expected result:
 - host accepts the answer
 - both peers report active peer metadata
 - debug capture publishing increments video and, when selected audio is enabled, audio sample counters
+- focused backend tests for `capture-core` stream events and session-manager capture event ingestion pass
 
 ## Desktop Development Run
 
@@ -145,7 +146,7 @@ For local tests, an empty ICE server list is acceptable. For cross-network tests
 Current limitation:
 
 - the repository does not ship a TURN service or auth flow
-- real media delivery still uses placeholder tracks plus debug payload publishing, not OS-captured audio/video
+- real media delivery still uses placeholder tracks plus debug payload publishing; the live capture event ingestion API exists, but no OS backend feeds it yet
 
 Use `docs/NETWORKING.md` as the reference for expected production signaling/STUN/TURN topology and security assumptions.
 

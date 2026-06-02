@@ -40,6 +40,34 @@ pub struct CaptureSelection {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureStreamStatus {
+    Starting,
+    Running,
+    Stopped,
+    PermissionRequired,
+    PermissionDenied,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaptureStreamConfig {
+    pub selection: CaptureSelection,
+    pub target_fps: Option<u32>,
+    pub max_width: Option<u32>,
+    pub max_height: Option<u32>,
+}
+
+impl CaptureStreamConfig {
+    pub fn source_id(&self) -> &str {
+        &self.selection.source_id
+    }
+
+    pub fn includes_audio(&self) -> bool {
+        self.selection.include_audio
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VideoPixelFormat {
     Bgra8,
     Nv12,
@@ -63,11 +91,52 @@ pub struct AudioBuffer {
     pub samples: Vec<f32>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum CaptureStreamEvent {
+    Started {
+        source_id: String,
+    },
+    StatusChanged {
+        source_id: Option<String>,
+        status: CaptureStreamStatus,
+        message: Option<String>,
+    },
+    VideoFrame {
+        source_id: String,
+        frame: VideoFrame,
+    },
+    AudioBuffer {
+        source_id: String,
+        buffer: AudioBuffer,
+    },
+    Stopped {
+        source_id: Option<String>,
+        reason: Option<String>,
+    },
+    Error {
+        source_id: Option<String>,
+        message: String,
+    },
+}
+
+impl CaptureStreamEvent {
+    pub fn source_id(&self) -> Option<&str> {
+        match self {
+            Self::Started { source_id }
+            | Self::VideoFrame { source_id, .. }
+            | Self::AudioBuffer { source_id, .. } => Some(source_id),
+            Self::StatusChanged { source_id, .. }
+            | Self::Stopped { source_id, .. }
+            | Self::Error { source_id, .. } => source_id.as_deref(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        AudioBuffer, CapturePermissionState, CaptureSource, CaptureSourceKind, VideoFrame,
-        VideoPixelFormat,
+        AudioBuffer, CapturePermissionState, CaptureSelection, CaptureSource, CaptureSourceKind,
+        CaptureStreamConfig, CaptureStreamEvent, CaptureStreamStatus, VideoFrame, VideoPixelFormat,
     };
 
     #[test]
@@ -106,5 +175,43 @@ mod tests {
             CapturePermissionState::Granted,
             CapturePermissionState::Granted
         );
+    }
+
+    #[test]
+    fn stream_config_exposes_selection_helpers() {
+        let config = CaptureStreamConfig {
+            selection: CaptureSelection {
+                source_id: "window-1".to_string(),
+                include_audio: true,
+            },
+            target_fps: Some(30),
+            max_width: Some(1280),
+            max_height: Some(720),
+        };
+
+        assert_eq!(config.source_id(), "window-1");
+        assert!(config.includes_audio());
+    }
+
+    #[test]
+    fn stream_events_expose_optional_source_identity() {
+        let frame_event = CaptureStreamEvent::VideoFrame {
+            source_id: "window-1".to_string(),
+            frame: VideoFrame {
+                format: VideoPixelFormat::Nv12,
+                width: 2,
+                height: 2,
+                timestamp_micros: 10,
+                bytes: vec![0; 6],
+            },
+        };
+        let status_event = CaptureStreamEvent::StatusChanged {
+            source_id: None,
+            status: CaptureStreamStatus::PermissionRequired,
+            message: Some("screen recording approval is required".to_string()),
+        };
+
+        assert_eq!(frame_event.source_id(), Some("window-1"));
+        assert_eq!(status_event.source_id(), None);
     }
 }
