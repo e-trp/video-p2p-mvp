@@ -80,6 +80,8 @@ This MVP does **not** yet provide:
 4. platform capture backends
 5. UI for source selection and connection lifecycle
 
+Networking and deployment assumptions are tracked in `docs/NETWORKING.md`.
+
 ## Functional Goals For The Next Iteration
 
 1. Replace mock UDP media with WebRTC tracks.

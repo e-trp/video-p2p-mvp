@@ -147,6 +147,8 @@ Current limitation:
 - the repository does not ship a TURN service or auth flow
 - real media delivery still uses placeholder tracks plus debug payload publishing, not OS-captured audio/video
 
+Use `docs/NETWORKING.md` as the reference for expected production signaling/STUN/TURN topology and security assumptions.
+
 ## Release Bundle
 
 From the repository root:

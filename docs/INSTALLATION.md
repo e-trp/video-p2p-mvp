@@ -186,6 +186,8 @@ For NAT-traversal tests, start with a known-good STUN entry before assuming TURN
 stun:stun.l.google.com:19302
 ```
 
+For the intended production signaling/STUN/TURN topology, see `docs/NETWORKING.md`.
+
 ### The desktop shell shows sources, but no real media is streamed
 
 This is expected in the current MVP.
