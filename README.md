@@ -17,6 +17,8 @@ The repository now has two layers:
 - `docs/SPECIFICATION.md`: saved product instruction
 - `docs/USER_GUIDE.md`: how to run the Tauri GUI and what works today
 - `docs/INSTALLATION.md`: setup, release build, and troubleshooting notes
+- `docs/QA_CHECKLIST.md`: manual QA checklist for current MVP behavior
+- `docs/NETWORKING.md`: signaling, STUN/TURN, deployment, and security assumptions
 - `docs/ARCHITECTURE.md`: architecture notes
 - `docs/GUI_TAURI.md`: GUI plan
 - `todo.md`: remaining project work by iteration
@@ -93,7 +95,9 @@ It now exposes commands for:
 - auto-creating and sending the first local SDP offer from the host once signaling is connected
 - publishing debug `capture-core` audio/video payloads into the attached host tracks for smoke testing
 - polling signaling with a persisted auto-refresh cadence and auto-applying remote offer/answer/ICE state
-- surfacing live transport diagnostics from the `PeerConnection` snapshot, including the current direct-vs-relay ICE path summary when available
+- reconnecting the current host/viewer session with the active room, signaling, and ICE settings after a stop or signaling failure
+- surfacing explicit recovery-state diagnostics in the desktop UI so reconnect guidance is visible without digging through logs
+- surfacing live transport diagnostics from the `PeerConnection` snapshot, including ICE path, RTT, bitrate, byte counters, and packet-loss metrics when available
 - stopping a session
 - reading session logs
 - showing the saved specification
@@ -114,6 +118,7 @@ This is not yet a real screen-sharing application. It does not currently include
 - real audio/video codecs
 - bundled STUN/TURN deployment defaults
 - production GUI workflow
+- production signing/notarization flow
 
 What changed relative to the earlier scaffold:
 
@@ -128,6 +133,8 @@ What changed relative to the earlier scaffold:
 - session snapshots and the Tauri UI now expose local media-track attachment state
 - session manager and transport now expose capture-payload publishing state and payload summaries
 - session manager now exposes source-validated capture video/audio publishing APIs above `transport-webrtc`, and the debug burst uses that same path
+- `capture-core` now defines live capture stream config/status/event contracts, and `app-core` can ingest those events into the same source-validated WebRTC publishing path
+- `capture-core` now also exposes a shared capture stream runtime trait, with planned macOS/Linux runtime scaffolds ready for native bridge implementations
 - session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes
 - the CLI host path can now push one debug `capture-core` burst after the peer connection connects
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
@@ -142,14 +149,18 @@ What changed relative to the earlier scaffold:
 - session-manager preferences now also persist custom ICE server entries for later host/viewer reconnects
 - session-manager preferences now also persist desktop auto-refresh enablement and refresh interval
 - desktop session-form drafts now survive background refresh polling until a successful save/start/reset syncs them explicitly
+- the desktop shell now exposes a reconnect action that rebuilds the current host/viewer session using the active backend configuration
+- session snapshots and the desktop GUI now also expose recovery state, recovery reason, and whether reconnect is currently available or recommended
+- transport snapshots and the desktop GUI now also expose selected-candidate RTT, available incoming/outgoing bitrate, candidate-pair byte counters, and packet-loss estimates from remote inbound RTP stats
 - transport snapshots and the Tauri UI now surface an ICE path summary derived from candidate-pair stats, including direct-vs-relay hints when a pair is selected
 - the desktop Tauri config now enables macOS `.app` and `.dmg` bundle targets with a real bundle identifier and baseline metadata
 - desktop release support now includes generated Tauri icon assets, package metadata, and helper scripts for icon refresh plus `cargo tauri build`
 - installation, saved-preferences, and troubleshooting guidance now live in a dedicated `docs/INSTALLATION.md`
+- networking and deployment assumptions now live in `docs/NETWORKING.md`
 
 ## Recommended Next Build Steps
 
 1. Replace debug `capture-core` media bursts with real captured audio/video input.
 2. Implement the `capture-macos` ScreenCaptureKit bridge on top of `capture-core`.
-3. Replace the debug `capture-core` payload generator with real permission-aware capture/session bridging on top of the new runtime source catalogs.
+3. Wire native capture stream events into the existing `SessionManager::ingest_capture_stream_event` path with real permission-aware capture/session lifecycle control.
 4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.

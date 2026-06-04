@@ -54,12 +54,23 @@ struct SessionView {
     transport_stats_report_count: usize,
     transport_ice_path_kind: String,
     transport_ice_path_summary: String,
+    transport_rtt_ms: Option<f64>,
+    transport_available_outgoing_bitrate_bps: Option<f64>,
+    transport_available_incoming_bitrate_bps: Option<f64>,
+    transport_bytes_sent: Option<u64>,
+    transport_bytes_received: Option<u64>,
+    transport_packet_loss_fraction: Option<f64>,
+    transport_packets_lost: Option<i64>,
     transport_notes: Vec<String>,
     local_offer_ready: bool,
     remote_answer_ready: bool,
     local_candidate_count: usize,
     remote_candidate_count: usize,
     last_signaling_message: Option<String>,
+    recovery_state: String,
+    recovery_reason: String,
+    can_reconnect: bool,
+    reconnect_recommended: bool,
     ui_auto_refresh_enabled: bool,
     ui_refresh_interval_secs: u32,
     logs: Vec<String>,
@@ -250,6 +261,26 @@ fn stop_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult
 }
 
 #[tauri::command]
+fn reconnect_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+    let mut state = state.lock().expect("session state poisoned");
+    match state.reconnect() {
+        Ok(snapshot) => CommandResult {
+            ok: true,
+            message: "session reconnected with the current configuration".to_string(),
+            session: map_snapshot(snapshot),
+        },
+        Err(error) => {
+            let snapshot = state.snapshot();
+            CommandResult {
+                ok: false,
+                message: format!("cannot reconnect session: {error}"),
+                session: map_snapshot(snapshot),
+            }
+        }
+    }
+}
+
+#[tauri::command]
 fn clear_session_logs(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state.lock().expect("session state poisoned").clear_logs();
 
@@ -313,6 +344,7 @@ fn main() {
             select_capture_source,
             publish_debug_capture_samples,
             stop_session,
+            reconnect_session,
             clear_session_logs,
             reset_session,
             update_ui_preferences,
@@ -360,12 +392,23 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         transport_stats_report_count: snapshot.transport_stats_report_count,
         transport_ice_path_kind: snapshot.transport_ice_path_kind,
         transport_ice_path_summary: snapshot.transport_ice_path_summary,
+        transport_rtt_ms: snapshot.transport_rtt_ms,
+        transport_available_outgoing_bitrate_bps: snapshot.transport_available_outgoing_bitrate_bps,
+        transport_available_incoming_bitrate_bps: snapshot.transport_available_incoming_bitrate_bps,
+        transport_bytes_sent: snapshot.transport_bytes_sent,
+        transport_bytes_received: snapshot.transport_bytes_received,
+        transport_packet_loss_fraction: snapshot.transport_packet_loss_fraction,
+        transport_packets_lost: snapshot.transport_packets_lost,
         transport_notes: snapshot.transport_notes,
         local_offer_ready: snapshot.local_offer_ready,
         remote_answer_ready: snapshot.remote_answer_ready,
         local_candidate_count: snapshot.local_candidate_count,
         remote_candidate_count: snapshot.remote_candidate_count,
         last_signaling_message: snapshot.last_signaling_message,
+        recovery_state: snapshot.recovery_state,
+        recovery_reason: snapshot.recovery_reason,
+        can_reconnect: snapshot.can_reconnect,
+        reconnect_recommended: snapshot.reconnect_recommended,
         ui_auto_refresh_enabled: snapshot.ui_auto_refresh_enabled,
         ui_refresh_interval_secs: snapshot.ui_refresh_interval_secs,
         logs: snapshot.logs,

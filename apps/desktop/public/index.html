@@ -21,7 +21,7 @@
       <section class="grid">
         <article class="card">
           <h2>Session Control</h2>
-          <p class="hint">This interface now drives the Rust session manager, signaling TCP link, attached host media tracks, and the real PeerConnection bootstrap path through Tauri commands.</p>
+          <p class="hint">This interface now drives the Rust session manager, signaling TCP link, attached host media tracks, the real PeerConnection bootstrap path, and manual reconnect attempts through Tauri commands.</p>
           <form id="session-form" class="form">
             <label>
               <span>Room</span>
@@ -60,6 +60,7 @@
               <button type="button" id="save-btn" class="secondary">Save Config</button>
               <button type="button" id="host-btn">Prepare Host</button>
               <button type="button" id="join-btn" class="secondary">Prepare Viewer</button>
+              <button type="button" id="reconnect-btn" class="ghost">Reconnect</button>
               <button type="button" id="stop-btn" class="ghost">Stop</button>
               <button type="button" id="reset-btn" class="ghost">Reset</button>
             </div>
@@ -69,7 +70,7 @@
 
         <article class="card">
           <h2>Capture Source</h2>
-          <p class="hint">The current picker uses platform-specific blueprint sources through `capture-core`. Changes apply immediately, and a host session falls back to the first available source if you never choose one explicitly.</p>
+          <p class="hint">The current picker uses platform capture metadata through `capture-core`, with runtime enumeration when available and blueprint fallback otherwise. Changes apply immediately, and a host session falls back to the first available source if you never choose one explicitly.</p>
           <form class="form">
             <label>
               <span>Available Source</span>
@@ -98,6 +99,16 @@
             <div><dt>Stats Reports</dt><dd>loading...</dd></div>
           </dl>
           <pre id="transport-notes">loading...</pre>
+        </article>
+
+        <article class="card">
+          <h2>Recovery</h2>
+          <p class="hint">This panel summarizes whether the current session looks healthy, whether reconnect is available, and when manual recovery is recommended.</p>
+          <dl id="recovery-status">
+            <div><dt>State</dt><dd>loading...</dd></div>
+            <div><dt>Reconnect</dt><dd>loading...</dd></div>
+            <div><dt>Reason</dt><dd>loading...</dd></div>
+          </dl>
         </article>
 
         <article class="card">

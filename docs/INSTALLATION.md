@@ -12,6 +12,7 @@ The current repository can already provide:
 - live WebRTC negotiation between host and viewer
 - configurable STUN/TURN ICE server settings for CLI and desktop runs
 - debug `capture-core` media bursts for transport validation
+- backend-facing live capture stream events and session ingestion for future native samples
 
 It does **not** yet provide:
 
@@ -110,6 +111,8 @@ ICE server entries are stored as newline-separated values in one of these forms:
 - `stun:stun.l.google.com:19302`
 - `turn:turn.example.com:3478?transport=udp|username|credential`
 
+Accepted URL schemes are `stun:`, `stuns:`, `turn:`, and `turns:`.
+
 The same file also stores whether automatic GUI refresh polling is enabled and which refresh interval the desktop shell should use on the next launch.
 
 ## STUN/TURN Configuration
@@ -129,6 +132,7 @@ cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 \
 ```
 
 In the Tauri desktop shell, enter one ICE server per line in the `ICE Servers` field, then save or prepare the session.
+Invalid URL schemes are rejected before the session is started or saved.
 
 ## Troubleshooting
 
@@ -183,6 +187,8 @@ For NAT-traversal tests, start with a known-good STUN entry before assuming TURN
 stun:stun.l.google.com:19302
 ```
 
+For the intended production signaling/STUN/TURN topology, see `docs/NETWORKING.md`.
+
 ### The desktop shell shows sources, but no real media is streamed
 
 This is expected in the current MVP.
@@ -193,6 +199,7 @@ Today the repo supports:
 - live WebRTC negotiation
 - attached placeholder tracks
 - debug `capture-core` payload publishing
+- a `capture-core` stream event contract that native capture backends can feed later
 
 It does not yet support real OS-captured audio/video delivery into those tracks.
 

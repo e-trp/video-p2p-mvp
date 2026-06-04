@@ -10,11 +10,13 @@ This repository is still an MVP. Today it can already provide:
 - configurable ICE server entries for custom STUN/TURN traversal
 - attached placeholder host audio/video tracks
 - debug `capture-core` media payload publishing for transport smoke testing
-- a source picker fed by the current `capture-core` platform blueprint data
+- a backend-facing live capture event ingestion path that native capture implementations can use once they produce OS samples
+- a source picker fed by current platform capture metadata, with runtime enumeration when available and blueprint fallback otherwise
 
 It does **not** yet provide real OS screen capture, real system audio capture, bundled STUN/TURN deployment defaults, or production invite/auth flows.
 
 For setup, release build notes, and troubleshooting, see `docs/INSTALLATION.md`.
+For manual validation before a release candidate, see `docs/QA_CHECKLIST.md`.
 
 ## Requirements
 
@@ -72,15 +74,19 @@ This regenerates the desktop icons, changes into `apps/desktop/src-tauri`, and r
 - `Room`: room name for host/viewer pairing
 - `Signaling`: TCP address of the signaling server
 - `ICE Servers`: optional newline-separated STUN/TURN entries using `url` or `url|username|credential`
+  Accepted URL schemes are `stun:`, `stuns:`, `turn:`, and `turns:`.
 - `Auto Refresh`: enable or disable the background polling loop that refreshes session, signaling, and capture state
 - `Refresh Every`: choose the persisted polling interval used by that background refresh loop
 - `Save Config`: save the current room, signaling address, and ICE server list into the local session-preferences file used by the desktop shell
 - `Prepare Host`: create a host-side WebRTC session, connect signaling, and automatically send the first local offer when signaling is available
 - `Prepare Viewer`: create a viewer-side WebRTC session and connect signaling
+- `Reconnect`: rebuild the current host or viewer session with the active room, signaling address, and ICE server configuration
 - `Stop`: close the current session
 - `Reset`: reset session state back to idle
 
 While auto-refresh is running, the desktop shell now keeps in-progress `Room`, `Signaling`, and `ICE Servers` edits intact instead of overwriting them with the latest snapshot on every poll. Those fields are synchronized explicitly after successful save/start/reset actions.
+
+If those fields have unsaved edits when you click `Reconnect`, the GUI first saves the edited room/signaling/ICE values into the session manager and then starts the reconnect attempt with that updated configuration.
 
 ### Capture Source
 
@@ -104,6 +110,10 @@ The GUI now surfaces transport-side diagnostics from the Rust `PeerConnection` w
 
 - current transport stage
 - current ICE path summary, including direct-vs-relay hints when a candidate pair is selected
+- current candidate-pair RTT
+- available outgoing and incoming bitrate reported by the selected candidate pair
+- candidate-pair payload byte counters for sent and received traffic
+- packet-loss percentage and lost-packet count when remote inbound RTP stats are available
 - bootstrap data channel readiness
 - current stats report count
 - transport notes describing track attachment and sample counters
@@ -126,6 +136,18 @@ When you prepare a host session, the session log and next-action hint now also r
 
 If the selected host source disappears after a later catalog refresh, the session manager now rebinds to the first available source automatically and records that change in the session log.
 
+### Recovery
+
+The GUI now surfaces recovery diagnostics directly instead of leaving recovery guidance only in logs or `Next Action` text:
+
+- `healthy`: the peer connection is live
+- `negotiating`: signaling and transport setup are still in progress
+- `signaling_unavailable`: signaling is down or unreachable; reconnect is recommended after fixing reachability
+- `stopped`: the session was stopped intentionally; reconnect can rebuild it
+- `transport_disconnected`, `transport_failed`, `transport_closed`: the peer connection degraded or shut down; reconnect is recommended
+
+The `Reconnect` button is disabled only when no host/viewer session has been prepared yet. When recovery is recommended, the reconnect button is also highlighted in the session controls.
+
 ### Transport Smoke Test
 
 - `Push Debug Capture Burst`: synthesize `capture-core` video/audio payloads and write them into the attached host tracks
@@ -140,7 +162,11 @@ This smoke path now goes through the same session-facing publish validation that
 - the selected source id must match the payload source being published
 - audio payloads are rejected when the current selection has `Include Audio` turned off
 
+The backend also now accepts live `capture-core` stream events through `SessionManager::ingest_capture_stream_event`. That API is not a user-facing GUI control yet; it is the route native ScreenCaptureKit or Portal/PipeWire implementations should use when they begin emitting real frames and audio buffers.
+
 Host-side offer creation, answer delivery, and ICE now flow automatically through the signaling server during refresh. The remaining manual control is only there to smoke-test media publication before real capture is wired.
+
+If signaling dies or you stop a session intentionally, the `Reconnect` action reinitializes the current host/viewer role instead of forcing a full `Reset` followed by another manual prepare step.
 
 ### Status And Snapshot
 
@@ -149,7 +175,9 @@ The GUI currently shows:
 - signaling connectivity
 - selected source id and audio flag
 - capture backend and permission state
+- recovery state, recovery reason, and reconnect readiness
 - transport stage and bootstrap data-channel state
+- transport RTT, bitrate, byte counters, packet-loss metrics, and ICE-path summary
 - media track attachment state
 - transport notes and stats report count
 - published debug sample counters and last payload summaries

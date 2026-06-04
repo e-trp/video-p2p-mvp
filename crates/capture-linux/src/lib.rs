@@ -1,4 +1,7 @@
-use capture_core::{CapturePermissionState, CaptureSource, CaptureSourceKind};
+use capture_core::{
+    CapturePermissionState, CaptureSource, CaptureSourceKind, CaptureStreamConfig,
+    CaptureStreamEvent, CaptureStreamResult, CaptureStreamRuntime, CaptureStreamStatus,
+};
 use std::collections::HashSet;
 use std::env;
 use std::process::Command;
@@ -32,6 +35,23 @@ pub struct LinuxCaptureCatalog {
     pub notes: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct LinuxCaptureRuntime {
+    status: CaptureStreamStatus,
+    active_source_id: Option<String>,
+    pending_events: Vec<CaptureStreamEvent>,
+}
+
+impl Default for LinuxCaptureRuntime {
+    fn default() -> Self {
+        Self {
+            status: CaptureStreamStatus::Stopped,
+            active_source_id: None,
+            pending_events: Vec::new(),
+        }
+    }
+}
+
 pub fn blueprint() -> LinuxCaptureBlueprint {
     LinuxCaptureBlueprint {
         preferred_backend: LinuxCaptureBackend::PortalPipeWire,
@@ -59,6 +79,10 @@ pub fn blueprint() -> LinuxCaptureBlueprint {
             "keep GUI flow aligned with portal-driven user permission model",
         ],
     }
+}
+
+pub fn runtime() -> LinuxCaptureRuntime {
+    LinuxCaptureRuntime::default()
 }
 
 pub fn current_catalog() -> LinuxCaptureCatalog {
@@ -89,6 +113,41 @@ pub fn current_catalog() -> LinuxCaptureCatalog {
             sources: blueprint.example_sources,
             origin: LinuxSourceCatalogOrigin::BlueprintFallback,
         },
+    }
+}
+
+impl CaptureStreamRuntime for LinuxCaptureRuntime {
+    fn start(&mut self, config: CaptureStreamConfig) -> CaptureStreamResult<()> {
+        let source_id = config.source_id().to_string();
+        self.status = CaptureStreamStatus::PermissionRequired;
+        self.active_source_id = Some(source_id.clone());
+        self.pending_events.push(CaptureStreamEvent::StatusChanged {
+            source_id: Some(source_id),
+            status: self.status,
+            message: Some(
+                "Portal/PipeWire stream bridge is not implemented yet; start a portal session before native capture is wired"
+                    .to_string(),
+            ),
+        });
+        Ok(())
+    }
+
+    fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
+        Ok(std::mem::take(&mut self.pending_events))
+    }
+
+    fn stop(&mut self) -> CaptureStreamResult<()> {
+        let source_id = self.active_source_id.take();
+        self.status = CaptureStreamStatus::Stopped;
+        self.pending_events.push(CaptureStreamEvent::Stopped {
+            source_id,
+            reason: Some("Portal/PipeWire planned runtime stopped".to_string()),
+        });
+        Ok(())
+    }
+
+    fn status(&self) -> CaptureStreamStatus {
+        self.status
     }
 }
 
@@ -243,9 +302,12 @@ mod tests {
     use super::{
         LinuxCaptureBackend, blueprint, infer_permission_state_from_error,
         infer_permission_state_from_error_with_display, make_source_id, parse_window_listing,
-        parse_window_row, slugify,
+        parse_window_row, runtime, slugify,
     };
-    use capture_core::CapturePermissionState;
+    use capture_core::{
+        CapturePermissionState, CaptureSelection, CaptureStreamConfig, CaptureStreamEvent,
+        CaptureStreamRuntime, CaptureStreamStatus,
+    };
 
     #[test]
     fn blueprint_exposes_required_permission_and_example_sources() {
@@ -315,5 +377,40 @@ mod tests {
             infer_permission_state_from_error("runtime catalog output was empty"),
             CapturePermissionState::Required
         );
+    }
+
+    #[test]
+    fn planned_runtime_reports_permission_required_until_bridge_exists() {
+        let mut runtime = runtime();
+        runtime
+            .start(CaptureStreamConfig {
+                selection: CaptureSelection {
+                    source_id: "linux-window-player".to_string(),
+                    include_audio: true,
+                },
+                target_fps: Some(30),
+                max_width: Some(1920),
+                max_height: Some(1080),
+            })
+            .expect("start planned Linux runtime");
+
+        let events = runtime.poll_events().expect("poll planned events");
+        assert_eq!(runtime.status(), CaptureStreamStatus::PermissionRequired);
+        assert!(matches!(
+            events.as_slice(),
+            [CaptureStreamEvent::StatusChanged {
+                status: CaptureStreamStatus::PermissionRequired,
+                ..
+            }]
+        ));
+        assert!(format!("{:?}", events[0]).contains("Portal/PipeWire stream bridge"));
+
+        runtime.stop().expect("stop planned Linux runtime");
+        let stop_events = runtime.poll_events().expect("poll stop event");
+        assert_eq!(runtime.status(), CaptureStreamStatus::Stopped);
+        assert!(matches!(
+            stop_events.as_slice(),
+            [CaptureStreamEvent::Stopped { .. }]
+        ));
     }
 }

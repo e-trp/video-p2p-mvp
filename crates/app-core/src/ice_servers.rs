@@ -92,6 +92,13 @@ fn parse_ice_server_line(line: &str) -> Result<IceServerEntry, String> {
     if urls.is_empty() {
         return Err("missing ICE server URL".to_string());
     }
+    for url in &urls {
+        if !is_supported_ice_url(url) {
+            return Err(format!(
+                "unsupported ICE server URL `{url}`; expected stun:, stuns:, turn:, or turns:"
+            ));
+        }
+    }
 
     let username = username_part.filter(|value| !value.is_empty());
     let credential = credential_part.filter(|value| !value.is_empty());
@@ -104,6 +111,13 @@ fn parse_ice_server_line(line: &str) -> Result<IceServerEntry, String> {
         username: username.map(ToOwned::to_owned),
         credential: credential.map(ToOwned::to_owned),
     })
+}
+
+fn is_supported_ice_url(url: &str) -> bool {
+    matches!(
+        url.split_once(':').map(|(scheme, _)| scheme),
+        Some("stun" | "stuns" | "turn" | "turns")
+    )
 }
 
 #[cfg(test)]
@@ -167,6 +181,14 @@ mod tests {
             .expect_err("partial credentials should fail");
 
         assert!(error.contains("TURN credentials require both username and credential"));
+    }
+
+    #[test]
+    fn parse_ice_server_entries_rejects_unsupported_url_schemes() {
+        let error = parse_ice_server_entries("https://turn.example.com")
+            .expect_err("unsupported schemes should fail");
+
+        assert!(error.contains("expected stun:, stuns:, turn:, or turns:"));
     }
 
     #[test]

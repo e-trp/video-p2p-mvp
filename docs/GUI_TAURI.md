@@ -20,6 +20,7 @@ The repository now includes a desktop scaffold in `apps/desktop`:
 - initial commands for reading project status and the saved specification
 - session manager hooks for `host`, `join`, `stop`, `status`, and `logs`
 - UI controls for config save, host/viewer prep, transport smoke testing, reset, refresh, and log clearing
+- manual QA coverage is now tracked in `docs/QA_CHECKLIST.md`
 
 The backend around the GUI has moved one step forward:
 
@@ -29,6 +30,7 @@ The backend around the GUI has moved one step forward:
 - host-side placeholder audio/video tracks are attached before offer creation and shown in the session snapshot
 - host preparation now auto-creates and sends the first local SDP offer once signaling is connected
 - a debug command can now push synthetic `capture-core` audio/video payloads into those attached tracks
+- the session manager can now ingest backend `capture-core` stream events for native capture implementations without routing them through the GUI debug command
 - the GUI now shows a platform capture catalog and allows selecting a source in-session
 - the macOS source picker now attempts live application/window enumeration before falling back to blueprint data
 - the Linux source picker now attempts `wmctrl`-based runtime window enumeration before falling back to blueprint data
@@ -43,6 +45,9 @@ The backend around the GUI has moved one step forward:
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
 - session config now includes editable ICE server entries that persist through the desktop preferences store
 - transport diagnostics now include an ICE path summary derived from candidate-pair stats so the GUI can hint whether the current route looks direct or relay-backed
+- the desktop shell now exposes a reconnect action that reuses the active backend session configuration instead of requiring a full reset/re-prepare cycle
+- the desktop shell now also surfaces explicit recovery-state diagnostics derived from signaling reachability, stopped state, and peer-connection status
+- transport diagnostics now also expose candidate-pair RTT, available bitrate, byte counters, and packet-loss estimates from the live stats report
 
 ## Intended GUI Responsibilities
 
@@ -54,7 +59,7 @@ The backend around the GUI has moved one step forward:
 
 ## Backend Split
 
-- `app-core`: shared protocol, session state, signaling orchestration, and source-validated capture-burst bridging
+- `app-core`: shared protocol, session state, signaling orchestration, source-validated capture-burst bridging, and live capture event ingestion
 - `transport-webrtc`: real peer transport bootstrap with attached host tracks
 - `capture-macos`: planned ScreenCaptureKit bridge
 - `capture-linux`: planned Portal + PipeWire integration
@@ -84,6 +89,9 @@ The current Tauri UI is wired to the session manager and supports:
 - saving session configuration
 - preparing host or viewer session states with a live signaling connection
 - auto-creating and sending the first local offer from the host path
+- reconnecting the current host/viewer session after a stop or signaling failure
+- surfacing recovery state, recovery reason, and reconnect availability directly in the GUI
+- surfacing RTT, bitrate, byte counters, packet loss, and ICE-path diagnostics directly in the GUI
 - publishing synthetic `capture-core` audio/video payloads into the attached host tracks
 - polling signaling through repeated snapshot refresh
 - auto-applying remote offer/answer/ICE during refresh

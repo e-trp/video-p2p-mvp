@@ -28,6 +28,10 @@ function clearSessionFieldDrafts() {
   dirtySessionFields.clear();
 }
 
+function hasDirtySessionFields() {
+  return dirtySessionFields.size > 0;
+}
+
 function syncSessionFieldValue(id, value, force = false) {
   const field = document.getElementById(id);
   if (!field) {
@@ -81,6 +85,50 @@ function setCaptureCatalog(catalog) {
   picker.disabled = catalog.sources.length === 0;
 }
 
+function formatMetricMs(value) {
+  return Number.isFinite(value) ? `${value.toFixed(1)}ms` : "n/a";
+}
+
+function formatMetricBitrate(value) {
+  if (!Number.isFinite(value)) {
+    return "n/a";
+  }
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(2)} Mbps`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)} kbps`;
+  }
+  return `${value.toFixed(0)} bps`;
+}
+
+function formatMetricBytes(value) {
+  if (!Number.isFinite(value)) {
+    return "n/a";
+  }
+  if (value >= 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(2)} MiB`;
+  }
+  if (value >= 1024) {
+    return `${(value / 1024).toFixed(1)} KiB`;
+  }
+  return `${value.toFixed(0)} B`;
+}
+
+function formatPacketLoss(session) {
+  if (!Number.isFinite(session.transport_packet_loss_fraction)) {
+    return Number.isFinite(session.transport_packets_lost)
+      ? `${session.transport_packets_lost} lost`
+      : "n/a";
+  }
+
+  const percent = (session.transport_packet_loss_fraction * 100).toFixed(2);
+  if (Number.isFinite(session.transport_packets_lost)) {
+    return `${percent}% / ${session.transport_packets_lost} lost`;
+  }
+  return `${percent}%`;
+}
+
 function syncCaptureAudioState(catalog) {
   const picker = document.getElementById("source-picker");
   const audioToggle = document.getElementById("source-audio");
@@ -92,6 +140,28 @@ function syncCaptureAudioState(catalog) {
   } else {
     audioToggle.checked = Boolean(selected?.has_audio);
   }
+}
+
+function syncReconnectControl(session) {
+  const button = document.getElementById("reconnect-btn");
+  if (!button) {
+    return;
+  }
+
+  button.disabled = !session.can_reconnect;
+  button.classList.toggle("secondary", Boolean(session.reconnect_recommended));
+  button.classList.toggle("ghost", !session.reconnect_recommended);
+  button.title = session.recovery_reason ?? "";
+}
+
+function setRecoveryStatus(session) {
+  const container = document.getElementById("recovery-status");
+  container.innerHTML = `
+    <div><dt>State</dt><dd>${session.recovery_state ?? "unknown"}</dd></div>
+    <div><dt>Reconnect</dt><dd>${session.can_reconnect ? (session.reconnect_recommended ? "recommended" : "available") : "unavailable"}</dd></div>
+    <div><dt>Reason</dt><dd>${session.recovery_reason ?? "n/a"}</dd></div>
+  `;
+  syncReconnectControl(session);
 }
 
 function setSession(session, { forceFormSync = false } = {}) {
@@ -110,6 +180,11 @@ function setSession(session, { forceFormSync = false } = {}) {
     <div><dt>Transport State</dt><dd>${session.transport_state ?? "n/a"}</dd></div>
     <div><dt>Transport Stage</dt><dd>${session.transport_stage ?? "n/a"}</dd></div>
     <div><dt>ICE Path</dt><dd>${session.transport_ice_path_kind ?? "unknown"} / ${session.transport_ice_path_summary ?? "n/a"}</dd></div>
+    <div><dt>RTT</dt><dd>${formatMetricMs(session.transport_rtt_ms)}</dd></div>
+    <div><dt>Outgoing Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_outgoing_bitrate_bps)}</dd></div>
+    <div><dt>Incoming Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_incoming_bitrate_bps)}</dd></div>
+    <div><dt>Link Bytes</dt><dd>${formatMetricBytes(session.transport_bytes_sent)} sent / ${formatMetricBytes(session.transport_bytes_received)} recv</dd></div>
+    <div><dt>Packet Loss</dt><dd>${formatPacketLoss(session)}</dd></div>
     <div><dt>Media Tracks</dt><dd>${session.local_media_track_count ?? 0}</dd></div>
     <div><dt>Video Track</dt><dd>${String(session.local_video_track_attached)}</dd></div>
     <div><dt>Audio Track</dt><dd>${String(session.local_audio_track_attached)}</dd></div>
@@ -123,6 +198,7 @@ function setSession(session, { forceFormSync = false } = {}) {
     <div><dt>Remote Desc</dt><dd>${session.remote_description_kind ?? "n/a"} / ${String(session.remote_description_ready)}</dd></div>
     <div><dt>Local ICE</dt><dd>${session.local_candidate_count ?? 0}</dd></div>
     <div><dt>Remote ICE</dt><dd>${session.remote_candidate_count ?? 0}</dd></div>
+    <div><dt>Recovery</dt><dd>${session.recovery_state ?? "unknown"} / ${session.recovery_reason ?? "n/a"}</dd></div>
     <div><dt>Next Action</dt><dd>${session.next_action ?? "n/a"}</dd></div>
   `;
   document.getElementById("session-log").textContent = session.logs.join("\n");
@@ -131,11 +207,17 @@ function setSession(session, { forceFormSync = false } = {}) {
   document.getElementById("transport-diagnostics").innerHTML = `
     <div><dt>Transport Stage</dt><dd>${session.transport_stage ?? "n/a"}</dd></div>
     <div><dt>ICE Path</dt><dd>${session.transport_ice_path_summary ?? "n/a"}</dd></div>
+    <div><dt>RTT</dt><dd>${formatMetricMs(session.transport_rtt_ms)}</dd></div>
+    <div><dt>Outgoing Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_outgoing_bitrate_bps)}</dd></div>
+    <div><dt>Incoming Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_incoming_bitrate_bps)}</dd></div>
+    <div><dt>Link Bytes</dt><dd>${formatMetricBytes(session.transport_bytes_sent)} sent / ${formatMetricBytes(session.transport_bytes_received)} recv</dd></div>
+    <div><dt>Packet Loss</dt><dd>${formatPacketLoss(session)}</dd></div>
     <div><dt>Data Channel</dt><dd>${String(session.local_data_channel_ready)}</dd></div>
     <div><dt>Stats Reports</dt><dd>${session.transport_stats_report_count ?? 0}</dd></div>
   `;
   document.getElementById("transport-notes").textContent =
     session.transport_notes?.join("\n") || "No transport diagnostics yet.";
+  setRecoveryStatus(session);
   syncSessionFieldValue("room", session.room, forceFormSync);
   syncSessionFieldValue("signaling", session.signaling_addr, forceFormSync);
   syncSessionFieldValue("ice-servers", session.ice_servers, forceFormSync);
@@ -238,6 +320,11 @@ async function performRefresh() {
       <div><dt>Transport State</dt><dd>preview</dd></div>
       <div><dt>Transport Stage</dt><dd>preview</dd></div>
       <div><dt>ICE Path</dt><dd>unknown / preview</dd></div>
+      <div><dt>RTT</dt><dd>n/a</dd></div>
+      <div><dt>Outgoing Bitrate</dt><dd>n/a</dd></div>
+      <div><dt>Incoming Bitrate</dt><dd>n/a</dd></div>
+      <div><dt>Link Bytes</dt><dd>n/a / n/a</dd></div>
+      <div><dt>Packet Loss</dt><dd>n/a</dd></div>
       <div><dt>Media Tracks</dt><dd>0</dd></div>
       <div><dt>Video Track</dt><dd>false</dd></div>
       <div><dt>Audio Track</dt><dd>false</dd></div>
@@ -251,6 +338,7 @@ async function performRefresh() {
       <div><dt>Remote Desc</dt><dd>n/a / false</dd></div>
       <div><dt>Local ICE</dt><dd>0</dd></div>
       <div><dt>Remote ICE</dt><dd>0</dd></div>
+      <div><dt>Recovery</dt><dd>preview / n/a</dd></div>
       <div><dt>Next Action</dt><dd>run inside Tauri</dd></div>
     `;
     document.getElementById("session-log").textContent =
@@ -260,11 +348,26 @@ async function performRefresh() {
     document.getElementById("transport-diagnostics").innerHTML = `
       <div><dt>Transport Stage</dt><dd>preview</dd></div>
       <div><dt>ICE Path</dt><dd>preview</dd></div>
+      <div><dt>RTT</dt><dd>n/a</dd></div>
+      <div><dt>Outgoing Bitrate</dt><dd>n/a</dd></div>
+      <div><dt>Incoming Bitrate</dt><dd>n/a</dd></div>
+      <div><dt>Link Bytes</dt><dd>n/a / n/a</dd></div>
+      <div><dt>Packet Loss</dt><dd>n/a</dd></div>
       <div><dt>Data Channel</dt><dd>false</dd></div>
       <div><dt>Stats Reports</dt><dd>0</dd></div>
     `;
     document.getElementById("transport-notes").textContent =
       "Run inside Tauri to inspect Rust-side transport diagnostics.";
+    document.getElementById("recovery-status").innerHTML = `
+      <div><dt>State</dt><dd>preview</dd></div>
+      <div><dt>Reconnect</dt><dd>unavailable</dd></div>
+      <div><dt>Reason</dt><dd>Run inside Tauri to inspect session recovery diagnostics.</dd></div>
+    `;
+    syncReconnectControl({
+      can_reconnect: false,
+      reconnect_recommended: false,
+      recovery_reason: "Run inside Tauri to inspect session recovery diagnostics.",
+    });
     configureRefreshTimer({
       auto_refresh_enabled: false,
       refresh_interval_secs: defaultRefreshIntervalSeconds,
@@ -329,6 +432,24 @@ async function updateUiPreferences() {
       refresh_interval_secs: result.session.ui_refresh_interval_secs,
     });
   }
+}
+
+async function reconnectSession() {
+  if (hasDirtySessionFields()) {
+    const values = formValues();
+    const updateResult = await runCommand("update_session_config", values, {
+      forceFormSync: true,
+      clearDraftOnSuccess: true,
+    });
+    if (!updateResult?.ok) {
+      return;
+    }
+  }
+
+  await runCommand("reconnect_session", {}, {
+    forceFormSync: true,
+    clearDraftOnSuccess: true,
+  });
 }
 
 async function applySelectedSource() {
@@ -403,6 +524,8 @@ async function load() {
   document.getElementById("stop-btn").addEventListener("click", async () => {
     await runCommand("stop_session");
   });
+
+  document.getElementById("reconnect-btn").addEventListener("click", reconnectSession);
 
   document.getElementById("reset-btn").addEventListener("click", async () => {
     await runCommand("reset_session", {}, {

@@ -9,7 +9,8 @@ use crate::protocol::{
 };
 use crate::signaling::{SignalingConnection, SignalingEvent};
 use capture_core::{
-    AudioBuffer, CapturePermissionState, CaptureSelection, VideoFrame, VideoPixelFormat,
+    AudioBuffer, CapturePermissionState, CaptureSelection, CaptureStreamEvent, CaptureStreamStatus,
+    VideoFrame, VideoPixelFormat,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 use transport_webrtc::{
@@ -48,7 +49,7 @@ pub struct SessionIntent {
     pub ice_servers: Vec<IceServerEntry>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SessionSnapshot {
     pub mode: SessionMode,
     pub stage: SessionStage,
@@ -87,12 +88,23 @@ pub struct SessionSnapshot {
     pub transport_stats_report_count: usize,
     pub transport_ice_path_kind: String,
     pub transport_ice_path_summary: String,
+    pub transport_rtt_ms: Option<f64>,
+    pub transport_available_outgoing_bitrate_bps: Option<f64>,
+    pub transport_available_incoming_bitrate_bps: Option<f64>,
+    pub transport_bytes_sent: Option<u64>,
+    pub transport_bytes_received: Option<u64>,
+    pub transport_packet_loss_fraction: Option<f64>,
+    pub transport_packets_lost: Option<i64>,
     pub transport_notes: Vec<String>,
     pub local_offer_ready: bool,
     pub remote_answer_ready: bool,
     pub local_candidate_count: usize,
     pub remote_candidate_count: usize,
     pub last_signaling_message: Option<String>,
+    pub recovery_state: String,
+    pub recovery_reason: String,
+    pub can_reconnect: bool,
+    pub reconnect_recommended: bool,
     pub ui_auto_refresh_enabled: bool,
     pub ui_refresh_interval_secs: u32,
 }
@@ -119,6 +131,13 @@ struct SessionState {
     signaling: Option<SignalingConnection>,
     signaling_connected: bool,
     last_signaling_message: Option<String>,
+}
+
+struct RecoveryDiagnostics {
+    state: &'static str,
+    reason: String,
+    can_reconnect: bool,
+    reconnect_recommended: bool,
 }
 
 impl Default for SessionState {
@@ -432,6 +451,53 @@ impl SessionManager {
         self.snapshot()
     }
 
+    pub fn ingest_capture_stream_event(&mut self, event: CaptureStreamEvent) -> SessionSnapshot {
+        match event {
+            CaptureStreamEvent::Started { source_id } => {
+                if let Err(message) = self.validate_capture_publish_request(&source_id, false) {
+                    self.push_log(message);
+                } else {
+                    self.push_log(format!("capture stream started for source={source_id}"));
+                }
+                self.snapshot()
+            }
+            CaptureStreamEvent::StatusChanged {
+                source_id,
+                status,
+                message,
+            } => {
+                let source = source_id.unwrap_or_else(|| "unknown".to_string());
+                let detail = message.unwrap_or_else(|| "no detail".to_string());
+                self.push_log(format!(
+                    "capture stream status changed for source={source}: {} ({detail})",
+                    format_capture_stream_status(status)
+                ));
+                self.snapshot()
+            }
+            CaptureStreamEvent::VideoFrame { source_id, frame } => {
+                self.publish_capture_video_frame(source_id, frame)
+            }
+            CaptureStreamEvent::AudioBuffer { source_id, buffer } => {
+                self.publish_capture_audio_buffer(source_id, buffer)
+            }
+            CaptureStreamEvent::Stopped { source_id, reason } => {
+                let source = source_id.unwrap_or_else(|| "unknown".to_string());
+                let reason = reason.unwrap_or_else(|| "no reason provided".to_string());
+                self.push_log(format!(
+                    "capture stream stopped for source={source}: {reason}"
+                ));
+                self.snapshot()
+            }
+            CaptureStreamEvent::Error { source_id, message } => {
+                let source = source_id.unwrap_or_else(|| "unknown".to_string());
+                self.push_log(format!(
+                    "capture stream error for source={source}: {message}"
+                ));
+                self.snapshot()
+            }
+        }
+    }
+
     pub fn publish_debug_capture_samples(&mut self) -> SessionSnapshot {
         let Some(selection) = self.state.capture_selection.clone() else {
             self.push_log(
@@ -464,6 +530,57 @@ impl SessionManager {
 
     pub fn publish_placeholder_media(&mut self) -> SessionSnapshot {
         self.publish_debug_capture_samples()
+    }
+
+    pub fn reconnect(&mut self) -> Result<SessionSnapshot, String> {
+        let mode = self.state.mode;
+        if mode == SessionMode::Idle {
+            return Err("cannot reconnect before preparing a host or viewer session".to_string());
+        }
+
+        let room = self
+            .state
+            .room
+            .clone()
+            .ok_or_else(|| "cannot reconnect without a configured room".to_string())?;
+        let signaling_addr =
+            self.state.signaling_addr.clone().ok_or_else(|| {
+                "cannot reconnect without a configured signaling address".to_string()
+            })?;
+        let source_label = self.state.source_label.clone();
+        let ice_servers = self.state.ice_servers.clone();
+
+        self.disconnect_active_session();
+
+        let snapshot = match mode {
+            SessionMode::Host => {
+                self.push_log(format!(
+                    "reconnecting host session for room={} signaling={}",
+                    room, signaling_addr
+                ));
+                self.start_host(SessionIntent {
+                    room,
+                    signaling_addr,
+                    source_label,
+                    ice_servers,
+                })
+            }
+            SessionMode::Viewer => {
+                self.push_log(format!(
+                    "reconnecting viewer session for room={} signaling={}",
+                    room, signaling_addr
+                ));
+                self.start_viewer(SessionIntent {
+                    room,
+                    signaling_addr,
+                    source_label: None,
+                    ice_servers,
+                })
+            }
+            SessionMode::Idle => unreachable!(),
+        };
+
+        Ok(snapshot)
     }
 
     pub fn stop(&mut self) -> SessionSnapshot {
@@ -499,6 +616,7 @@ impl SessionManager {
 
     pub fn snapshot(&self) -> SessionSnapshot {
         let transport_snapshot = self.state.webrtc.as_ref().map(|session| session.snapshot());
+        let recovery = self.recovery_diagnostics(transport_snapshot.as_ref());
         let (local_description_kind, remote_description_kind) = transport_snapshot
             .as_ref()
             .map(|snapshot| {
@@ -609,6 +727,27 @@ impl SessionManager {
                 .as_ref()
                 .map(|snapshot| snapshot.ice_path_summary.clone())
                 .unwrap_or_else(|| "candidate pair not selected yet".to_string()),
+            transport_rtt_ms: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.rtt_ms),
+            transport_available_outgoing_bitrate_bps: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.available_outgoing_bitrate_bps),
+            transport_available_incoming_bitrate_bps: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.available_incoming_bitrate_bps),
+            transport_bytes_sent: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.bytes_sent),
+            transport_bytes_received: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.bytes_received),
+            transport_packet_loss_fraction: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.packet_loss_fraction),
+            transport_packets_lost: transport_snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.packets_lost),
             transport_notes: transport_snapshot
                 .as_ref()
                 .map(|snapshot| snapshot.notes.clone())
@@ -630,6 +769,10 @@ impl SessionManager {
                 .map(|snapshot| snapshot.remote_candidate_count)
                 .unwrap_or(0),
             last_signaling_message: self.state.last_signaling_message.clone(),
+            recovery_state: recovery.state.to_string(),
+            recovery_reason: recovery.reason,
+            can_reconnect: recovery.can_reconnect,
+            reconnect_recommended: recovery.reconnect_recommended,
             ui_auto_refresh_enabled: self.state.ui_preferences.auto_refresh_enabled,
             ui_refresh_interval_secs: self.state.ui_preferences.refresh_interval_secs,
         }
@@ -847,6 +990,18 @@ impl SessionManager {
         if persist_preferences {
             self.persist_preferences();
         }
+    }
+
+    fn disconnect_active_session(&mut self) {
+        if let Some(webrtc) = self.state.webrtc.as_mut() {
+            if let Err(error) = webrtc.close() {
+                self.push_log(format!("failed to close WebRTC transport: {error}"));
+            }
+        }
+        self.state.signaling = None;
+        self.state.signaling_connected = false;
+        self.state.active_peer = None;
+        self.state.last_signaling_message = None;
     }
 
     fn validate_capture_publish_request(
@@ -1120,6 +1275,104 @@ impl SessionManager {
         }
     }
 
+    fn recovery_diagnostics(
+        &self,
+        transport_snapshot: Option<&transport_webrtc::TransportSnapshot>,
+    ) -> RecoveryDiagnostics {
+        if self.state.mode == SessionMode::Idle {
+            return RecoveryDiagnostics {
+                state: "idle",
+                reason: "Prepare a host or viewer session before reconnect is available."
+                    .to_string(),
+                can_reconnect: false,
+                reconnect_recommended: false,
+            };
+        }
+
+        if self.state.stage == SessionStage::Stopped {
+            return RecoveryDiagnostics {
+                state: "stopped",
+                reason:
+                    "Session is stopped. Reconnect can rebuild the current role with the active configuration."
+                        .to_string(),
+                can_reconnect: true,
+                reconnect_recommended: true,
+            };
+        }
+
+        if self.state.transport == SessionTransport::LiveWebRtc && !self.state.signaling_connected {
+            return RecoveryDiagnostics {
+                state: "signaling_unavailable",
+                reason:
+                    "Signaling is disconnected. Verify the signaling server or address, then reconnect."
+                        .to_string(),
+                can_reconnect: true,
+                reconnect_recommended: true,
+            };
+        }
+
+        let Some(transport_snapshot) = transport_snapshot else {
+            return RecoveryDiagnostics {
+                state: "not_initialized",
+                reason:
+                    "Transport is not initialized yet. Prepare or reconnect the session to build a peer connection."
+                        .to_string(),
+                can_reconnect: true,
+                reconnect_recommended: true,
+            };
+        };
+
+        match transport_snapshot.connection_state.as_str() {
+            "failed" => RecoveryDiagnostics {
+                state: "transport_failed",
+                reason:
+                    "Peer connection entered failed state. Reconnect to rebuild signaling and transport."
+                        .to_string(),
+                can_reconnect: true,
+                reconnect_recommended: true,
+            },
+            "closed" => RecoveryDiagnostics {
+                state: "transport_closed",
+                reason:
+                    "Peer connection is closed. Reconnect to initialize a fresh transport session."
+                        .to_string(),
+                can_reconnect: true,
+                reconnect_recommended: true,
+            },
+            "disconnected" => RecoveryDiagnostics {
+                state: "transport_disconnected",
+                reason:
+                    "Peer connection is temporarily disconnected. Keep refreshing or reconnect to force a fresh session."
+                        .to_string(),
+                can_reconnect: true,
+                reconnect_recommended: true,
+            },
+            "connected" => RecoveryDiagnostics {
+                state: "healthy",
+                reason: "Peer connection is live.".to_string(),
+                can_reconnect: true,
+                reconnect_recommended: false,
+            },
+            _ => {
+                let reason = match self.state.mode {
+                    SessionMode::Host if !transport_snapshot.remote_description_ready => {
+                        "Negotiation is still in progress while waiting for the viewer answer."
+                    }
+                    SessionMode::Viewer if !transport_snapshot.remote_description_ready => {
+                        "Negotiation is still in progress while waiting for the host offer."
+                    }
+                    _ => "Negotiation is still in progress.",
+                };
+                RecoveryDiagnostics {
+                    state: "negotiating",
+                    reason: reason.to_string(),
+                    can_reconnect: true,
+                    reconnect_recommended: false,
+                }
+            }
+        }
+    }
+
     fn next_action(&self) -> &'static str {
         let transport_snapshot = self.state.webrtc.as_ref().map(|session| session.snapshot());
         let connected = transport_snapshot
@@ -1140,7 +1393,7 @@ impl SessionManager {
             (_, _, SessionTransport::MockUdp) => {
                 "legacy mock UDP mode is still available for media scaffold work"
             }
-            (_, SessionStage::Stopped, _) => "restart or reset session",
+            (_, SessionStage::Stopped, _) => "reconnect, restart, or reset session",
             (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
                 "peer connection is live; feed capture samples into the attached tracks or push debug capture samples for transport smoke testing"
             }
@@ -1172,7 +1425,7 @@ impl SessionManager {
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
                 if !self.state.signaling_connected =>
             {
-                "start signaling server or fix the signaling address"
+                "start signaling server or fix the signaling address, then reconnect"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
                 if transport_snapshot
@@ -1192,7 +1445,7 @@ impl SessionManager {
             (SessionMode::Viewer, _, SessionTransport::LiveWebRtc)
                 if !self.state.signaling_connected =>
             {
-                "start signaling server or fix the signaling address"
+                "start signaling server or fix the signaling address, then reconnect"
             }
             (SessionMode::Viewer, _, SessionTransport::LiveWebRtc) if !remote_description_ready => {
                 "wait for host offer and keep refreshing signaling"
@@ -1263,6 +1516,17 @@ fn format_transport_stage(stage: TransportStage) -> String {
     .to_string()
 }
 
+fn format_capture_stream_status(status: CaptureStreamStatus) -> &'static str {
+    match status {
+        CaptureStreamStatus::Starting => "starting",
+        CaptureStreamStatus::Running => "running",
+        CaptureStreamStatus::Stopped => "stopped",
+        CaptureStreamStatus::PermissionRequired => "permission_required",
+        CaptureStreamStatus::PermissionDenied => "permission_denied",
+        CaptureStreamStatus::Failed => "failed",
+    }
+}
+
 fn stamp(message: &str) -> String {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1329,13 +1593,14 @@ fn debug_audio_buffer() -> AudioBuffer {
 #[cfg(test)]
 mod tests {
     use super::{SessionIntent, SessionManager, SessionMode, SessionStage, SessionTransport};
+    use crate::ice_servers::IceServerEntry;
     use crate::preferences::{PreferencesStore, UiPreferences};
     use crate::protocol::{
         PeerAnnouncement, Role, decode_signaling_message, encode_peer, encode_waiting,
         parse_join_request,
     };
     use crate::signaling::SignalingConnection;
-    use capture_core::{CaptureSource, CaptureSourceKind};
+    use capture_core::{CaptureSource, CaptureSourceKind, CaptureStreamEvent, CaptureStreamStatus};
     use std::collections::HashMap;
     use std::fs;
     use std::io::{BufRead, BufReader, Write};
@@ -1424,7 +1689,7 @@ mod tests {
         assert!(!snapshot.local_audio_track_attached);
         assert!(matches!(
             snapshot.next_action.as_str(),
-            "start signaling server or fix the signaling address"
+            "start signaling server or fix the signaling address, then reconnect"
                 | "wait for host offer or refresh signaling"
                 | "wait for host offer and keep refreshing signaling"
                 | "keep refreshing signaling until the peer connection is connected"
@@ -1518,6 +1783,128 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("session stopped"))
         );
+        assert_eq!(snapshot.next_action, "reconnect, restart, or reset session");
+        assert_eq!(snapshot.recovery_state, "stopped");
+        assert!(snapshot.can_reconnect);
+        assert!(snapshot.reconnect_recommended);
+    }
+
+    #[test]
+    fn reconnect_rejects_idle_session() {
+        let mut manager = SessionManager::new();
+
+        let error = manager
+            .reconnect()
+            .expect_err("idle session should not reconnect");
+        assert_eq!(
+            error,
+            "cannot reconnect before preparing a host or viewer session"
+        );
+    }
+
+    #[test]
+    fn stopped_host_session_can_reconnect_with_existing_config() {
+        let (mut manager, config_dir) = new_test_manager("reconnect-stopped-host");
+        manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
+        });
+        manager.stop();
+
+        let snapshot = manager.reconnect().expect("reconnect host");
+
+        assert_eq!(snapshot.mode, SessionMode::Host);
+        assert_eq!(snapshot.room.as_deref(), Some("demo"));
+        assert_eq!(snapshot.signaling_addr.as_deref(), Some("127.0.0.1:7000"));
+        assert_eq!(snapshot.transport, SessionTransport::LiveWebRtc);
+        assert_eq!(snapshot.local_media_track_count, 2);
+        assert!(snapshot.logs.iter().any(|line| {
+            line.contains("reconnecting host session for room=demo signaling=127.0.0.1:7000")
+        }));
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn stopped_viewer_session_reconnects_with_updated_config() {
+        let (mut manager, config_dir) = new_test_manager("reconnect-stopped-viewer");
+        manager.start_viewer(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: None,
+            ice_servers: Vec::new(),
+        });
+        manager.stop();
+        manager.update_config(
+            Some("second-room".to_string()),
+            Some("127.0.0.1:7200".to_string()),
+            None,
+            Some(Vec::new()),
+        );
+
+        let snapshot = manager.reconnect().expect("reconnect viewer");
+
+        assert_eq!(snapshot.mode, SessionMode::Viewer);
+        assert_eq!(snapshot.room.as_deref(), Some("second-room"));
+        assert_eq!(snapshot.signaling_addr.as_deref(), Some("127.0.0.1:7200"));
+        assert_eq!(snapshot.transport, SessionTransport::LiveWebRtc);
+        assert!(snapshot.logs.iter().any(|line| line.contains(
+            "reconnecting viewer session for room=second-room signaling=127.0.0.1:7200"
+        )));
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn reconnect_uses_updated_ice_server_configuration() {
+        let (mut manager, config_dir) = new_test_manager("reconnect-ice-servers");
+        manager.start_viewer(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: None,
+            ice_servers: Vec::new(),
+        });
+        manager.stop();
+
+        manager.update_config(
+            None,
+            None,
+            None,
+            Some(vec![
+                IceServerEntry {
+                    urls: vec!["stun:stun.example.com:3478".to_string()],
+                    username: None,
+                    credential: None,
+                },
+                IceServerEntry {
+                    urls: vec!["turn:turn.example.com:3478?transport=udp".to_string()],
+                    username: Some("viewer".to_string()),
+                    credential: Some("secret".to_string()),
+                },
+            ]),
+        );
+
+        let snapshot = manager.reconnect().expect("reconnect viewer");
+
+        assert_eq!(snapshot.ice_server_count, 2);
+        assert!(snapshot.ice_servers.contains("stun:stun.example.com:3478"));
+        assert!(
+            snapshot
+                .ice_servers
+                .contains("turn:turn.example.com:3478?transport=udp|viewer|secret")
+        );
+        assert!(snapshot.ice_server_summary.contains("auth user viewer"));
+        assert!(
+            snapshot
+                .logs
+                .iter()
+                .any(|line| line.contains("ICE server configuration:")
+                    && line.contains("auth user viewer"))
+        );
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]
@@ -1588,14 +1975,82 @@ mod tests {
     }
 
     #[test]
+    fn host_session_ingests_capture_stream_media_events() {
+        let (mut manager, config_dir) = new_test_manager("capture-stream-events");
+        let (source, _requested_audio, _snapshot) =
+            select_source_with_retry(&mut manager, |source| {
+                source.has_audio.then_some((source, true))
+            });
+
+        manager.select_capture_source(source.id.clone(), true);
+        let host_snapshot = manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
+        });
+        let source_id = host_snapshot
+            .selected_source_id
+            .expect("host source should be selected");
+
+        manager.ingest_capture_stream_event(CaptureStreamEvent::Started {
+            source_id: source_id.clone(),
+        });
+        let after_video = manager.ingest_capture_stream_event(CaptureStreamEvent::VideoFrame {
+            source_id: source_id.clone(),
+            frame: super::debug_video_frame(&source_id),
+        });
+        let after_audio = manager.ingest_capture_stream_event(CaptureStreamEvent::AudioBuffer {
+            source_id: source_id.clone(),
+            buffer: super::debug_audio_buffer(),
+        });
+
+        assert_eq!(after_video.published_video_sample_count, 1);
+        assert_eq!(after_audio.published_audio_sample_count, 1);
+        assert!(
+            after_audio
+                .logs
+                .iter()
+                .any(|line| line.contains("capture stream started for source="))
+        );
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn capture_stream_status_and_error_events_are_logged() {
+        let (mut manager, config_dir) = new_test_manager("capture-stream-status-events");
+
+        let status_snapshot =
+            manager.ingest_capture_stream_event(CaptureStreamEvent::StatusChanged {
+                source_id: Some("source-1".to_string()),
+                status: CaptureStreamStatus::PermissionRequired,
+                message: Some("screen recording approval is required".to_string()),
+            });
+        let error_snapshot = manager.ingest_capture_stream_event(CaptureStreamEvent::Error {
+            source_id: Some("source-1".to_string()),
+            message: "capture backend disconnected".to_string(),
+        });
+
+        assert!(status_snapshot.logs.iter().any(|line| {
+            line.contains("capture stream status changed for source=source-1")
+                && line.contains("permission_required")
+        }));
+        assert!(error_snapshot.logs.iter().any(|line| {
+            line.contains("capture stream error for source=source-1")
+                && line.contains("capture backend disconnected")
+        }));
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
     fn capture_publish_rejects_mismatched_source_id() {
-        let mut manager = SessionManager::new();
-        let source = manager
-            .capture_catalog()
-            .sources
-            .first()
-            .cloned()
-            .expect("at least one source");
+        let (mut manager, config_dir) = new_test_manager("capture-source-mismatch");
+        let (source, _requested_audio, _snapshot) =
+            select_source_with_retry(&mut manager, |source| {
+                Some((source.clone(), source.has_audio))
+            });
 
         manager.select_capture_source(source.id.clone(), source.has_audio);
         manager.start_host(SessionIntent {
@@ -1617,33 +2072,49 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("capture media source mismatch"))
         );
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]
     fn capture_publish_rejects_audio_when_selection_disables_it() {
-        let mut manager = SessionManager::new();
-        let source = manager
-            .capture_catalog()
-            .sources
-            .iter()
-            .find(|source| source.has_audio)
-            .cloned()
-            .expect("at least one audio-capable source");
+        let (mut manager, config_dir) = new_test_manager("capture-audio-disabled");
 
-        manager.select_capture_source(source.id.clone(), false);
-        manager.start_host(SessionIntent {
-            room: "demo".to_string(),
-            signaling_addr: "127.0.0.1:7000".to_string(),
-            source_label: Some("vlc".to_string()),
-            ice_servers: Vec::new(),
-        });
+        for _ in 0..5 {
+            let _ = manager.reset();
+            let (_source, _requested_audio, selected_snapshot) =
+                select_source_with_retry(&mut manager, |source| {
+                    source.has_audio.then_some((source, false))
+                });
+            assert!(!selected_snapshot.selected_source_audio);
 
-        let snapshot = manager.publish_capture_audio_buffer(source.id, super::debug_audio_buffer());
+            let host_snapshot = manager.start_host(SessionIntent {
+                room: "demo".to_string(),
+                signaling_addr: "127.0.0.1:7000".to_string(),
+                source_label: Some("vlc".to_string()),
+                ice_servers: Vec::new(),
+            });
 
-        assert_eq!(snapshot.published_audio_sample_count, 0);
-        assert!(snapshot.logs.iter().any(|line| line.contains(
-            "capture audio buffer ignored because audio is disabled"
-        )));
+            let Some(selected_source_id) = host_snapshot.selected_source_id.clone() else {
+                continue;
+            };
+            if host_snapshot.selected_source_audio {
+                continue;
+            }
+
+            let snapshot = manager
+                .publish_capture_audio_buffer(selected_source_id, super::debug_audio_buffer());
+
+            if snapshot.published_audio_sample_count == 0 {
+                assert!(snapshot.logs.iter().any(|line| {
+                    line.contains("capture audio buffer ignored because audio is disabled")
+                }));
+                let _ = fs::remove_dir_all(config_dir);
+                return;
+            }
+        }
+
+        panic!("failed to keep audio disabled while preparing the host session");
     }
 
     #[test]
@@ -1680,6 +2151,30 @@ mod tests {
         assert_eq!(snapshot.mode, SessionMode::Idle);
         assert_eq!(snapshot.stage, SessionStage::Idle);
         assert_eq!(snapshot.next_action, "configure host or viewer session");
+        assert_eq!(snapshot.recovery_state, "idle");
+        assert!(!snapshot.can_reconnect);
+        assert!(!snapshot.reconnect_recommended);
+    }
+
+    #[test]
+    fn disconnected_signaling_marks_reconnect_as_recommended() {
+        let mut manager = SessionManager::new();
+        manager.state.mode = SessionMode::Viewer;
+        manager.state.stage = SessionStage::AwaitingPeer;
+        manager.state.transport = SessionTransport::LiveWebRtc;
+        manager.state.room = Some("demo".to_string());
+        manager.state.signaling_addr = Some("127.0.0.1:7000".to_string());
+        manager.state.signaling_connected = false;
+
+        let snapshot = manager.snapshot();
+
+        assert_eq!(snapshot.recovery_state, "signaling_unavailable");
+        assert!(snapshot.can_reconnect);
+        assert!(snapshot.reconnect_recommended);
+        assert_eq!(
+            snapshot.recovery_reason,
+            "Signaling is disconnected. Verify the signaling server or address, then reconnect."
+        );
     }
 
     #[test]
@@ -2167,6 +2662,7 @@ mod tests {
         manager: &mut SessionManager,
     ) -> super::SessionSnapshot {
         for _ in 0..5 {
+            let before = manager.snapshot();
             let (_source, _requested_audio, selected_snapshot) =
                 select_source_with_retry(manager, |source| {
                     source.has_audio.then_some((source, false))
@@ -2174,8 +2670,8 @@ mod tests {
             assert!(!selected_snapshot.selected_source_audio);
 
             let snapshot = manager.publish_debug_capture_samples();
-            if snapshot.published_video_sample_count == 1
-                && snapshot.published_audio_sample_count == 0
+            if snapshot.published_video_sample_count > before.published_video_sample_count
+                && snapshot.published_audio_sample_count == before.published_audio_sample_count
             {
                 return snapshot;
             }
@@ -2188,6 +2684,7 @@ mod tests {
         manager: &mut SessionManager,
     ) -> super::SessionSnapshot {
         for _ in 0..5 {
+            let before = manager.snapshot();
             let (_source, _requested_audio, selected_snapshot) =
                 select_source_with_retry(manager, |source| {
                     source.has_audio.then_some((source, true))
@@ -2195,8 +2692,8 @@ mod tests {
             assert!(selected_snapshot.selected_source_audio);
 
             let snapshot = manager.publish_debug_capture_samples();
-            if snapshot.published_video_sample_count == 1
-                && snapshot.published_audio_sample_count == 1
+            if snapshot.published_video_sample_count > before.published_video_sample_count
+                && snapshot.published_audio_sample_count > before.published_audio_sample_count
             {
                 return snapshot;
             }

@@ -37,11 +37,14 @@
 ### Iteration 2 Progress
 
 - Done in part: `capture-core` now exists for shared source, permission, video-frame, and audio-buffer types
+- Done in part: `capture-core` now also defines live capture stream config/status/event contracts for native backends to emit video/audio samples without using the debug burst path
+- Done in part: `capture-core` now exposes a common capture stream runtime trait, and macOS/Linux crates provide planned runtime scaffolds that emit structured status/stop events until native bridges are implemented
 - Done in part: `capture-macos` now exposes a best-effort runtime application/window catalog with blueprint fallback
 - Done in part: runtime probing on macOS now maps catalog results into live permission-state diagnostics
 - Done in part: Tauri/app-core now surface the current platform capture catalog and selected source metadata
 - Done in part: session manager and `transport-webrtc` now accept debug `capture-core` video/audio payloads, including source-audio opt-out during smoke tests
 - Done in part: `app-core::SessionManager` now exposes source-validated capture video/audio publish APIs that future native backends can target directly
+- Done in part: `app-core::SessionManager` now ingests live `capture-core` stream events and maps media events into the same source-validated WebRTC publishing pipeline
 - Still open: the actual ScreenCaptureKit bridge, permission flow, and live sample delivery
 
 ## Iteration 3: Linux Capture Backend
@@ -56,6 +59,7 @@
 
 - Done in part: `capture-linux` now exposes a best-effort `wmctrl`-based runtime window catalog with blueprint fallback
 - Done in part: runtime probing on Linux now maps catalog results into live permission-state diagnostics
+- Done in part: `capture-linux` now has a planned Portal/PipeWire runtime scaffold implementing the shared capture stream runtime contract
 - Still open: real portal session lifecycle, PipeWire media consumption, and robust Wayland coverage
 
 ## Iteration 4: Tauri Production Flow
@@ -72,6 +76,7 @@
 - Done in part: GUI session actions already drive real signaling, negotiation, and debug capture media publishing
 - Done in part: GUI transport smoke test now drives a debug `capture-core` media bridge instead of hardcoded anonymous sample bytes
 - Done in part: the debug GUI publish path now uses the same source-validated session ingest API planned for future native capture backends
+- Done in part: session orchestration now has a production-facing live capture event ingestion API, so native backend events can enter the pipeline without going through GUI debug publishing
 - Done in part: source picker UI now exists, backed by the current platform capture catalog blueprint data
 - Done in part: GUI now surfaces transport-stage, data-channel, and transport-note diagnostics from the live WebRTC layer
 - Done in part: GUI now surfaces capture-catalog origin and backend notes for runtime-vs-fallback diagnostics
@@ -85,6 +90,9 @@
 - Done in part: macOS GUI source selection now uses runtime enumeration when available
 - Done in part: Linux GUI source selection now uses `wmctrl`-based runtime enumeration when available
 - Done in part: background GUI polling no longer overwrites in-progress room/signaling/ICE draft edits, and the desktop shell now exposes persisted auto-refresh controls for tuning that polling loop
+- Done in part: the desktop shell now supports an explicit reconnect action that rebuilds the current host/viewer session with the active room, signaling, and ICE configuration
+- Done in part: the desktop GUI now surfaces explicit recovery-state diagnostics so stopped, disconnected, failed, and healthy session states are visible alongside reconnect guidance
+- Done in part: the desktop GUI now surfaces candidate-pair RTT, available bitrate, byte counters, and packet-loss diagnostics alongside the existing ICE path summary
 - Still open: replace metadata-only runtime catalogs with real capture-session enumeration and Wayland portal flow
 
 ## Iteration 5: Audio/Video Pipeline Hardening
@@ -108,7 +116,9 @@
 
 - Done in part: `transport-webrtc` already accepted ICE server entries, and `app-core`, CLI, Tauri, and persisted desktop session config now expose custom STUN/TURN server configuration end to end
 - Done in part: transport snapshots and the desktop GUI now surface a best-effort ICE candidate-pair summary with direct-vs-relay hints
-- Still open: bundled TURN deployment/auth flow, deeper relay/direct metrics, and production topology documentation
+- Done in part: ICE server configuration is validated before it reaches CLI/Tauri session startup, including scheme checks for STUN/TURN URLs
+- Done in part: production networking topology and security assumptions now live in `docs/NETWORKING.md`
+- Still open: bundled TURN deployment/auth flow and deeper relay/direct metrics
 
 ## Iteration 7: Persistence And App Packaging
 
@@ -140,4 +150,7 @@
 
 - Done in part: `app-core` now has broader unit coverage for signaling parser edge cases plus viewer/debug-capture session transition behavior
 - Done in part: `app-core/tests/host_viewer_flow.rs` now exercises host/viewer negotiation and late-join offer replay over a real local TCP signaling path, isolated from any user-local desktop preferences
+- Done in part: `app-core` now has unit coverage for reconnecting stopped host/viewer sessions and rejecting reconnect attempts from idle state
+- Done in part: `app-core` now has unit coverage for recovery diagnostics when signaling is unavailable, plus more stable isolated capture-selection tests
+- Done in part: manual QA coverage for current MVP behavior now lives in `docs/QA_CHECKLIST.md`
 - Still open: broader QA checklists and real-network validation
