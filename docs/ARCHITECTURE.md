@@ -63,6 +63,7 @@ Cross-platform capture contracts that now exist in code:
 
 - native ScreenCaptureKit bridge
 - shared runtime scaffold that reports structured planned/permission status until the native bridge lands
+- normalized native stream settings for selected source id, source label, audio opt-in, target FPS, and maximum frame size before bridge startup
 - video frame extraction
 - audio sample extraction
 - permission handling
@@ -119,6 +120,7 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - `app-core::SessionManager` now validates selected source identity and audio opt-in before accepting capture payloads for publication
 - `app-core::SessionManager` now ingests live `capture-core` stream events and maps video/audio events into the same validated WebRTC publish path
 - `app-core::SessionManager` now owns the active platform capture runtime lifecycle and exposes start/poll/stop entry points for native capture events
+- `capture-macos` now separates catalog/permission validation from a native ScreenCaptureKit bridge lifecycle boundary, with normalized stream settings passed into the bridge startup path
 - the main Tauri GUI path now relies on automatic signaling refresh instead of exposing manual answer/ICE controls
 - `capture-core` as the shared Rust-side model for future native capture backends
 - a lightweight local session-preferences store in `app-core` for restoring room/signaling/source choices between desktop launches

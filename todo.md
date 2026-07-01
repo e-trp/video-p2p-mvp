@@ -49,6 +49,7 @@
 - Done in part: `capture-macos` now preflights macOS Screen Recording permission through CoreGraphics, validates the selected runtime source before stream start, and reports permission-vs-bridge-unavailable states separately
 - Done in part: `capture-macos` now requests Screen Recording access during native stream start when preflight reports permission is still required
 - Done in part: `capture-macos` now has a native ScreenCaptureKit bridge lifecycle boundary that owns start/poll/stop events separately from catalog and permission validation
+- Done in part: `capture-macos` now normalizes selected source, audio opt-in, target FPS, and max frame dimensions before handing stream startup to the native bridge boundary
 - Still open: the actual ScreenCaptureKit bridge, permission flow, and live sample delivery
 
 ## Iteration 3: Linux Capture Backend

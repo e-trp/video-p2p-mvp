@@ -103,6 +103,7 @@ Today this picker is backed by:
 - Linux: runtime X11 window enumeration through `wmctrl` when available, with a fallback to `Portal + PipeWire`-shaped blueprint sources
 
 This is still a contract layer overall. Both platform catalogs are best-effort metadata enumeration, not real capture sessions, and they fall back to blueprint data when the host environment blocks runtime discovery.
+On macOS, starting the native capture runtime now validates Screen Recording permission and reaches a planned ScreenCaptureKit bridge boundary with normalized source, audio, frame-rate, and frame-size settings, but it still does not emit real OS video or audio samples.
 
 ### Transport Diagnostics
 
