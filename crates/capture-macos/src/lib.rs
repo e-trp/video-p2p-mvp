@@ -39,18 +39,18 @@ pub struct MacCaptureCatalog {
     pub notes: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
 pub struct MacCaptureRuntime {
     status: CaptureStreamStatus,
     active_source_id: Option<String>,
     pending_events: Vec<CaptureStreamEvent>,
+    bridge: Box<dyn MacNativeCaptureBridge + Send>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum MacRuntimeStartPlan {
     PermissionRequired(String),
     SourceUnavailable(String),
-    BridgeUnavailable(String),
+    StartBridge { source_label: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,12 +59,28 @@ enum MacPermissionResolution {
     StillRequired(String),
 }
 
+trait MacNativeCaptureBridge {
+    fn start(
+        &mut self,
+        config: &CaptureStreamConfig,
+        source_label: &str,
+    ) -> CaptureStreamResult<Vec<CaptureStreamEvent>>;
+    fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>>;
+    fn stop(&mut self, source_id: Option<String>) -> CaptureStreamResult<Vec<CaptureStreamEvent>>;
+}
+
+#[derive(Debug, Default)]
+struct PlannedScreenCaptureKitBridge {
+    active_source_id: Option<String>,
+}
+
 impl Default for MacCaptureRuntime {
     fn default() -> Self {
         Self {
             status: CaptureStreamStatus::Stopped,
             active_source_id: None,
             pending_events: Vec::new(),
+            bridge: Box::<PlannedScreenCaptureKitBridge>::default(),
         }
     }
 }
@@ -154,19 +170,7 @@ impl CaptureStreamRuntime for MacCaptureRuntime {
             MacRuntimeStartPlan::PermissionRequired(message) => {
                 match resolve_permission_requirement(message) {
                     MacPermissionResolution::Granted => {
-                        self.status = CaptureStreamStatus::Failed;
-                        self.pending_events.push(CaptureStreamEvent::Started {
-                            source_id: source_id.clone(),
-                        });
-                        self.pending_events.push(CaptureStreamEvent::StatusChanged {
-                            source_id: Some(source_id),
-                            status: self.status,
-                            message: Some(
-                                "Screen Recording permission was granted; native ScreenCaptureKit sample delivery is not implemented yet"
-                                    .to_string(),
-                            ),
-                        });
-                        Ok(())
+                        self.start_native_bridge(&config, "selected macOS source")
                     }
                     MacPermissionResolution::StillRequired(message) => {
                         self.status = CaptureStreamStatus::PermissionRequired;
@@ -187,37 +191,100 @@ impl CaptureStreamRuntime for MacCaptureRuntime {
                 });
                 Err(CaptureStreamError::new(message))
             }
-            MacRuntimeStartPlan::BridgeUnavailable(message) => {
-                self.status = CaptureStreamStatus::Failed;
-                self.pending_events.push(CaptureStreamEvent::Started {
-                    source_id: source_id.clone(),
-                });
-                self.pending_events.push(CaptureStreamEvent::StatusChanged {
-                    source_id: Some(source_id),
-                    status: self.status,
-                    message: Some(message),
-                });
-                Ok(())
+            MacRuntimeStartPlan::StartBridge { source_label } => {
+                self.start_native_bridge(&config, &source_label)
             }
         }
     }
 
     fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
-        Ok(std::mem::take(&mut self.pending_events))
+        let mut events = std::mem::take(&mut self.pending_events);
+        events.extend(self.bridge.poll_events()?);
+        self.apply_event_status(&events);
+        Ok(events)
     }
 
     fn stop(&mut self) -> CaptureStreamResult<()> {
         let source_id = self.active_source_id.take();
-        self.status = CaptureStreamStatus::Stopped;
-        self.pending_events.push(CaptureStreamEvent::Stopped {
-            source_id,
-            reason: Some("ScreenCaptureKit planned runtime stopped".to_string()),
-        });
+        let events = self.bridge.stop(source_id)?;
+        self.apply_event_status(&events);
+        self.pending_events.extend(events);
         Ok(())
     }
 
     fn status(&self) -> CaptureStreamStatus {
         self.status
+    }
+}
+
+impl MacCaptureRuntime {
+    fn start_native_bridge(
+        &mut self,
+        config: &CaptureStreamConfig,
+        source_label: &str,
+    ) -> CaptureStreamResult<()> {
+        self.status = CaptureStreamStatus::Starting;
+        let events = self.bridge.start(config, source_label)?;
+        self.apply_event_status(&events);
+        self.pending_events.extend(events);
+        Ok(())
+    }
+
+    fn apply_event_status(&mut self, events: &[CaptureStreamEvent]) {
+        for event in events {
+            match event {
+                CaptureStreamEvent::Started { .. } => {
+                    if self.status == CaptureStreamStatus::Starting {
+                        self.status = CaptureStreamStatus::Running;
+                    }
+                }
+                CaptureStreamEvent::StatusChanged { status, .. } => {
+                    self.status = *status;
+                }
+                CaptureStreamEvent::Stopped { .. } => {
+                    self.status = CaptureStreamStatus::Stopped;
+                }
+                CaptureStreamEvent::Error { .. } => {
+                    self.status = CaptureStreamStatus::Failed;
+                }
+                CaptureStreamEvent::VideoFrame { .. } | CaptureStreamEvent::AudioBuffer { .. } => {}
+            }
+        }
+    }
+}
+
+impl MacNativeCaptureBridge for PlannedScreenCaptureKitBridge {
+    fn start(
+        &mut self,
+        config: &CaptureStreamConfig,
+        source_label: &str,
+    ) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
+        let source_id = config.source_id().to_string();
+        self.active_source_id = Some(source_id.clone());
+        Ok(vec![
+            CaptureStreamEvent::Started {
+                source_id: source_id.clone(),
+            },
+            CaptureStreamEvent::StatusChanged {
+                source_id: Some(source_id),
+                status: CaptureStreamStatus::Failed,
+                message: Some(format!(
+                    "ScreenCaptureKit bridge boundary reached for {source_label}; native sample delivery is not implemented yet"
+                )),
+            },
+        ])
+    }
+
+    fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
+        Ok(Vec::new())
+    }
+
+    fn stop(&mut self, source_id: Option<String>) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
+        let source_id = source_id.or_else(|| self.active_source_id.take());
+        Ok(vec![CaptureStreamEvent::Stopped {
+            source_id,
+            reason: Some("ScreenCaptureKit bridge stopped".to_string()),
+        }])
     }
 }
 
@@ -252,10 +319,9 @@ fn plan_runtime_start(
     };
 
     match catalog.permission_state {
-        CapturePermissionState::Granted => MacRuntimeStartPlan::BridgeUnavailable(format!(
-            "ScreenCaptureKit permission preflight passed for {}; native sample delivery is not implemented yet",
-            source.label()
-        )),
+        CapturePermissionState::Granted => MacRuntimeStartPlan::StartBridge {
+            source_label: source.label(),
+        },
         CapturePermissionState::Denied => MacRuntimeStartPlan::PermissionRequired(
             "Screen Recording permission appears denied; enable it for this app in macOS Privacy & Security settings".to_string(),
         ),
@@ -446,10 +512,11 @@ fn slugify(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        MacCaptureCatalog, MacCaptureStage, MacPermissionResolution, MacRuntimeStartPlan,
-        MacSourceCatalogOrigin, blueprint, describe_permission_state,
-        infer_permission_state_from_error, parse_runtime_listing, plan_runtime_start,
-        resolve_permission_requirement, runtime, runtime_catalog_script, slugify,
+        MacCaptureCatalog, MacCaptureStage, MacNativeCaptureBridge, MacPermissionResolution,
+        MacRuntimeStartPlan, MacSourceCatalogOrigin, PlannedScreenCaptureKitBridge, blueprint,
+        describe_permission_state, infer_permission_state_from_error, parse_runtime_listing,
+        plan_runtime_start, resolve_permission_requirement, runtime, runtime_catalog_script,
+        slugify,
     };
     use capture_core::{
         CapturePermissionState, CaptureSelection, CaptureSource, CaptureSourceKind,
@@ -560,15 +627,44 @@ mod tests {
     }
 
     #[test]
-    fn runtime_start_plan_distinguishes_missing_bridge_after_permission() {
+    fn runtime_start_plan_allows_bridge_start_after_permission() {
         let catalog = test_catalog(CapturePermissionState::Granted);
         let plan = plan_runtime_start(&test_config("mac-window-vlc"), &catalog);
 
         assert!(matches!(
             plan,
-            MacRuntimeStartPlan::BridgeUnavailable(message)
-                if message.contains("native sample delivery is not implemented yet")
+            MacRuntimeStartPlan::StartBridge { source_label }
+                if source_label == "VLC - VLC Player"
         ));
+    }
+
+    #[test]
+    fn planned_bridge_reports_native_boundary_without_media_samples() {
+        let mut bridge = PlannedScreenCaptureKitBridge::default();
+        let events = bridge
+            .start(&test_config("mac-window-vlc"), "VLC - VLC Player")
+            .expect("start planned bridge");
+
+        assert!(matches!(
+            events.as_slice(),
+            [
+                CaptureStreamEvent::Started { .. },
+                CaptureStreamEvent::StatusChanged {
+                    status: CaptureStreamStatus::Failed,
+                    ..
+                }
+            ]
+        ));
+        assert!(
+            format!("{:?}", events)
+                .contains("ScreenCaptureKit bridge boundary reached for VLC - VLC Player")
+        );
+        assert!(
+            bridge
+                .poll_events()
+                .expect("poll planned bridge")
+                .is_empty()
+        );
     }
 
     #[test]
