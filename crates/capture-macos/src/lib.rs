@@ -1,6 +1,7 @@
 use capture_core::{
     CapturePermissionState, CaptureSource, CaptureSourceKind, CaptureStreamConfig,
-    CaptureStreamEvent, CaptureStreamResult, CaptureStreamRuntime, CaptureStreamStatus,
+    CaptureStreamError, CaptureStreamEvent, CaptureStreamResult, CaptureStreamRuntime,
+    CaptureStreamStatus,
 };
 use std::collections::HashSet;
 use std::process::Command;
@@ -43,6 +44,13 @@ pub struct MacCaptureRuntime {
     status: CaptureStreamStatus,
     active_source_id: Option<String>,
     pending_events: Vec<CaptureStreamEvent>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum MacRuntimeStartPlan {
+    PermissionRequired(String),
+    SourceUnavailable(String),
+    BridgeUnavailable(String),
 }
 
 impl Default for MacCaptureRuntime {
@@ -94,16 +102,25 @@ pub fn current_catalog() -> MacCaptureCatalog {
     let blueprint = blueprint();
 
     match enumerate_runtime_sources() {
-        Ok(sources) if !sources.is_empty() => MacCaptureCatalog {
-            backend_label: format!("{} runtime catalog", blueprint.sources_api),
-            permission_state: CapturePermissionState::Granted,
-            notes: vec![format!(
-                "runtime catalog enumerated {} sources through osascript/System Events",
-                sources.len()
-            )],
-            sources,
-            origin: MacSourceCatalogOrigin::Runtime,
-        },
+        Ok(sources) if !sources.is_empty() => {
+            let permission_state = screen_recording_permission_state();
+            MacCaptureCatalog {
+                backend_label: format!("{} runtime catalog", blueprint.sources_api),
+                permission_state,
+                notes: vec![
+                    format!(
+                        "runtime catalog enumerated {} sources through osascript/System Events",
+                        sources.len()
+                    ),
+                    format!(
+                        "Screen Recording preflight state: {}",
+                        describe_permission_state(permission_state)
+                    ),
+                ],
+                sources,
+                origin: MacSourceCatalogOrigin::Runtime,
+            }
+        }
         Err(error) => MacCaptureCatalog {
             backend_label: format!("{} blueprint fallback", blueprint.sources_api),
             permission_state: infer_permission_state_from_error(&error),
@@ -124,17 +141,40 @@ pub fn current_catalog() -> MacCaptureCatalog {
 impl CaptureStreamRuntime for MacCaptureRuntime {
     fn start(&mut self, config: CaptureStreamConfig) -> CaptureStreamResult<()> {
         let source_id = config.source_id().to_string();
-        self.status = CaptureStreamStatus::PermissionRequired;
+        self.pending_events.clear();
         self.active_source_id = Some(source_id.clone());
-        self.pending_events.push(CaptureStreamEvent::StatusChanged {
-            source_id: Some(source_id),
-            status: self.status,
-            message: Some(
-                "ScreenCaptureKit stream bridge is not implemented yet; grant Screen Recording permission before native capture is wired"
-                    .to_string(),
-            ),
-        });
-        Ok(())
+
+        match plan_runtime_start(&config, &current_catalog()) {
+            MacRuntimeStartPlan::PermissionRequired(message) => {
+                self.status = CaptureStreamStatus::PermissionRequired;
+                self.pending_events.push(CaptureStreamEvent::StatusChanged {
+                    source_id: Some(source_id),
+                    status: self.status,
+                    message: Some(message),
+                });
+                Ok(())
+            }
+            MacRuntimeStartPlan::SourceUnavailable(message) => {
+                self.status = CaptureStreamStatus::Failed;
+                self.pending_events.push(CaptureStreamEvent::Error {
+                    source_id: Some(source_id),
+                    message: message.clone(),
+                });
+                Err(CaptureStreamError::new(message))
+            }
+            MacRuntimeStartPlan::BridgeUnavailable(message) => {
+                self.status = CaptureStreamStatus::Failed;
+                self.pending_events.push(CaptureStreamEvent::Started {
+                    source_id: source_id.clone(),
+                });
+                self.pending_events.push(CaptureStreamEvent::StatusChanged {
+                    source_id: Some(source_id),
+                    status: self.status,
+                    message: Some(message),
+                });
+                Ok(())
+            }
+        }
     }
 
     fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
@@ -172,6 +212,68 @@ fn infer_permission_state_from_error(error: &str) -> CapturePermissionState {
         CapturePermissionState::Unknown
     } else {
         CapturePermissionState::Required
+    }
+}
+
+fn plan_runtime_start(
+    config: &CaptureStreamConfig,
+    catalog: &MacCaptureCatalog,
+) -> MacRuntimeStartPlan {
+    let source_id = config.source_id();
+    let Some(source) = catalog.sources.iter().find(|source| source.id == source_id) else {
+        return MacRuntimeStartPlan::SourceUnavailable(format!(
+            "capture source is no longer available in the macOS catalog: {source_id}"
+        ));
+    };
+
+    match catalog.permission_state {
+        CapturePermissionState::Granted => MacRuntimeStartPlan::BridgeUnavailable(format!(
+            "ScreenCaptureKit permission preflight passed for {}; native sample delivery is not implemented yet",
+            source.label()
+        )),
+        CapturePermissionState::Denied => MacRuntimeStartPlan::PermissionRequired(
+            "Screen Recording permission appears denied; enable it for this app in macOS Privacy & Security settings".to_string(),
+        ),
+        CapturePermissionState::Required => MacRuntimeStartPlan::PermissionRequired(
+            "Screen Recording permission is required before starting ScreenCaptureKit capture"
+                .to_string(),
+        ),
+        CapturePermissionState::Unknown => MacRuntimeStartPlan::PermissionRequired(
+            "Screen Recording permission could not be verified in this environment".to_string(),
+        ),
+    }
+}
+
+fn screen_recording_permission_state() -> CapturePermissionState {
+    if screen_recording_preflight_granted() {
+        CapturePermissionState::Granted
+    } else {
+        CapturePermissionState::Required
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn screen_recording_preflight_granted() -> bool {
+    unsafe { CGPreflightScreenCaptureAccess() }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn screen_recording_preflight_granted() -> bool {
+    false
+}
+
+#[cfg(target_os = "macos")]
+#[link(name = "ApplicationServices", kind = "framework")]
+unsafe extern "C" {
+    fn CGPreflightScreenCaptureAccess() -> bool;
+}
+
+fn describe_permission_state(state: CapturePermissionState) -> &'static str {
+    match state {
+        CapturePermissionState::Unknown => "unknown",
+        CapturePermissionState::Required => "required",
+        CapturePermissionState::Granted => "granted",
+        CapturePermissionState::Denied => "denied",
     }
 }
 
@@ -298,12 +400,13 @@ fn slugify(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        MacCaptureStage, blueprint, infer_permission_state_from_error, parse_runtime_listing,
-        runtime, runtime_catalog_script, slugify,
+        MacCaptureCatalog, MacCaptureStage, MacRuntimeStartPlan, MacSourceCatalogOrigin, blueprint,
+        describe_permission_state, infer_permission_state_from_error, parse_runtime_listing,
+        plan_runtime_start, runtime, runtime_catalog_script, slugify,
     };
     use capture_core::{
-        CapturePermissionState, CaptureSelection, CaptureStreamConfig, CaptureStreamEvent,
-        CaptureStreamRuntime, CaptureStreamStatus,
+        CapturePermissionState, CaptureSelection, CaptureSource, CaptureSourceKind,
+        CaptureStreamConfig, CaptureStreamEvent, CaptureStreamRuntime, CaptureStreamStatus,
     };
 
     #[test]
@@ -366,7 +469,51 @@ mod tests {
     }
 
     #[test]
-    fn planned_runtime_reports_permission_required_until_bridge_exists() {
+    fn permission_state_description_is_stable() {
+        assert_eq!(
+            describe_permission_state(CapturePermissionState::Granted),
+            "granted"
+        );
+    }
+
+    #[test]
+    fn runtime_start_plan_rejects_missing_source() {
+        let catalog = test_catalog(CapturePermissionState::Granted);
+        let plan = plan_runtime_start(&test_config("missing-source"), &catalog);
+
+        assert!(matches!(
+            plan,
+            MacRuntimeStartPlan::SourceUnavailable(message)
+                if message.contains("missing-source")
+        ));
+    }
+
+    #[test]
+    fn runtime_start_plan_requires_screen_recording_permission() {
+        let catalog = test_catalog(CapturePermissionState::Required);
+        let plan = plan_runtime_start(&test_config("mac-window-vlc"), &catalog);
+
+        assert!(matches!(
+            plan,
+            MacRuntimeStartPlan::PermissionRequired(message)
+                if message.contains("Screen Recording permission is required")
+        ));
+    }
+
+    #[test]
+    fn runtime_start_plan_distinguishes_missing_bridge_after_permission() {
+        let catalog = test_catalog(CapturePermissionState::Granted);
+        let plan = plan_runtime_start(&test_config("mac-window-vlc"), &catalog);
+
+        assert!(matches!(
+            plan,
+            MacRuntimeStartPlan::BridgeUnavailable(message)
+                if message.contains("native sample delivery is not implemented yet")
+        ));
+    }
+
+    #[test]
+    fn planned_runtime_reports_permission_or_bridge_state() {
         let mut runtime = runtime();
         runtime
             .start(CaptureStreamConfig {
@@ -381,18 +528,11 @@ mod tests {
             .expect("start planned macOS runtime");
 
         let events = runtime.poll_events().expect("poll planned events");
-        assert_eq!(runtime.status(), CaptureStreamStatus::PermissionRequired);
         assert!(matches!(
-            events.as_slice(),
-            [CaptureStreamEvent::StatusChanged {
-                status: CaptureStreamStatus::PermissionRequired,
-                ..
-            }]
+            runtime.status(),
+            CaptureStreamStatus::PermissionRequired | CaptureStreamStatus::Failed
         ));
-        assert!(
-            format!("{:?}", events[0])
-                .contains("ScreenCaptureKit stream bridge is not implemented")
-        );
+        assert!(!events.is_empty());
 
         runtime.stop().expect("stop planned macOS runtime");
         let stop_events = runtime.poll_events().expect("poll stop event");
@@ -401,5 +541,33 @@ mod tests {
             stop_events.as_slice(),
             [CaptureStreamEvent::Stopped { .. }]
         ));
+    }
+
+    fn test_config(source_id: &str) -> CaptureStreamConfig {
+        CaptureStreamConfig {
+            selection: CaptureSelection {
+                source_id: source_id.to_string(),
+                include_audio: true,
+            },
+            target_fps: Some(30),
+            max_width: Some(1920),
+            max_height: Some(1080),
+        }
+    }
+
+    fn test_catalog(permission_state: CapturePermissionState) -> MacCaptureCatalog {
+        MacCaptureCatalog {
+            backend_label: "test".to_string(),
+            permission_state,
+            sources: vec![CaptureSource {
+                id: "mac-window-vlc".to_string(),
+                kind: CaptureSourceKind::Window,
+                display_name: "VLC Player".to_string(),
+                app_name: Some("VLC".to_string()),
+                has_audio: true,
+            }],
+            origin: MacSourceCatalogOrigin::Runtime,
+            notes: Vec::new(),
+        }
     }
 }
