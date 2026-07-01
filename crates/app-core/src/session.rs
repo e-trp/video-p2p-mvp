@@ -1,6 +1,6 @@
 use crate::capture_catalog::{
     CaptureCatalogSnapshot, current_capture_catalog, describe_permission_state,
-    selected_source_label,
+    new_capture_runtime, selected_source_label,
 };
 use crate::ice_servers::{IceServerEntry, format_ice_server_entries, summarize_ice_server_entries};
 use crate::preferences::{PersistedSessionConfig, PreferencesStore, UiPreferences};
@@ -9,8 +9,8 @@ use crate::protocol::{
 };
 use crate::signaling::{SignalingConnection, SignalingEvent};
 use capture_core::{
-    AudioBuffer, CapturePermissionState, CaptureSelection, CaptureStreamEvent, CaptureStreamStatus,
-    VideoFrame, VideoPixelFormat,
+    AudioBuffer, CapturePermissionState, CaptureSelection, CaptureStreamConfig, CaptureStreamEvent,
+    CaptureStreamRuntime, CaptureStreamStatus, VideoFrame, VideoPixelFormat,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 use transport_webrtc::{
@@ -131,6 +131,7 @@ struct SessionState {
     signaling: Option<SignalingConnection>,
     signaling_connected: bool,
     last_signaling_message: Option<String>,
+    capture_runtime: Option<Box<dyn CaptureStreamRuntime + Send>>,
 }
 
 struct RecoveryDiagnostics {
@@ -159,6 +160,7 @@ impl Default for SessionState {
             signaling: None,
             signaling_connected: false,
             last_signaling_message: None,
+            capture_runtime: None,
         }
     }
 }
@@ -381,9 +383,97 @@ impl SessionManager {
     pub fn refresh(&mut self) -> SessionSnapshot {
         self.sync_capture_catalog();
         self.process_signaling_events();
+        self.poll_capture_runtime_events();
         self.ensure_host_offer("local SDP offer created and sent automatically");
         self.flush_local_transport_signals();
         self.update_stage_from_transport();
+        self.snapshot()
+    }
+
+    pub fn start_capture_stream(&mut self) -> Result<SessionSnapshot, String> {
+        self.sync_capture_catalog();
+
+        if self.state.mode != SessionMode::Host {
+            let message =
+                "native capture stream can only be started from a host session".to_string();
+            self.push_log(message.clone());
+            return Err(message);
+        }
+
+        let Some(selection) = self.state.capture_selection.clone() else {
+            let message =
+                "native capture stream cannot start before selecting a capture source".to_string();
+            self.push_log(message.clone());
+            return Err(message);
+        };
+
+        if let Err(message) = self.validate_capture_publish_request(&selection.source_id, false) {
+            self.push_log(message.clone());
+            return Err(message);
+        }
+
+        if self.state.capture_runtime.is_none() {
+            self.state.capture_runtime = new_capture_runtime();
+        }
+
+        let Some(runtime) = self.state.capture_runtime.as_mut() else {
+            let message =
+                "native capture stream runtime is not available for this platform".to_string();
+            self.push_log(message.clone());
+            return Err(message);
+        };
+
+        let source_id = selection.source_id.clone();
+        let include_audio = selection.include_audio;
+        let result = runtime.start(CaptureStreamConfig {
+            selection,
+            target_fps: Some(30),
+            max_width: Some(1280),
+            max_height: Some(720),
+        });
+
+        match result {
+            Ok(()) => {
+                self.push_log(format!(
+                    "native capture stream start requested for source={source_id} include_audio={include_audio}"
+                ));
+                self.poll_capture_runtime_events();
+                Ok(self.snapshot())
+            }
+            Err(error) => {
+                let message = format!(
+                    "failed to start native capture stream for source={source_id}: {error}"
+                );
+                self.push_log(message.clone());
+                Err(message)
+            }
+        }
+    }
+
+    pub fn poll_capture_stream(&mut self) -> SessionSnapshot {
+        self.poll_capture_runtime_events();
+        self.snapshot()
+    }
+
+    pub fn stop_capture_stream(&mut self) -> SessionSnapshot {
+        let result = match self.state.capture_runtime.as_mut() {
+            Some(runtime) => runtime.stop(),
+            None => {
+                self.push_log("native capture stream is not running".to_string());
+                return self.snapshot();
+            }
+        };
+
+        match result {
+            Ok(()) => {
+                self.push_log("native capture stream stop requested".to_string());
+                self.poll_capture_runtime_events();
+            }
+            Err(error) => {
+                self.push_log(format!("failed to stop native capture stream: {error}"));
+            }
+        }
+
         self.snapshot()
     }
 
@@ -392,8 +482,6 @@ impl SessionManager {
         source_id: String,
         frame: VideoFrame,
     ) -> SessionSnapshot {
-        self.sync_capture_catalog();
-
         if let Err(message) = self.validate_capture_publish_request(&source_id, false) {
             self.push_log(message);
             return self.snapshot();
@@ -424,8 +512,6 @@ impl SessionManager {
         source_id: String,
         buffer: AudioBuffer,
     ) -> SessionSnapshot {
-        self.sync_capture_catalog();
-
         if let Err(message) = self.validate_capture_publish_request(&source_id, true) {
             self.push_log(message);
             return self.snapshot();
@@ -584,6 +670,7 @@ impl SessionManager {
     }
 
     pub fn stop(&mut self) -> SessionSnapshot {
+        self.stop_capture_runtime_without_snapshot();
         if let Some(webrtc) = self.state.webrtc.as_mut() {
             if let Err(error) = webrtc.close() {
                 self.push_log(format!("failed to close WebRTC transport: {error}"));
@@ -605,6 +692,7 @@ impl SessionManager {
     }
 
     pub fn reset(&mut self) -> SessionSnapshot {
+        self.stop_capture_runtime_without_snapshot();
         if let Some(webrtc) = self.state.webrtc.as_mut() {
             let _ = webrtc.close();
         }
@@ -810,6 +898,7 @@ impl SessionManager {
         self.state.signaling = None;
         self.state.signaling_connected = false;
         self.state.last_signaling_message = None;
+        self.state.capture_runtime = None;
     }
 
     fn initialize_transport(&mut self, role: &str) {
@@ -993,6 +1082,7 @@ impl SessionManager {
     }
 
     fn disconnect_active_session(&mut self) {
+        self.stop_capture_runtime_without_snapshot();
         if let Some(webrtc) = self.state.webrtc.as_mut() {
             if let Err(error) = webrtc.close() {
                 self.push_log(format!("failed to close WebRTC transport: {error}"));
@@ -1002,6 +1092,48 @@ impl SessionManager {
         self.state.signaling_connected = false;
         self.state.active_peer = None;
         self.state.last_signaling_message = None;
+    }
+
+    fn poll_capture_runtime_events(&mut self) {
+        let events = match self.state.capture_runtime.as_mut() {
+            Some(runtime) => match runtime.poll_events() {
+                Ok(events) => events,
+                Err(error) => {
+                    self.push_log(format!("failed to poll native capture stream: {error}"));
+                    return;
+                }
+            },
+            None => return,
+        };
+
+        for event in events {
+            self.ingest_capture_stream_event(event);
+        }
+    }
+
+    fn stop_capture_runtime_without_snapshot(&mut self) {
+        let Some(mut runtime) = self.state.capture_runtime.take() else {
+            return;
+        };
+
+        match runtime.stop() {
+            Ok(()) => {
+                self.push_log("native capture stream stopped".to_string());
+                match runtime.poll_events() {
+                    Ok(events) => {
+                        for event in events {
+                            self.ingest_capture_stream_event(event);
+                        }
+                    }
+                    Err(error) => {
+                        self.push_log(format!("failed to poll native capture stream: {error}"));
+                    }
+                }
+            }
+            Err(error) => {
+                self.push_log(format!("failed to stop native capture stream: {error}"));
+            }
+        }
     }
 
     fn validate_capture_publish_request(
@@ -1917,9 +2049,16 @@ mod tests {
             ice_servers: Vec::new(),
         });
 
+        let before = manager.snapshot();
         let snapshot = publish_debug_samples_with_audio_enabled(&mut manager);
-        assert_eq!(snapshot.published_video_sample_count, 1);
-        assert_eq!(snapshot.published_audio_sample_count, 1);
+        assert_eq!(
+            snapshot.published_video_sample_count,
+            before.published_video_sample_count + 1
+        );
+        assert_eq!(
+            snapshot.published_audio_sample_count,
+            before.published_audio_sample_count + 1
+        );
         assert_eq!(snapshot.last_video_sample_bytes, 64 * 36 * 4);
         assert_eq!(snapshot.last_audio_sample_bytes, 960 * 2 * 4);
         assert!(
@@ -2012,6 +2151,64 @@ mod tests {
                 .logs
                 .iter()
                 .any(|line| line.contains("capture stream started for source="))
+        );
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn host_session_can_start_and_poll_native_capture_runtime() {
+        let (mut manager, config_dir) = new_test_manager("native-capture-runtime");
+        let (source, _requested_audio, _snapshot) =
+            select_source_with_retry(&mut manager, |source| {
+                Some((source.clone(), source.has_audio))
+            });
+
+        manager.select_capture_source(source.id.clone(), source.has_audio);
+        manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: Some("vlc".to_string()),
+            ice_servers: Vec::new(),
+        });
+
+        let started = manager
+            .start_capture_stream()
+            .expect("platform runtime should be available on supported test targets");
+        let polled = manager.poll_capture_stream();
+
+        assert!(
+            started
+                .logs
+                .iter()
+                .any(|line| { line.contains("native capture stream start requested for source=") })
+        );
+        assert!(started.logs.iter().any(|line| {
+            line.contains("capture stream status changed for source=")
+                && (line.contains("permission_required") || line.contains("permission_denied"))
+        }));
+        assert!(polled.selected_source_id.is_some());
+
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn native_capture_runtime_rejects_viewer_sessions() {
+        let (mut manager, config_dir) = new_test_manager("native-capture-viewer-rejected");
+        manager.start_viewer(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: None,
+            ice_servers: Vec::new(),
+        });
+
+        let error = manager
+            .start_capture_stream()
+            .expect_err("viewer sessions must not publish host capture");
+
+        assert_eq!(
+            error,
+            "native capture stream can only be started from a host session"
         );
 
         let _ = fs::remove_dir_all(config_dir);

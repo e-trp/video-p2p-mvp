@@ -521,6 +521,18 @@ async function load() {
     await runCommand("publish_debug_capture_samples");
   });
 
+  document.getElementById("start-capture-btn").addEventListener("click", async () => {
+    await runCommand("start_capture_stream");
+  });
+
+  document.getElementById("poll-capture-btn").addEventListener("click", async () => {
+    await runCommand("poll_capture_stream");
+  });
+
+  document.getElementById("stop-capture-btn").addEventListener("click", async () => {
+    await runCommand("stop_capture_stream");
+  });
+
   document.getElementById("stop-btn").addEventListener("click", async () => {
     await runCommand("stop_session");
   });
