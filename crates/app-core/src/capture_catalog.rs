@@ -1,4 +1,4 @@
-use capture_core::{CapturePermissionState, CaptureSelection, CaptureSource};
+use capture_core::{CapturePermissionState, CaptureSelection, CaptureSource, CaptureStreamRuntime};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CaptureCatalogSnapshot {
@@ -43,6 +43,23 @@ pub fn current_capture_catalog() -> CaptureCatalogSnapshot {
             notes: vec!["runtime capture catalog is not implemented for this platform".to_string()],
             sources: Vec::new(),
         }
+    }
+}
+
+pub fn new_capture_runtime() -> Option<Box<dyn CaptureStreamRuntime + Send>> {
+    #[cfg(target_os = "macos")]
+    {
+        return Some(Box::new(capture_macos::runtime()));
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        return Some(Box::new(capture_linux::runtime()));
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        None
     }
 }
 

@@ -113,9 +113,12 @@
 
         <article class="card">
           <h2>Transport Smoke Test</h2>
-          <p class="hint">Host and viewer signaling now run automatically during refresh. This control synthesizes `capture-core` video/audio payloads and pushes them into the attached host tracks so you can verify the session-facing media bridge before real capture is wired.</p>
+          <p class="hint">Host and viewer signaling now run automatically during refresh. The native capture controls drive the platform runtime lifecycle, while the debug burst still synthesizes `capture-core` media for transport smoke testing.</p>
           <form class="form">
             <div class="actions">
+              <button type="button" id="start-capture-btn">Start Native Capture</button>
+              <button type="button" id="poll-capture-btn" class="secondary">Poll Capture</button>
+              <button type="button" id="stop-capture-btn" class="ghost">Stop Capture</button>
               <button type="button" id="publish-media-btn" class="secondary">Push Debug Capture Burst</button>
             </div>
           </form>
