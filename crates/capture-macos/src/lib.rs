@@ -49,12 +49,12 @@ pub struct MacCaptureRuntime {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum MacRuntimeStartPlan {
     PermissionRequired {
-        source_label: String,
+        source: MacNativeSourceDescriptor,
         message: String,
     },
     SourceUnavailable(String),
     StartBridge {
-        source_label: String,
+        source: MacNativeSourceDescriptor,
     },
 }
 
@@ -68,10 +68,24 @@ enum MacPermissionResolution {
 struct MacNativeStreamSettings {
     source_id: String,
     source_label: String,
+    source_kind: CaptureSourceKind,
+    display_name: String,
+    app_name: Option<String>,
+    source_has_audio: bool,
     include_audio: bool,
     target_fps: u32,
     max_width: u32,
     max_height: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MacNativeSourceDescriptor {
+    id: String,
+    kind: CaptureSourceKind,
+    display_name: String,
+    app_name: Option<String>,
+    has_audio: bool,
+    label: String,
 }
 
 trait MacNativeCaptureBridge {
@@ -181,23 +195,20 @@ impl CaptureStreamRuntime for MacCaptureRuntime {
         self.active_source_id = Some(source_id.clone());
 
         match plan_runtime_start(&config, &current_catalog()) {
-            MacRuntimeStartPlan::PermissionRequired {
-                source_label,
-                message,
-            } => match resolve_permission_requirement(message) {
-                MacPermissionResolution::Granted => {
-                    self.start_native_bridge(&config, &source_label)
+            MacRuntimeStartPlan::PermissionRequired { source, message } => {
+                match resolve_permission_requirement(message) {
+                    MacPermissionResolution::Granted => self.start_native_bridge(&config, &source),
+                    MacPermissionResolution::StillRequired(message) => {
+                        self.status = CaptureStreamStatus::PermissionRequired;
+                        self.pending_events.push(CaptureStreamEvent::StatusChanged {
+                            source_id: Some(source_id),
+                            status: self.status,
+                            message: Some(message),
+                        });
+                        Ok(())
+                    }
                 }
-                MacPermissionResolution::StillRequired(message) => {
-                    self.status = CaptureStreamStatus::PermissionRequired;
-                    self.pending_events.push(CaptureStreamEvent::StatusChanged {
-                        source_id: Some(source_id),
-                        status: self.status,
-                        message: Some(message),
-                    });
-                    Ok(())
-                }
-            },
+            }
             MacRuntimeStartPlan::SourceUnavailable(message) => {
                 self.status = CaptureStreamStatus::Failed;
                 self.pending_events.push(CaptureStreamEvent::Error {
@@ -206,8 +217,8 @@ impl CaptureStreamRuntime for MacCaptureRuntime {
                 });
                 Err(CaptureStreamError::new(message))
             }
-            MacRuntimeStartPlan::StartBridge { source_label } => {
-                self.start_native_bridge(&config, &source_label)
+            MacRuntimeStartPlan::StartBridge { source } => {
+                self.start_native_bridge(&config, &source)
             }
         }
     }
@@ -236,10 +247,10 @@ impl MacCaptureRuntime {
     fn start_native_bridge(
         &mut self,
         config: &CaptureStreamConfig,
-        source_label: &str,
+        source: &MacNativeSourceDescriptor,
     ) -> CaptureStreamResult<()> {
         self.status = CaptureStreamStatus::Starting;
-        let settings = MacNativeStreamSettings::from_config(config, source_label);
+        let settings = MacNativeStreamSettings::from_config(config, source);
         let events = self.bridge.start(&settings)?;
         self.apply_event_status(&events);
         self.pending_events.extend(events);
@@ -270,14 +281,31 @@ impl MacCaptureRuntime {
 }
 
 impl MacNativeStreamSettings {
-    fn from_config(config: &CaptureStreamConfig, source_label: &str) -> Self {
+    fn from_config(config: &CaptureStreamConfig, source: &MacNativeSourceDescriptor) -> Self {
         Self {
-            source_id: config.source_id().to_string(),
-            source_label: source_label.to_string(),
-            include_audio: config.includes_audio(),
+            source_id: source.id.clone(),
+            source_label: source.label.clone(),
+            source_kind: source.kind,
+            display_name: source.display_name.clone(),
+            app_name: source.app_name.clone(),
+            source_has_audio: source.has_audio,
+            include_audio: config.includes_audio() && source.has_audio,
             target_fps: normalize_target_fps(config.target_fps),
             max_width: normalize_dimension(config.max_width, 1280),
             max_height: normalize_dimension(config.max_height, 720),
+        }
+    }
+}
+
+impl MacNativeSourceDescriptor {
+    fn from_capture_source(source: &CaptureSource) -> Self {
+        Self {
+            id: source.id.clone(),
+            kind: source.kind,
+            display_name: source.display_name.clone(),
+            app_name: source.app_name.clone(),
+            has_audio: source.has_audio,
+            label: source.label(),
         }
     }
 }
@@ -297,8 +325,9 @@ impl MacNativeCaptureBridge for PlannedScreenCaptureKitBridge {
                 source_id: Some(source_id),
                 status: CaptureStreamStatus::Failed,
                 message: Some(format!(
-                    "ScreenCaptureKit bridge boundary reached for {}; target={}fps max={}x{} audio={}; native sample delivery is not implemented yet",
+                    "ScreenCaptureKit bridge boundary reached for {} ({:?}); target={}fps max={}x{} audio={}; native sample delivery is not implemented yet",
                     settings.source_label,
+                    settings.source_kind,
                     settings.target_fps,
                     settings.max_width,
                     settings.max_height,
@@ -353,19 +382,19 @@ fn plan_runtime_start(
 
     match catalog.permission_state {
         CapturePermissionState::Granted => MacRuntimeStartPlan::StartBridge {
-            source_label: source.label(),
+            source: MacNativeSourceDescriptor::from_capture_source(source),
         },
         CapturePermissionState::Denied => MacRuntimeStartPlan::PermissionRequired {
-            source_label: source.label(),
+            source: MacNativeSourceDescriptor::from_capture_source(source),
             message: "Screen Recording permission appears denied; enable it for this app in macOS Privacy & Security settings".to_string(),
         },
         CapturePermissionState::Required => MacRuntimeStartPlan::PermissionRequired {
-            source_label: source.label(),
+            source: MacNativeSourceDescriptor::from_capture_source(source),
             message: "Screen Recording permission is required before starting ScreenCaptureKit capture"
                 .to_string(),
         },
         CapturePermissionState::Unknown => MacRuntimeStartPlan::PermissionRequired {
-            source_label: source.label(),
+            source: MacNativeSourceDescriptor::from_capture_source(source),
             message: "Screen Recording permission could not be verified in this environment".to_string(),
         },
     }
@@ -556,12 +585,12 @@ fn slugify(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        MacCaptureCatalog, MacCaptureStage, MacNativeCaptureBridge, MacNativeStreamSettings,
-        MacPermissionResolution, MacRuntimeStartPlan, MacSourceCatalogOrigin,
-        PlannedScreenCaptureKitBridge, blueprint, describe_permission_state,
-        infer_permission_state_from_error, normalize_dimension, normalize_target_fps,
-        parse_runtime_listing, plan_runtime_start, resolve_permission_requirement, runtime,
-        runtime_catalog_script, slugify,
+        MacCaptureCatalog, MacCaptureStage, MacNativeCaptureBridge, MacNativeSourceDescriptor,
+        MacNativeStreamSettings, MacPermissionResolution, MacRuntimeStartPlan,
+        MacSourceCatalogOrigin, PlannedScreenCaptureKitBridge, blueprint,
+        describe_permission_state, infer_permission_state_from_error, normalize_dimension,
+        normalize_target_fps, parse_runtime_listing, plan_runtime_start,
+        resolve_permission_requirement, runtime, runtime_catalog_script, slugify,
     };
     use capture_core::{
         CapturePermissionState, CaptureSelection, CaptureSource, CaptureSourceKind,
@@ -655,10 +684,11 @@ mod tests {
         assert!(matches!(
             plan,
             MacRuntimeStartPlan::PermissionRequired {
-                source_label,
+                source,
                 message,
             }
-                if source_label == "VLC - VLC Player"
+                if source.label == "VLC - VLC Player"
+                    && source.kind == CaptureSourceKind::Window
                     && message.contains("Screen Recording permission is required")
         ));
     }
@@ -682,8 +712,9 @@ mod tests {
 
         assert!(matches!(
             plan,
-            MacRuntimeStartPlan::StartBridge { source_label }
-                if source_label == "VLC - VLC Player"
+            MacRuntimeStartPlan::StartBridge { source }
+                if source.label == "VLC - VLC Player"
+                    && source.kind == CaptureSourceKind::Window
         ));
     }
 
@@ -692,7 +723,7 @@ mod tests {
         let mut bridge = PlannedScreenCaptureKitBridge::default();
         let settings = MacNativeStreamSettings::from_config(
             &test_config("mac-window-vlc"),
-            "VLC - VLC Player",
+            &test_source_descriptor(),
         );
         let events = bridge.start(&settings).expect("start planned bridge");
 
@@ -708,7 +739,7 @@ mod tests {
         ));
         assert!(
             format!("{:?}", events)
-                .contains("ScreenCaptureKit bridge boundary reached for VLC - VLC Player; target=30fps max=1920x1080 audio=true")
+                .contains("ScreenCaptureKit bridge boundary reached for VLC - VLC Player (Window); target=30fps max=1920x1080 audio=true")
         );
         assert!(
             bridge
@@ -730,11 +761,15 @@ mod tests {
                 max_width: Some(0),
                 max_height: None,
             },
-            "VLC - VLC Player",
+            &test_source_descriptor(),
         );
 
         assert_eq!(settings.source_id, "mac-window-vlc");
         assert_eq!(settings.source_label, "VLC - VLC Player");
+        assert_eq!(settings.source_kind, CaptureSourceKind::Window);
+        assert_eq!(settings.display_name, "VLC Player");
+        assert_eq!(settings.app_name.as_deref(), Some("VLC"));
+        assert!(settings.source_has_audio);
         assert!(!settings.include_audio);
         assert_eq!(settings.target_fps, 1);
         assert_eq!(settings.max_width, 1);
@@ -799,6 +834,17 @@ mod tests {
             }],
             origin: MacSourceCatalogOrigin::Runtime,
             notes: Vec::new(),
+        }
+    }
+
+    fn test_source_descriptor() -> MacNativeSourceDescriptor {
+        MacNativeSourceDescriptor {
+            id: "mac-window-vlc".to_string(),
+            kind: CaptureSourceKind::Window,
+            display_name: "VLC Player".to_string(),
+            app_name: Some("VLC".to_string()),
+            has_audio: true,
+            label: "VLC - VLC Player".to_string(),
         }
     }
 }
