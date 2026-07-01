@@ -94,6 +94,7 @@ It now exposes commands for:
 - configuring custom ICE server entries for STUN/TURN-assisted traversal
 - auto-creating and sending the first local SDP offer from the host once signaling is connected
 - publishing debug `capture-core` audio/video payloads into the attached host tracks for smoke testing
+- starting, polling, and stopping the current platform capture stream runtime from the session manager and desktop GUI
 - polling signaling with a persisted auto-refresh cadence and auto-applying remote offer/answer/ICE state
 - reconnecting the current host/viewer session with the active room, signaling, and ICE settings after a stop or signaling failure
 - surfacing explicit recovery-state diagnostics in the desktop UI so reconnect guidance is visible without digging through logs
@@ -135,6 +136,7 @@ What changed relative to the earlier scaffold:
 - session manager now exposes source-validated capture video/audio publishing APIs above `transport-webrtc`, and the debug burst uses that same path
 - `capture-core` now defines live capture stream config/status/event contracts, and `app-core` can ingest those events into the same source-validated WebRTC publishing path
 - `capture-core` now also exposes a shared capture stream runtime trait, with planned macOS/Linux runtime scaffolds ready for native bridge implementations
+- `app-core` now owns the active platform capture runtime lifecycle and can start/poll/stop it through the same event ingestion path used by future native media samples
 - session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes
 - the CLI host path can now push one debug `capture-core` burst after the peer connection connects
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
@@ -150,6 +152,7 @@ What changed relative to the earlier scaffold:
 - session-manager preferences now also persist desktop auto-refresh enablement and refresh interval
 - desktop session-form drafts now survive background refresh polling until a successful save/start/reset syncs them explicitly
 - the desktop shell now exposes a reconnect action that rebuilds the current host/viewer session using the active backend configuration
+- the desktop shell now exposes native capture runtime start/poll/stop controls above the platform runtime scaffolds
 - session snapshots and the desktop GUI now also expose recovery state, recovery reason, and whether reconnect is currently available or recommended
 - transport snapshots and the desktop GUI now also expose selected-candidate RTT, available incoming/outgoing bitrate, candidate-pair byte counters, and packet-loss estimates from remote inbound RTP stats
 - transport snapshots and the Tauri UI now surface an ICE path summary derived from candidate-pair stats, including direct-vs-relay hints when a pair is selected

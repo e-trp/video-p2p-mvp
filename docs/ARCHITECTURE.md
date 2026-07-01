@@ -6,7 +6,7 @@ The repository is now a workspace-based scaffold with a future desktop GUI targe
 
 Components:
 
-- `crates/app-core`: shared protocol, CLI parsing, live signaling client, session orchestration, debug capture-burst bridging, and live capture event ingestion
+- `crates/app-core`: shared protocol, CLI parsing, live signaling client, session orchestration, debug capture-burst bridging, platform capture runtime lifecycle, and live capture event ingestion
 - `crates/capture-core`: shared capture-domain types for source selection, permissions, capture stream events, audio buffers, and video frames
 - `crates/transport-webrtc`: real `RTCPeerConnection` bootstrap with attached host media tracks and control data channel
 - `crates/capture-macos`: planned ScreenCaptureKit backend blueprint crate
@@ -27,7 +27,8 @@ Components:
 6. The peer receives signaling messages, and the GUI session refresh path auto-applies remote answer/ICE through the same signaling channel.
 7. The session manager exposes source-validated video/audio publish APIs above `transport-webrtc`.
    The debug smoke path synthesizes `capture-core` payloads through that route, and future native capture backends can now enter through `CaptureStreamEvent` ingestion without using GUI debug publishing.
-8. Mock UDP sender/receiver flow still exists separately for the old media scaffold.
+8. The session manager can start, poll, and stop the current platform `CaptureStreamRuntime`, draining its events into the same source-validated ingestion path.
+9. Mock UDP sender/receiver flow still exists separately for the old media scaffold.
 
 The current signaling server also accepts future WebRTC signaling envelopes after pairing:
 
@@ -117,6 +118,7 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - the CLI host flow now follows the same automatic first-offer path as the GUI and can optionally publish a debug capture burst after connect
 - `app-core::SessionManager` now validates selected source identity and audio opt-in before accepting capture payloads for publication
 - `app-core::SessionManager` now ingests live `capture-core` stream events and maps video/audio events into the same validated WebRTC publish path
+- `app-core::SessionManager` now owns the active platform capture runtime lifecycle and exposes start/poll/stop entry points for native capture events
 - the main Tauri GUI path now relies on automatic signaling refresh instead of exposing manual answer/ICE controls
 - `capture-core` as the shared Rust-side model for future native capture backends
 - a lightweight local session-preferences store in `app-core` for restoring room/signaling/source choices between desktop launches

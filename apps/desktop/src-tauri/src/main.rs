@@ -250,6 +250,54 @@ fn publish_debug_capture_samples(state: tauri::State<'_, Mutex<SessionManager>>)
 }
 
 #[tauri::command]
+fn start_capture_stream(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+    let mut state = state.lock().expect("session state poisoned");
+    match state.start_capture_stream() {
+        Ok(snapshot) => CommandResult {
+            ok: true,
+            message: "native capture stream start requested".to_string(),
+            session: map_snapshot(snapshot),
+        },
+        Err(error) => {
+            let snapshot = state.snapshot();
+            CommandResult {
+                ok: false,
+                message: format!("cannot start native capture stream: {error}"),
+                session: map_snapshot(snapshot),
+            }
+        }
+    }
+}
+
+#[tauri::command]
+fn poll_capture_stream(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+    let snapshot = state
+        .lock()
+        .expect("session state poisoned")
+        .poll_capture_stream();
+
+    CommandResult {
+        ok: true,
+        message: "native capture stream polled".to_string(),
+        session: map_snapshot(snapshot),
+    }
+}
+
+#[tauri::command]
+fn stop_capture_stream(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+    let snapshot = state
+        .lock()
+        .expect("session state poisoned")
+        .stop_capture_stream();
+
+    CommandResult {
+        ok: true,
+        message: "native capture stream stop requested".to_string(),
+        session: map_snapshot(snapshot),
+    }
+}
+
+#[tauri::command]
 fn stop_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state.lock().expect("session state poisoned").stop();
 
@@ -343,6 +391,9 @@ fn main() {
             update_session_config,
             select_capture_source,
             publish_debug_capture_samples,
+            start_capture_stream,
+            poll_capture_stream,
+            stop_capture_stream,
             stop_session,
             reconnect_session,
             clear_session_logs,
