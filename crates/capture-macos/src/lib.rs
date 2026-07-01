@@ -53,6 +53,12 @@ enum MacRuntimeStartPlan {
     BridgeUnavailable(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum MacPermissionResolution {
+    Granted,
+    StillRequired(String),
+}
+
 impl Default for MacCaptureRuntime {
     fn default() -> Self {
         Self {
@@ -146,13 +152,32 @@ impl CaptureStreamRuntime for MacCaptureRuntime {
 
         match plan_runtime_start(&config, &current_catalog()) {
             MacRuntimeStartPlan::PermissionRequired(message) => {
-                self.status = CaptureStreamStatus::PermissionRequired;
-                self.pending_events.push(CaptureStreamEvent::StatusChanged {
-                    source_id: Some(source_id),
-                    status: self.status,
-                    message: Some(message),
-                });
-                Ok(())
+                match resolve_permission_requirement(message) {
+                    MacPermissionResolution::Granted => {
+                        self.status = CaptureStreamStatus::Failed;
+                        self.pending_events.push(CaptureStreamEvent::Started {
+                            source_id: source_id.clone(),
+                        });
+                        self.pending_events.push(CaptureStreamEvent::StatusChanged {
+                            source_id: Some(source_id),
+                            status: self.status,
+                            message: Some(
+                                "Screen Recording permission was granted; native ScreenCaptureKit sample delivery is not implemented yet"
+                                    .to_string(),
+                            ),
+                        });
+                        Ok(())
+                    }
+                    MacPermissionResolution::StillRequired(message) => {
+                        self.status = CaptureStreamStatus::PermissionRequired;
+                        self.pending_events.push(CaptureStreamEvent::StatusChanged {
+                            source_id: Some(source_id),
+                            status: self.status,
+                            message: Some(message),
+                        });
+                        Ok(())
+                    }
+                }
             }
             MacRuntimeStartPlan::SourceUnavailable(message) => {
                 self.status = CaptureStreamStatus::Failed;
@@ -244,6 +269,16 @@ fn plan_runtime_start(
     }
 }
 
+fn resolve_permission_requirement(message: String) -> MacPermissionResolution {
+    if request_screen_recording_permission() {
+        MacPermissionResolution::Granted
+    } else {
+        MacPermissionResolution::StillRequired(format!(
+            "{message}; macOS did not grant Screen Recording permission"
+        ))
+    }
+}
+
 fn screen_recording_permission_state() -> CapturePermissionState {
     if screen_recording_preflight_granted() {
         CapturePermissionState::Granted
@@ -263,9 +298,20 @@ fn screen_recording_preflight_granted() -> bool {
 }
 
 #[cfg(target_os = "macos")]
+fn request_screen_recording_permission() -> bool {
+    unsafe { CGRequestScreenCaptureAccess() }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn request_screen_recording_permission() -> bool {
+    false
+}
+
+#[cfg(target_os = "macos")]
 #[link(name = "ApplicationServices", kind = "framework")]
 unsafe extern "C" {
     fn CGPreflightScreenCaptureAccess() -> bool;
+    fn CGRequestScreenCaptureAccess() -> bool;
 }
 
 fn describe_permission_state(state: CapturePermissionState) -> &'static str {
@@ -400,9 +446,10 @@ fn slugify(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        MacCaptureCatalog, MacCaptureStage, MacRuntimeStartPlan, MacSourceCatalogOrigin, blueprint,
-        describe_permission_state, infer_permission_state_from_error, parse_runtime_listing,
-        plan_runtime_start, runtime, runtime_catalog_script, slugify,
+        MacCaptureCatalog, MacCaptureStage, MacPermissionResolution, MacRuntimeStartPlan,
+        MacSourceCatalogOrigin, blueprint, describe_permission_state,
+        infer_permission_state_from_error, parse_runtime_listing, plan_runtime_start,
+        resolve_permission_requirement, runtime, runtime_catalog_script, slugify,
     };
     use capture_core::{
         CapturePermissionState, CaptureSelection, CaptureSource, CaptureSourceKind,
@@ -497,6 +544,18 @@ mod tests {
             plan,
             MacRuntimeStartPlan::PermissionRequired(message)
                 if message.contains("Screen Recording permission is required")
+        ));
+    }
+
+    #[test]
+    fn permission_resolution_keeps_context_when_access_is_not_granted() {
+        let resolution =
+            resolve_permission_requirement("Screen Recording permission is required".to_string());
+
+        assert!(matches!(
+            resolution,
+            MacPermissionResolution::StillRequired(message)
+                if message.contains("macOS did not grant Screen Recording permission")
         ));
     }
 
