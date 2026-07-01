@@ -59,6 +59,7 @@ dependencies = [
  "capture-core",
  "capture-linux",
  "capture-macos",
+ "cfg-if",
  "transport-webrtc",
 ]
 

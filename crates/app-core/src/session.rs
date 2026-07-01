@@ -671,11 +671,10 @@ impl SessionManager {
 
     pub fn stop(&mut self) -> SessionSnapshot {
         self.stop_capture_runtime_without_snapshot();
-        if let Some(webrtc) = self.state.webrtc.as_mut() {
-            if let Err(error) = webrtc.close() {
+        if let Some(webrtc) = self.state.webrtc.as_mut()
+            && let Err(error) = webrtc.close() {
                 self.push_log(format!("failed to close WebRTC transport: {error}"));
             }
-        }
         self.state.stage = SessionStage::Stopped;
         self.state.active_peer = None;
         self.state.last_signaling_message = None;
@@ -1083,11 +1082,10 @@ impl SessionManager {
 
     fn disconnect_active_session(&mut self) {
         self.stop_capture_runtime_without_snapshot();
-        if let Some(webrtc) = self.state.webrtc.as_mut() {
-            if let Err(error) = webrtc.close() {
+        if let Some(webrtc) = self.state.webrtc.as_mut()
+            && let Err(error) = webrtc.close() {
                 self.push_log(format!("failed to close WebRTC transport: {error}"));
             }
-        }
         self.state.signaling = None;
         self.state.signaling_connected = false;
         self.state.active_peer = None;

@@ -99,11 +99,10 @@ pub fn run_receiver(config: ReceiverConfig) -> Result<(), Box<dyn Error>> {
             now_ms().saturating_sub(packet.timestamp_ms)
         );
 
-        if let Some(expected) = config.expected_frames {
-            if received >= expected {
+        if let Some(expected) = config.expected_frames
+            && received >= expected {
                 break;
             }
-        }
     }
 
     let elapsed = started.elapsed();

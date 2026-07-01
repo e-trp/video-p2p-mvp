@@ -9,57 +9,48 @@ pub struct CaptureCatalogSnapshot {
     pub sources: Vec<CaptureSource>,
 }
 
+
 pub fn current_capture_catalog() -> CaptureCatalogSnapshot {
-    #[cfg(target_os = "macos")]
-    {
-        let catalog = capture_macos::current_catalog();
-        return CaptureCatalogSnapshot {
-            backend: catalog.backend_label,
-            permission_state: catalog.permission_state,
-            origin: format!("{:?}", catalog.origin).to_lowercase(),
-            notes: catalog.notes,
-            sources: catalog.sources,
-        };
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        let catalog = capture_linux::current_catalog();
-        return CaptureCatalogSnapshot {
-            backend: catalog.backend_label,
-            permission_state: catalog.permission_state,
-            origin: format!("{:?}", catalog.origin).to_lowercase(),
-            notes: catalog.notes,
-            sources: catalog.sources,
-        };
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    {
-        CaptureCatalogSnapshot {
-            backend: "unsupported_platform".to_string(),
-            permission_state: CapturePermissionState::Unknown,
-            origin: "unavailable".to_string(),
-            notes: vec!["runtime capture catalog is not implemented for this platform".to_string()],
-            sources: Vec::new(),
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "macos")] {
+            let catalog = capture_macos::current_catalog();
+            CaptureCatalogSnapshot {
+                backend: catalog.backend_label,
+                permission_state: catalog.permission_state,
+                origin: format!("{:?}", catalog.origin).to_lowercase(),
+                notes: catalog.notes,
+                sources: catalog.sources,
+            }
+        } else if #[cfg(target_os = "linux")] {
+            let catalog = capture_linux::current_catalog();
+            CaptureCatalogSnapshot {
+                backend: catalog.backend_label,
+                permission_state: catalog.permission_state,
+                origin: format!("{:?}", catalog.origin).to_lowercase(),
+                notes: catalog.notes,
+                sources: catalog.sources,
+            }
+        } else {
+            CaptureCatalogSnapshot {
+                backend: "unsupported_platform".to_string(),
+                permission_state: CapturePermissionState::Unknown,
+                origin: "unavailable".to_string(),
+                notes: vec!["runtime capture catalog is not implemented for this platform".to_string()],
+                sources: Vec::new(),
+            }
         }
     }
 }
 
 pub fn new_capture_runtime() -> Option<Box<dyn CaptureStreamRuntime + Send>> {
-    #[cfg(target_os = "macos")]
-    {
-        return Some(Box::new(capture_macos::runtime()));
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        return Some(Box::new(capture_linux::runtime()));
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    {
-        None
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "macos")] {
+            Some(Box::new(capture_macos::runtime()))
+        } else if #[cfg(target_os = "linux")] {
+            Some(Box::new(capture_linux::runtime()))
+        } else {
+            None
+        }
     }
 }
 

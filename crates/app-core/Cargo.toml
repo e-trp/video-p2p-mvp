@@ -11,4 +11,5 @@ path = "src/lib.rs"
 capture-core = { path = "../capture-core" }
 capture-linux = { path = "../capture-linux" }
 capture-macos = { path = "../capture-macos" }
+cfg-if = "1.0.4"
 transport-webrtc = { path = "../transport-webrtc" }
