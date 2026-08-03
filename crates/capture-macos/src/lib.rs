@@ -244,6 +244,16 @@ impl CaptureStreamRuntime for MacCaptureRuntime {
 }
 
 impl MacCaptureRuntime {
+    #[cfg(test)]
+    fn with_bridge(bridge: Box<dyn MacNativeCaptureBridge + Send>) -> Self {
+        Self {
+            status: CaptureStreamStatus::Stopped,
+            active_source_id: None,
+            pending_events: Vec::new(),
+            bridge,
+        }
+    }
+
     fn start_native_bridge(
         &mut self,
         config: &CaptureStreamConfig,
@@ -251,7 +261,17 @@ impl MacCaptureRuntime {
     ) -> CaptureStreamResult<()> {
         self.status = CaptureStreamStatus::Starting;
         let settings = MacNativeStreamSettings::from_config(config, source);
-        let events = self.bridge.start(&settings)?;
+        let events = match self.bridge.start(&settings) {
+            Ok(events) => events,
+            Err(error) => {
+                self.status = CaptureStreamStatus::Failed;
+                self.pending_events.push(CaptureStreamEvent::Error {
+                    source_id: Some(source.id.clone()),
+                    message: format!("ScreenCaptureKit bridge failed to start: {error}"),
+                });
+                return Err(error);
+            }
+        };
         self.apply_event_status(&events);
         self.pending_events.extend(events);
         Ok(())
@@ -594,8 +614,10 @@ mod tests {
     };
     use capture_core::{
         CapturePermissionState, CaptureSelection, CaptureSource, CaptureSourceKind,
-        CaptureStreamConfig, CaptureStreamEvent, CaptureStreamRuntime, CaptureStreamStatus,
+        CaptureStreamConfig, CaptureStreamError, CaptureStreamEvent, CaptureStreamRuntime,
+        CaptureStreamStatus,
     };
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn blueprint_exposes_permission_state_and_example_sources() {
@@ -809,6 +831,92 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn runtime_hands_normalized_settings_to_injected_bridge() {
+        let seen_settings = Arc::new(Mutex::new(Vec::new()));
+        let mut runtime = super::MacCaptureRuntime::with_bridge(Box::new(RecordingBridge {
+            seen_settings: seen_settings.clone(),
+            start_events: vec![CaptureStreamEvent::Started {
+                source_id: "mac-window-vlc".to_string(),
+            }],
+            poll_events: Vec::new(),
+        }));
+
+        runtime
+            .start_native_bridge(&test_config("mac-window-vlc"), &test_source_descriptor())
+            .expect("start recording bridge");
+
+        let settings = seen_settings.lock().expect("settings lock");
+        assert_eq!(settings.len(), 1);
+        assert_eq!(settings[0].source_id, "mac-window-vlc");
+        assert_eq!(settings[0].source_label, "VLC - VLC Player");
+        assert_eq!(settings[0].target_fps, 30);
+        assert_eq!(settings[0].max_width, 1920);
+        assert_eq!(settings[0].max_height, 1080);
+        assert!(settings[0].include_audio);
+        drop(settings);
+
+        let events = runtime.poll_events().expect("poll recording bridge");
+        assert_eq!(runtime.status(), CaptureStreamStatus::Running);
+        assert!(matches!(
+            events.as_slice(),
+            [CaptureStreamEvent::Started { .. }]
+        ));
+    }
+
+    #[test]
+    fn runtime_polls_injected_bridge_events_and_updates_status() {
+        let seen_settings = Arc::new(Mutex::new(Vec::new()));
+        let mut runtime = super::MacCaptureRuntime::with_bridge(Box::new(RecordingBridge {
+            seen_settings,
+            start_events: vec![CaptureStreamEvent::Started {
+                source_id: "mac-window-vlc".to_string(),
+            }],
+            poll_events: vec![CaptureStreamEvent::StatusChanged {
+                source_id: Some("mac-window-vlc".to_string()),
+                status: CaptureStreamStatus::Running,
+                message: Some("native sample loop is active".to_string()),
+            }],
+        }));
+
+        runtime
+            .start_native_bridge(&test_config("mac-window-vlc"), &test_source_descriptor())
+            .expect("start recording bridge");
+
+        let first_events = runtime.poll_events().expect("poll started event");
+        assert_eq!(first_events.len(), 2);
+        assert_eq!(runtime.status(), CaptureStreamStatus::Running);
+        assert!(format!("{:?}", first_events).contains("native sample loop is active"));
+
+        let stop_events = runtime.stop().expect("stop runtime");
+        assert_eq!(stop_events, ());
+        let stop_events = runtime.poll_events().expect("poll stop event");
+        assert_eq!(runtime.status(), CaptureStreamStatus::Stopped);
+        assert!(matches!(
+            stop_events.as_slice(),
+            [CaptureStreamEvent::Stopped { .. }]
+        ));
+    }
+
+    #[test]
+    fn runtime_marks_failed_when_injected_bridge_start_fails() {
+        let mut runtime = super::MacCaptureRuntime::with_bridge(Box::new(FailingBridge));
+
+        let error = runtime
+            .start_native_bridge(&test_config("mac-window-vlc"), &test_source_descriptor())
+            .expect_err("bridge start should fail");
+
+        assert_eq!(error.message(), "native bridge unavailable");
+        assert_eq!(runtime.status(), CaptureStreamStatus::Failed);
+        let events = runtime.poll_events().expect("poll failure event");
+        assert!(matches!(
+            events.as_slice(),
+            [CaptureStreamEvent::Error { source_id, message }]
+                if source_id.as_deref() == Some("mac-window-vlc")
+                    && message.contains("ScreenCaptureKit bridge failed to start")
+        ));
+    }
+
     fn test_config(source_id: &str) -> CaptureStreamConfig {
         CaptureStreamConfig {
             selection: CaptureSelection {
@@ -845,6 +953,64 @@ mod tests {
             app_name: Some("VLC".to_string()),
             has_audio: true,
             label: "VLC - VLC Player".to_string(),
+        }
+    }
+
+    struct RecordingBridge {
+        seen_settings: Arc<Mutex<Vec<MacNativeStreamSettings>>>,
+        start_events: Vec<CaptureStreamEvent>,
+        poll_events: Vec<CaptureStreamEvent>,
+    }
+
+    impl MacNativeCaptureBridge for RecordingBridge {
+        fn start(
+            &mut self,
+            settings: &MacNativeStreamSettings,
+        ) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            self.seen_settings
+                .lock()
+                .expect("settings lock")
+                .push(settings.clone());
+            Ok(self.start_events.clone())
+        }
+
+        fn poll_events(&mut self) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Ok(std::mem::take(&mut self.poll_events))
+        }
+
+        fn stop(
+            &mut self,
+            source_id: Option<String>,
+        ) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Ok(vec![CaptureStreamEvent::Stopped {
+                source_id,
+                reason: Some("recording bridge stopped".to_string()),
+            }])
+        }
+    }
+
+    struct FailingBridge;
+
+    impl MacNativeCaptureBridge for FailingBridge {
+        fn start(
+            &mut self,
+            _settings: &MacNativeStreamSettings,
+        ) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Err(CaptureStreamError::new("native bridge unavailable"))
+        }
+
+        fn poll_events(&mut self) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Ok(Vec::new())
+        }
+
+        fn stop(
+            &mut self,
+            source_id: Option<String>,
+        ) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Ok(vec![CaptureStreamEvent::Stopped {
+                source_id,
+                reason: Some("failing bridge stopped".to_string()),
+            }])
         }
     }
 }
