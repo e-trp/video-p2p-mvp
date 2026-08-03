@@ -9,19 +9,39 @@
   <body>
     <main class="shell">
       <section class="hero">
-        <p class="eyebrow">Rust + Tauri Desktop Shell</p>
-        <h1>Peer-to-peer window streaming</h1>
-        <p class="lead">
-          This GUI is the control surface for the future macOS/Linux application.
-          The current backend can now drive a live WebRTC negotiation path over the project signaling server,
-          with host-side audio/video tracks already attached while real capture is still pending.
-        </p>
+        <div>
+          <p class="eyebrow">Rust + Tauri Desktop Shell</p>
+          <h1>Video P2P Console</h1>
+        </div>
+        <div id="runtime-badge" class="badge">Detecting runtime...</div>
+      </section>
+
+      <section class="live-overview">
+        <div>
+          <span>Role</span>
+          <strong id="overview-role">loading...</strong>
+        </div>
+        <div>
+          <span>Signaling</span>
+          <strong id="overview-signaling">loading...</strong>
+        </div>
+        <div>
+          <span>Capture</span>
+          <strong id="overview-capture">loading...</strong>
+        </div>
+        <div>
+          <span>Transport</span>
+          <strong id="overview-transport">loading...</strong>
+        </div>
+        <div class="overview-next">
+          <span>Next Action</span>
+          <strong id="overview-next">loading...</strong>
+        </div>
       </section>
 
       <section class="grid">
         <article class="card">
           <h2>Session Control</h2>
-          <p class="hint">This interface now drives the Rust session manager, signaling TCP link, attached host media tracks, the real PeerConnection bootstrap path, and manual reconnect attempts through Tauri commands.</p>
           <form id="session-form" class="form">
             <label>
               <span>Room</span>
@@ -70,7 +90,6 @@
 
         <article class="card">
           <h2>Capture Source</h2>
-          <p class="hint">The current picker uses platform capture metadata through `capture-core`, with runtime enumeration when available and blueprint fallback otherwise. Changes apply immediately, and a host session falls back to the first available source if you never choose one explicitly.</p>
           <form class="form">
             <label>
               <span>Available Source</span>
@@ -90,30 +109,13 @@
         </article>
 
         <article class="card">
-          <h2>Transport Diagnostics</h2>
-          <p class="hint">This panel surfaces the current peer-connection stage, bootstrap data channel state, and transport-side notes from the Rust WebRTC layer.</p>
-          <dl id="transport-diagnostics">
-            <div><dt>Transport Stage</dt><dd>loading...</dd></div>
-            <div><dt>ICE Path</dt><dd>loading...</dd></div>
-            <div><dt>Data Channel</dt><dd>loading...</dd></div>
-            <div><dt>Stats Reports</dt><dd>loading...</dd></div>
+          <h2>Capture Runtime</h2>
+          <dl id="capture-runtime">
+            <div><dt>Status</dt><dd>loading...</dd></div>
+            <div><dt>Permission</dt><dd>loading...</dd></div>
+            <div><dt>Selected</dt><dd>loading...</dd></div>
+            <div><dt>Audio</dt><dd>loading...</dd></div>
           </dl>
-          <pre id="transport-notes">loading...</pre>
-        </article>
-
-        <article class="card">
-          <h2>Recovery</h2>
-          <p class="hint">This panel summarizes whether the current session looks healthy, whether reconnect is available, and when manual recovery is recommended.</p>
-          <dl id="recovery-status">
-            <div><dt>State</dt><dd>loading...</dd></div>
-            <div><dt>Reconnect</dt><dd>loading...</dd></div>
-            <div><dt>Reason</dt><dd>loading...</dd></div>
-          </dl>
-        </article>
-
-        <article class="card">
-          <h2>Transport Smoke Test</h2>
-          <p class="hint">Host and viewer signaling now run automatically during refresh. The native capture controls drive the platform runtime lifecycle, while the debug burst still synthesizes `capture-core` media for transport smoke testing.</p>
           <form class="form">
             <div class="actions">
               <button type="button" id="start-capture-btn">Start Native Capture</button>
@@ -125,15 +127,23 @@
         </article>
 
         <article class="card">
-          <h2>Status</h2>
-          <div id="runtime-badge" class="badge">Detecting runtime...</div>
-          <dl id="status">
-            <div><dt>Stage</dt><dd>loading...</dd></div>
-            <div><dt>GUI</dt><dd>loading...</dd></div>
-            <div><dt>Transport</dt><dd>loading...</dd></div>
-            <div><dt>macOS Capture</dt><dd>loading...</dd></div>
-            <div><dt>Linux Capture</dt><dd>loading...</dd></div>
+          <h2>Recovery</h2>
+          <dl id="recovery-status">
+            <div><dt>State</dt><dd>loading...</dd></div>
+            <div><dt>Reconnect</dt><dd>loading...</dd></div>
+            <div><dt>Reason</dt><dd>loading...</dd></div>
           </dl>
+        </article>
+
+        <article class="card">
+          <h2>Transport Diagnostics</h2>
+          <dl id="transport-diagnostics">
+            <div><dt>Transport Stage</dt><dd>loading...</dd></div>
+            <div><dt>ICE Path</dt><dd>loading...</dd></div>
+            <div><dt>Data Channel</dt><dd>loading...</dd></div>
+            <div><dt>Stats Reports</dt><dd>loading...</dd></div>
+          </dl>
+          <pre id="transport-notes">loading...</pre>
         </article>
 
         <article class="card">

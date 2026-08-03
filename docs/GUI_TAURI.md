@@ -42,6 +42,7 @@ The backend around the GUI has moved one step forward:
 - capture picker and audio-toggle changes now apply immediately without a separate confirmation button
 - desktop polling is now user-configurable from the GUI, and its enabled/disabled state plus interval persist through the shared session-preferences store
 - room/signaling/ICE draft edits now survive background refresh polling until a successful session action re-syncs them
+- the first viewport now prioritizes a live Tauri workflow overview for role, signaling, capture runtime, transport, and next action
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
 - session config now includes editable ICE server entries that persist through the desktop preferences store
 - transport diagnostics now include an ICE path summary derived from candidate-pair stats so the GUI can hint whether the current route looks direct or relay-backed
@@ -83,6 +84,7 @@ This gives the Tauri shell a stable API before the real transport and capture la
 The current Tauri UI is wired to the session manager and supports:
 
 - editing room, signaling, and ICE server fields
+- scanning the live overview for current role, signaling reachability, capture runtime state, transport state, and next action
 - tuning persisted auto-refresh polling behavior for the desktop shell
 - selecting a platform source and audio preference
 - applying capture-source changes immediately from the picker state
@@ -97,6 +99,7 @@ The current Tauri UI is wired to the session manager and supports:
 - auto-applying remote offer/answer/ICE during refresh
 - stopping or resetting a session
 - viewing current session status and next action
+- using a dedicated capture runtime panel for native start/poll/stop and debug capture publishing controls
 - viewing the configured ICE server count and summary in the session snapshot
 - viewing transport connection state, transport stage, ICE path summary, bootstrap data-channel readiness, transport notes, local audio/video track attachment, sample counters, last payload summaries, local/remote description kind, and ICE counters
 - viewing and clearing the rolling session log

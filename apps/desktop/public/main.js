@@ -47,6 +47,9 @@ function syncSessionFieldValue(id, value, force = false) {
 
 function setStatus(status) {
   const container = document.getElementById("status");
+  if (!container) {
+    return;
+  }
   container.innerHTML = `
     <div><dt>Stage</dt><dd>${status.stage}</dd></div>
     <div><dt>GUI</dt><dd>${status.gui}</dd></div>
@@ -54,6 +57,76 @@ function setStatus(status) {
     <div><dt>macOS Capture</dt><dd>${status.capture_macos}</dd></div>
     <div><dt>Linux Capture</dt><dd>${status.capture_linux}</dd></div>
   `;
+}
+
+function setOverview(session) {
+  document.getElementById("overview-role").textContent =
+    `${session.mode ?? "unknown"} / ${session.stage ?? "unknown"}`;
+  document.getElementById("overview-signaling").textContent =
+    session.signaling_connected ? "connected" : "offline";
+  document.getElementById("overview-capture").textContent =
+    `${session.capture_runtime_status ?? "not_started"} / ${session.capture_permission_state ?? "unknown"}`;
+  document.getElementById("overview-transport").textContent =
+    `${session.transport_stage ?? "n/a"} / ${session.transport_ice_path_kind ?? "unknown"}`;
+  document.getElementById("overview-next").textContent = session.next_action ?? "n/a";
+}
+
+function setPreviewOverview() {
+  document.getElementById("overview-role").textContent = "preview";
+  document.getElementById("overview-signaling").textContent = "offline";
+  document.getElementById("overview-capture").textContent = "not_started / unknown";
+  document.getElementById("overview-transport").textContent = "preview / unknown";
+  document.getElementById("overview-next").textContent = "run inside Tauri";
+}
+
+function isRuntimeActive(status) {
+  return status === "starting" || status === "running";
+}
+
+function syncCaptureRuntimeControls(session) {
+  const startButton = document.getElementById("start-capture-btn");
+  const pollButton = document.getElementById("poll-capture-btn");
+  const stopButton = document.getElementById("stop-capture-btn");
+  const debugButton = document.getElementById("publish-media-btn");
+  if (!startButton || !pollButton || !stopButton || !debugButton) {
+    return;
+  }
+
+  const runtimeStatus = session.capture_runtime_status ?? "not_started";
+  const isHost = session.mode === "host";
+  const hasSource = Boolean(session.selected_source_id);
+  const active = isRuntimeActive(runtimeStatus);
+
+  startButton.disabled = !isHost || !hasSource || active;
+  pollButton.disabled = runtimeStatus === "not_started";
+  stopButton.disabled = !active && runtimeStatus !== "permission_required" && runtimeStatus !== "permission_denied" && runtimeStatus !== "failed";
+  debugButton.disabled = !isHost || !hasSource;
+
+  startButton.title = !isHost
+    ? "Prepare a host session before starting native capture."
+    : !hasSource
+      ? "Select a capture source before starting native capture."
+      : active
+        ? "Native capture is already active."
+        : "";
+  debugButton.title = !isHost || !hasSource
+    ? "Prepare a host session and select a source before publishing debug media."
+    : "";
+}
+
+function setCaptureRuntime(session) {
+  const container = document.getElementById("capture-runtime");
+  if (!container) {
+    return;
+  }
+
+  container.innerHTML = `
+    <div><dt>Status</dt><dd>${session.capture_runtime_status ?? "not_started"}</dd></div>
+    <div><dt>Permission</dt><dd>${session.capture_permission_state ?? "unknown"}</dd></div>
+    <div><dt>Selected</dt><dd>${session.source_label ?? session.selected_source_id ?? "n/a"}</dd></div>
+    <div><dt>Audio</dt><dd>${session.selected_source_audio ? "enabled" : "disabled"}</dd></div>
+  `;
+  syncCaptureRuntimeControls(session);
 }
 
 function setCaptureCatalog(catalog) {
@@ -218,6 +291,8 @@ function setSession(session, { forceFormSync = false } = {}) {
   `;
   document.getElementById("transport-notes").textContent =
     session.transport_notes?.join("\n") || "No transport diagnostics yet.";
+  setOverview(session);
+  setCaptureRuntime(session);
   setRecoveryStatus(session);
   syncSessionFieldValue("room", session.room, forceFormSync);
   syncSessionFieldValue("signaling", session.signaling_addr, forceFormSync);
@@ -294,9 +369,7 @@ async function performRefresh() {
   } else {
     document.getElementById("runtime-badge").textContent = "Browser preview";
     document.getElementById("runtime-badge").className = "badge preview";
-    document.getElementById("status").innerHTML = `
-      <div><dt>Mode</dt><dd>Browser preview without Tauri runtime</dd></div>
-    `;
+    setPreviewOverview();
   }
 
   if (session) {
@@ -360,6 +433,17 @@ async function performRefresh() {
     `;
     document.getElementById("transport-notes").textContent =
       "Run inside Tauri to inspect Rust-side transport diagnostics.";
+    document.getElementById("capture-runtime").innerHTML = `
+      <div><dt>Status</dt><dd>not_started</dd></div>
+      <div><dt>Permission</dt><dd>unknown</dd></div>
+      <div><dt>Selected</dt><dd>n/a</dd></div>
+      <div><dt>Audio</dt><dd>disabled</dd></div>
+    `;
+    syncCaptureRuntimeControls({
+      mode: "preview",
+      selected_source_id: null,
+      capture_runtime_status: "not_started",
+    });
     document.getElementById("recovery-status").innerHTML = `
       <div><dt>State</dt><dd>preview</dd></div>
       <div><dt>Reconnect</dt><dd>unavailable</dd></div>

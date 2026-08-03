@@ -69,6 +69,8 @@ This regenerates the desktop icons, changes into `apps/desktop/src-tauri`, and r
 
 ## Current GUI Workflow
 
+The first screen now starts with a live overview for the current role, signaling reachability, capture runtime state, transport state, and next action. The detailed snapshot and logs remain lower on the page for diagnostics.
+
 ### Session Control
 
 - `Room`: room name for host/viewer pairing
@@ -154,6 +156,7 @@ The `Reconnect` button is disabled only when no host/viewer session has been pre
 
 ### Transport Smoke Test
 
+- the capture runtime panel controls native capture start, poll, and stop actions from the Tauri shell
 - `Push Debug Capture Burst`: synthesize `capture-core` video/audio payloads and write them into the attached host tracks
 
 The debug burst respects the selected source audio toggle:

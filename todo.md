@@ -92,6 +92,7 @@
 - Done in part: source picker UI now exists, backed by the current platform capture catalog blueprint data
 - Done in part: GUI now surfaces transport-stage, data-channel, and transport-note diagnostics from the live WebRTC layer
 - Done in part: GUI now surfaces capture-catalog origin and backend notes for runtime-vs-fallback diagnostics
+- Done in part: desktop GUI now prioritizes a live workflow overview and a dedicated capture runtime panel before raw diagnostic snapshots
 - Done in part: session refresh now re-synchronizes capture-catalog permission/origin state instead of freezing it at startup
 - Done in part: host session guidance now reacts to capture permission readiness before falling back to signaling-only hints
 - Done in part: host source selection now auto-rebinds when runtime catalog refresh invalidates the previous source
