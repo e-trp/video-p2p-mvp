@@ -9,7 +9,6 @@ pub struct CaptureCatalogSnapshot {
     pub sources: Vec<CaptureSource>,
 }
 
-
 pub fn current_capture_catalog() -> CaptureCatalogSnapshot {
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {

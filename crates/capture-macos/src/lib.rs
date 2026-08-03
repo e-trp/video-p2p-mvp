@@ -48,8 +48,9 @@ pub struct MacCaptureRuntime {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum MacRuntimeStartPlan {
-    PermissionRequired {
+    PermissionBlocked {
         source: MacNativeSourceDescriptor,
+        status: CaptureStreamStatus,
         message: String,
     },
     SourceUnavailable(String),
@@ -195,19 +196,34 @@ impl CaptureStreamRuntime for MacCaptureRuntime {
         self.active_source_id = Some(source_id.clone());
 
         match plan_runtime_start(&config, &current_catalog()) {
-            MacRuntimeStartPlan::PermissionRequired { source, message } => {
-                match resolve_permission_requirement(message) {
-                    MacPermissionResolution::Granted => self.start_native_bridge(&config, &source),
-                    MacPermissionResolution::StillRequired(message) => {
-                        self.status = CaptureStreamStatus::PermissionRequired;
-                        self.pending_events.push(CaptureStreamEvent::StatusChanged {
-                            source_id: Some(source_id),
-                            status: self.status,
-                            message: Some(message),
-                        });
-                        Ok(())
+            MacRuntimeStartPlan::PermissionBlocked {
+                source,
+                status,
+                message,
+            } => {
+                if status == CaptureStreamStatus::PermissionRequired {
+                    match resolve_permission_requirement(message) {
+                        MacPermissionResolution::Granted => {
+                            return self.start_native_bridge(&config, &source);
+                        }
+                        MacPermissionResolution::StillRequired(message) => {
+                            self.status = CaptureStreamStatus::PermissionRequired;
+                            self.pending_events.push(CaptureStreamEvent::StatusChanged {
+                                source_id: Some(source_id),
+                                status: self.status,
+                                message: Some(message),
+                            });
+                            return Ok(());
+                        }
                     }
                 }
+                self.status = status;
+                self.pending_events.push(CaptureStreamEvent::StatusChanged {
+                    source_id: Some(source_id),
+                    status: self.status,
+                    message: Some(message),
+                });
+                Ok(())
             }
             MacRuntimeStartPlan::SourceUnavailable(message) => {
                 self.status = CaptureStreamStatus::Failed;
@@ -404,17 +420,20 @@ fn plan_runtime_start(
         CapturePermissionState::Granted => MacRuntimeStartPlan::StartBridge {
             source: MacNativeSourceDescriptor::from_capture_source(source),
         },
-        CapturePermissionState::Denied => MacRuntimeStartPlan::PermissionRequired {
+        CapturePermissionState::Denied => MacRuntimeStartPlan::PermissionBlocked {
             source: MacNativeSourceDescriptor::from_capture_source(source),
+            status: CaptureStreamStatus::PermissionDenied,
             message: "Screen Recording permission appears denied; enable it for this app in macOS Privacy & Security settings".to_string(),
         },
-        CapturePermissionState::Required => MacRuntimeStartPlan::PermissionRequired {
+        CapturePermissionState::Required => MacRuntimeStartPlan::PermissionBlocked {
             source: MacNativeSourceDescriptor::from_capture_source(source),
+            status: CaptureStreamStatus::PermissionRequired,
             message: "Screen Recording permission is required before starting ScreenCaptureKit capture"
                 .to_string(),
         },
-        CapturePermissionState::Unknown => MacRuntimeStartPlan::PermissionRequired {
+        CapturePermissionState::Unknown => MacRuntimeStartPlan::PermissionBlocked {
             source: MacNativeSourceDescriptor::from_capture_source(source),
+            status: CaptureStreamStatus::PermissionRequired,
             message: "Screen Recording permission could not be verified in this environment".to_string(),
         },
     }
@@ -705,13 +724,29 @@ mod tests {
 
         assert!(matches!(
             plan,
-            MacRuntimeStartPlan::PermissionRequired {
+            MacRuntimeStartPlan::PermissionBlocked {
                 source,
+                status: CaptureStreamStatus::PermissionRequired,
                 message,
             }
                 if source.label == "VLC - VLC Player"
                     && source.kind == CaptureSourceKind::Window
                     && message.contains("Screen Recording permission is required")
+        ));
+    }
+
+    #[test]
+    fn runtime_start_plan_preserves_denied_screen_recording_status() {
+        let catalog = test_catalog(CapturePermissionState::Denied);
+        let plan = plan_runtime_start(&test_config("mac-window-vlc"), &catalog);
+
+        assert!(matches!(
+            plan,
+            MacRuntimeStartPlan::PermissionBlocked {
+                status: CaptureStreamStatus::PermissionDenied,
+                message,
+                ..
+            } if message.contains("permission appears denied")
         ));
     }
 

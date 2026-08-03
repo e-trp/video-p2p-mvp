@@ -52,6 +52,7 @@
 - Done in part: `capture-macos` now normalizes selected source, audio opt-in, target FPS, and max frame dimensions before handing stream startup to the native bridge boundary
 - Done in part: `capture-macos` now passes catalog-backed source kind, display name, app name, and audio capability into native bridge settings so future ScreenCaptureKit target matching does not depend on UI labels
 - Done in part: `capture-macos` now has injected bridge-boundary tests for normalized settings, poll-event status updates, and native bridge startup failures
+- Done in part: macOS and Linux stream start planning now preserve denied capture permission as a distinct runtime status for GUI diagnostics
 - Still open: the actual ScreenCaptureKit bridge, permission flow, and live sample delivery
 
 ## Iteration 3: Linux Capture Backend
@@ -68,6 +69,7 @@
 - Done in part: runtime probing on Linux now maps catalog results into live permission-state diagnostics
 - Done in part: `capture-linux` now has a planned Portal/PipeWire runtime scaffold implementing the shared capture stream runtime contract
 - Done in part: `capture-linux` now validates selected sources against the current catalog and routes startup through a planned Portal/PipeWire bridge boundary with normalized stream settings
+- Done in part: Linux stream start planning now preserves denied portal/capture permission separately from required permission
 - Still open: real portal session lifecycle, PipeWire media consumption, and robust Wayland coverage
 
 ## Iteration 4: Tauri Production Flow

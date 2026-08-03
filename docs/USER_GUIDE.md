@@ -136,6 +136,8 @@ When you prepare a host session, the session log and next-action hint now also r
 - `denied`: host capture needs explicit OS approval
 - `unknown`: the desktop session or capture tooling could not be verified cleanly
 
+When capture stream startup sees denied platform permission, the native runtime status stays distinct as `permission_denied` instead of being reported as another `permission_required` state.
+
 If the selected host source disappears after a later catalog refresh, the session manager now rebinds to the first available source automatically and records that change in the session log.
 
 ### Recovery

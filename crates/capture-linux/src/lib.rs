@@ -45,8 +45,9 @@ pub struct LinuxCaptureRuntime {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum LinuxRuntimeStartPlan {
-    PermissionRequired {
+    PermissionBlocked {
         source: LinuxNativeSourceDescriptor,
+        status: CaptureStreamStatus,
         message: String,
     },
     SourceUnavailable(String),
@@ -175,8 +176,10 @@ impl CaptureStreamRuntime for LinuxCaptureRuntime {
         self.active_source_id = Some(source_id.clone());
 
         match plan_runtime_start(&config, &current_catalog()) {
-            LinuxRuntimeStartPlan::PermissionRequired { message, .. } => {
-                self.status = CaptureStreamStatus::PermissionRequired;
+            LinuxRuntimeStartPlan::PermissionBlocked {
+                status, message, ..
+            } => {
+                self.status = status;
                 self.pending_events.push(CaptureStreamEvent::StatusChanged {
                     source_id: Some(source_id),
                     status: self.status,
@@ -360,17 +363,20 @@ fn plan_runtime_start(
         CapturePermissionState::Granted => LinuxRuntimeStartPlan::StartBridge {
             source: LinuxNativeSourceDescriptor::from_capture_source(source),
         },
-        CapturePermissionState::Denied => LinuxRuntimeStartPlan::PermissionRequired {
+        CapturePermissionState::Denied => LinuxRuntimeStartPlan::PermissionBlocked {
             source: LinuxNativeSourceDescriptor::from_capture_source(source),
+            status: CaptureStreamStatus::PermissionDenied,
             message: "Linux capture permission appears denied; approve the source through the desktop portal or session environment".to_string(),
         },
-        CapturePermissionState::Required => LinuxRuntimeStartPlan::PermissionRequired {
+        CapturePermissionState::Required => LinuxRuntimeStartPlan::PermissionBlocked {
             source: LinuxNativeSourceDescriptor::from_capture_source(source),
+            status: CaptureStreamStatus::PermissionRequired,
             message: "Linux capture permission is required before starting Portal/PipeWire capture"
                 .to_string(),
         },
-        CapturePermissionState::Unknown => LinuxRuntimeStartPlan::PermissionRequired {
+        CapturePermissionState::Unknown => LinuxRuntimeStartPlan::PermissionBlocked {
             source: LinuxNativeSourceDescriptor::from_capture_source(source),
+            status: CaptureStreamStatus::PermissionRequired,
             message: "Linux capture permission could not be verified in this environment"
                 .to_string(),
         },
@@ -672,13 +678,29 @@ mod tests {
 
         assert!(matches!(
             plan,
-            LinuxRuntimeStartPlan::PermissionRequired {
+            LinuxRuntimeStartPlan::PermissionBlocked {
                 source,
+                status: CaptureStreamStatus::PermissionRequired,
                 message,
             }
                 if source.label == "mpv - Video Player"
                     && source.kind == CaptureSourceKind::Window
                     && message.contains("Linux capture permission is required")
+        ));
+    }
+
+    #[test]
+    fn runtime_start_plan_preserves_denied_portal_status() {
+        let catalog = test_catalog(CapturePermissionState::Denied);
+        let plan = plan_runtime_start(&test_config("linux-window-player"), &catalog);
+
+        assert!(matches!(
+            plan,
+            LinuxRuntimeStartPlan::PermissionBlocked {
+                status: CaptureStreamStatus::PermissionDenied,
+                message,
+                ..
+            } if message.contains("permission appears denied")
         ));
     }
 

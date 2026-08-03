@@ -139,6 +139,7 @@ What changed relative to the earlier scaffold:
 - `app-core` now owns the active platform capture runtime lifecycle and can start/poll/stop it through the same event ingestion path used by future native media samples
 - session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes
 - session snapshots and the Tauri UI now expose native capture runtime status alongside capture permission state
+- native capture runtime start planning now preserves denied permission as `permission_denied` instead of folding it into `permission_required`
 - the CLI host path can now push one debug `capture-core` burst after the peer connection connects
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
 - the Tauri shell now exposes capture backend, permission state, and source selection from `app-core`

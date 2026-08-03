@@ -100,9 +100,10 @@ pub fn run_receiver(config: ReceiverConfig) -> Result<(), Box<dyn Error>> {
         );
 
         if let Some(expected) = config.expected_frames
-            && received >= expected {
-                break;
-            }
+            && received >= expected
+        {
+            break;
+        }
     }
 
     let elapsed = started.elapsed();
