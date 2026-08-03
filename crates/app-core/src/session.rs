@@ -64,6 +64,7 @@ pub struct SessionSnapshot {
     pub selected_source_audio: bool,
     pub capture_backend: String,
     pub capture_permission_state: String,
+    pub capture_runtime_status: String,
     pub available_source_count: usize,
     pub active_peer: Option<String>,
     pub logs: Vec<String>,
@@ -742,6 +743,12 @@ impl SessionManager {
                 self.state.capture_catalog.permission_state,
             )
             .to_string(),
+            capture_runtime_status: self
+                .state
+                .capture_runtime
+                .as_ref()
+                .map(|runtime| format_capture_stream_status(runtime.status()).to_string())
+                .unwrap_or_else(|| "not_started".to_string()),
             available_source_count: self.state.capture_catalog.sources.len(),
             active_peer: self.state.active_peer.clone(),
             logs: self.state.logs.clone(),
@@ -2186,6 +2193,8 @@ mod tests {
                 && (line.contains("permission_required") || line.contains("permission_denied"))
         }));
         assert!(polled.selected_source_id.is_some());
+        assert_ne!(started.capture_runtime_status, "not_started");
+        assert_ne!(polled.capture_runtime_status, "not_started");
 
         let _ = fs::remove_dir_all(config_dir);
     }
@@ -2347,6 +2356,7 @@ mod tests {
         assert_eq!(snapshot.stage, SessionStage::Idle);
         assert_eq!(snapshot.next_action, "configure host or viewer session");
         assert_eq!(snapshot.recovery_state, "idle");
+        assert_eq!(snapshot.capture_runtime_status, "not_started");
         assert!(!snapshot.can_reconnect);
         assert!(!snapshot.reconnect_recommended);
     }

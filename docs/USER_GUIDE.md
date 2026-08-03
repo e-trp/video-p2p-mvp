@@ -124,6 +124,7 @@ The capture panel also now shows:
 - backend label
 - catalog origin (`runtime`, `blueprint_fallback`, or `unavailable`)
 - permission state derived from the current runtime probe
+- native capture runtime status (`not_started`, `starting`, `running`, `permission_required`, `permission_denied`, `failed`, or `stopped`)
 - backend notes explaining runtime enumeration success or fallback reason
 
 This data is refreshed through the session manager rather than staying fixed from initial app startup.

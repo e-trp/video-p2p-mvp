@@ -18,13 +18,20 @@ cargo check
 cargo test
 ```
 
-3. Start signaling:
+3. After any substantial code change, format and lint the Rust workspace:
+
+```bash
+cargo fmt
+cargo clippy
+```
+
+4. Start signaling:
 
 ```bash
 cargo run -p signaling-server -- 127.0.0.1:7000
 ```
 
-4. In two other terminals, verify WebRTC negotiation:
+5. In two other terminals, verify WebRTC negotiation:
 
 ```bash
 cargo run -p p2p-cli -- webrtc-host --room qa-demo --signal 127.0.0.1:7000 --push-debug-capture

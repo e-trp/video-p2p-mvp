@@ -86,6 +86,7 @@
 - Done in part: the debug GUI publish path now uses the same source-validated session ingest API planned for future native capture backends
 - Done in part: session orchestration now has a production-facing live capture event ingestion API, so native backend events can enter the pipeline without going through GUI debug publishing
 - Done in part: GUI session actions can now start, poll, and stop the platform capture runtime scaffold instead of only pushing synthetic debug samples
+- Done in part: session snapshots and the desktop GUI now expose native capture runtime status directly instead of requiring log inspection
 - Done in part: source picker UI now exists, backed by the current platform capture catalog blueprint data
 - Done in part: GUI now surfaces transport-stage, data-channel, and transport-note diagnostics from the live WebRTC layer
 - Done in part: GUI now surfaces capture-catalog origin and backend notes for runtime-vs-fallback diagnostics

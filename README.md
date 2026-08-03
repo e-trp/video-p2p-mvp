@@ -138,6 +138,7 @@ What changed relative to the earlier scaffold:
 - `capture-core` now also exposes a shared capture stream runtime trait, with planned macOS/Linux runtime scaffolds ready for native bridge implementations
 - `app-core` now owns the active platform capture runtime lifecycle and can start/poll/stop it through the same event ingestion path used by future native media samples
 - session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes
+- session snapshots and the Tauri UI now expose native capture runtime status alongside capture permission state
 - the CLI host path can now push one debug `capture-core` burst after the peer connection connects
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
 - the Tauri shell now exposes capture backend, permission state, and source selection from `app-core`

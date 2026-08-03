@@ -176,6 +176,7 @@ function setSession(session, { forceFormSync = false } = {}) {
     <div><dt>Selected Source</dt><dd>${session.selected_source_id ?? "n/a"} / ${String(session.selected_source_audio)}</dd></div>
     <div><dt>Capture Backend</dt><dd>${session.capture_backend ?? "n/a"}</dd></div>
     <div><dt>Permission</dt><dd>${session.capture_permission_state ?? "n/a"}</dd></div>
+    <div><dt>Capture Runtime</dt><dd>${session.capture_runtime_status ?? "not_started"}</dd></div>
     <div><dt>Peer</dt><dd>${session.active_peer ?? "n/a"}</dd></div>
     <div><dt>Transport State</dt><dd>${session.transport_state ?? "n/a"}</dd></div>
     <div><dt>Transport Stage</dt><dd>${session.transport_stage ?? "n/a"}</dd></div>
@@ -316,6 +317,7 @@ async function performRefresh() {
       <div><dt>Selected Source</dt><dd>n/a / false</dd></div>
       <div><dt>Capture Backend</dt><dd>preview</dd></div>
       <div><dt>Permission</dt><dd>unknown</dd></div>
+      <div><dt>Capture Runtime</dt><dd>not_started</dd></div>
       <div><dt>Peer</dt><dd>n/a</dd></div>
       <div><dt>Transport State</dt><dd>preview</dd></div>
       <div><dt>Transport Stage</dt><dd>preview</dd></div>
