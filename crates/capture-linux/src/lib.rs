@@ -1,6 +1,7 @@
 use capture_core::{
     CapturePermissionState, CaptureSource, CaptureSourceKind, CaptureStreamConfig,
-    CaptureStreamEvent, CaptureStreamResult, CaptureStreamRuntime, CaptureStreamStatus,
+    CaptureStreamError, CaptureStreamEvent, CaptureStreamResult, CaptureStreamRuntime,
+    CaptureStreamStatus,
 };
 use std::collections::HashSet;
 use std::env;
@@ -35,11 +36,61 @@ pub struct LinuxCaptureCatalog {
     pub notes: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
 pub struct LinuxCaptureRuntime {
     status: CaptureStreamStatus,
     active_source_id: Option<String>,
     pending_events: Vec<CaptureStreamEvent>,
+    bridge: Box<dyn LinuxNativeCaptureBridge + Send>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LinuxRuntimeStartPlan {
+    PermissionRequired {
+        source: LinuxNativeSourceDescriptor,
+        message: String,
+    },
+    SourceUnavailable(String),
+    StartBridge {
+        source: LinuxNativeSourceDescriptor,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LinuxNativeStreamSettings {
+    source_id: String,
+    source_label: String,
+    source_kind: CaptureSourceKind,
+    display_name: String,
+    app_name: Option<String>,
+    source_has_audio: bool,
+    include_audio: bool,
+    target_fps: u32,
+    max_width: u32,
+    max_height: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LinuxNativeSourceDescriptor {
+    id: String,
+    kind: CaptureSourceKind,
+    display_name: String,
+    app_name: Option<String>,
+    has_audio: bool,
+    label: String,
+}
+
+trait LinuxNativeCaptureBridge {
+    fn start(
+        &mut self,
+        settings: &LinuxNativeStreamSettings,
+    ) -> CaptureStreamResult<Vec<CaptureStreamEvent>>;
+    fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>>;
+    fn stop(&mut self, source_id: Option<String>) -> CaptureStreamResult<Vec<CaptureStreamEvent>>;
+}
+
+#[derive(Debug, Default)]
+struct PlannedPortalPipeWireBridge {
+    active_source_id: Option<String>,
 }
 
 impl Default for LinuxCaptureRuntime {
@@ -48,6 +99,7 @@ impl Default for LinuxCaptureRuntime {
             status: CaptureStreamStatus::Stopped,
             active_source_id: None,
             pending_events: Vec::new(),
+            bridge: Box::<PlannedPortalPipeWireBridge>::default(),
         }
     }
 }
@@ -119,36 +171,218 @@ pub fn current_catalog() -> LinuxCaptureCatalog {
 impl CaptureStreamRuntime for LinuxCaptureRuntime {
     fn start(&mut self, config: CaptureStreamConfig) -> CaptureStreamResult<()> {
         let source_id = config.source_id().to_string();
-        self.status = CaptureStreamStatus::PermissionRequired;
+        self.pending_events.clear();
         self.active_source_id = Some(source_id.clone());
-        self.pending_events.push(CaptureStreamEvent::StatusChanged {
-            source_id: Some(source_id),
-            status: self.status,
-            message: Some(
-                "Portal/PipeWire stream bridge is not implemented yet; start a portal session before native capture is wired"
-                    .to_string(),
-            ),
-        });
-        Ok(())
+
+        match plan_runtime_start(&config, &current_catalog()) {
+            LinuxRuntimeStartPlan::PermissionRequired { message, .. } => {
+                self.status = CaptureStreamStatus::PermissionRequired;
+                self.pending_events.push(CaptureStreamEvent::StatusChanged {
+                    source_id: Some(source_id),
+                    status: self.status,
+                    message: Some(message),
+                });
+                Ok(())
+            }
+            LinuxRuntimeStartPlan::SourceUnavailable(message) => {
+                self.status = CaptureStreamStatus::Failed;
+                self.pending_events.push(CaptureStreamEvent::Error {
+                    source_id: Some(source_id),
+                    message: message.clone(),
+                });
+                Err(CaptureStreamError::new(message))
+            }
+            LinuxRuntimeStartPlan::StartBridge { source } => {
+                self.start_native_bridge(&config, &source)
+            }
+        }
     }
 
     fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
-        Ok(std::mem::take(&mut self.pending_events))
+        let mut events = std::mem::take(&mut self.pending_events);
+        events.extend(self.bridge.poll_events()?);
+        self.apply_event_status(&events);
+        Ok(events)
     }
 
     fn stop(&mut self) -> CaptureStreamResult<()> {
         let source_id = self.active_source_id.take();
-        self.status = CaptureStreamStatus::Stopped;
-        self.pending_events.push(CaptureStreamEvent::Stopped {
-            source_id,
-            reason: Some("Portal/PipeWire planned runtime stopped".to_string()),
-        });
+        let events = self.bridge.stop(source_id)?;
+        self.apply_event_status(&events);
+        self.pending_events.extend(events);
         Ok(())
     }
 
     fn status(&self) -> CaptureStreamStatus {
         self.status
     }
+}
+
+impl LinuxCaptureRuntime {
+    #[cfg(test)]
+    fn with_bridge(bridge: Box<dyn LinuxNativeCaptureBridge + Send>) -> Self {
+        Self {
+            status: CaptureStreamStatus::Stopped,
+            active_source_id: None,
+            pending_events: Vec::new(),
+            bridge,
+        }
+    }
+
+    fn start_native_bridge(
+        &mut self,
+        config: &CaptureStreamConfig,
+        source: &LinuxNativeSourceDescriptor,
+    ) -> CaptureStreamResult<()> {
+        self.status = CaptureStreamStatus::Starting;
+        let settings = LinuxNativeStreamSettings::from_config(config, source);
+        let events = match self.bridge.start(&settings) {
+            Ok(events) => events,
+            Err(error) => {
+                self.status = CaptureStreamStatus::Failed;
+                self.pending_events.push(CaptureStreamEvent::Error {
+                    source_id: Some(source.id.clone()),
+                    message: format!("Portal/PipeWire bridge failed to start: {error}"),
+                });
+                return Err(error);
+            }
+        };
+        self.apply_event_status(&events);
+        self.pending_events.extend(events);
+        Ok(())
+    }
+
+    fn apply_event_status(&mut self, events: &[CaptureStreamEvent]) {
+        for event in events {
+            match event {
+                CaptureStreamEvent::Started { .. } => {
+                    if self.status == CaptureStreamStatus::Starting {
+                        self.status = CaptureStreamStatus::Running;
+                    }
+                }
+                CaptureStreamEvent::StatusChanged { status, .. } => {
+                    self.status = *status;
+                }
+                CaptureStreamEvent::Stopped { .. } => {
+                    self.status = CaptureStreamStatus::Stopped;
+                }
+                CaptureStreamEvent::Error { .. } => {
+                    self.status = CaptureStreamStatus::Failed;
+                }
+                CaptureStreamEvent::VideoFrame { .. } | CaptureStreamEvent::AudioBuffer { .. } => {}
+            }
+        }
+    }
+}
+
+impl LinuxNativeStreamSettings {
+    fn from_config(config: &CaptureStreamConfig, source: &LinuxNativeSourceDescriptor) -> Self {
+        Self {
+            source_id: source.id.clone(),
+            source_label: source.label.clone(),
+            source_kind: source.kind,
+            display_name: source.display_name.clone(),
+            app_name: source.app_name.clone(),
+            source_has_audio: source.has_audio,
+            include_audio: config.includes_audio() && source.has_audio,
+            target_fps: normalize_target_fps(config.target_fps),
+            max_width: normalize_dimension(config.max_width, 1280),
+            max_height: normalize_dimension(config.max_height, 720),
+        }
+    }
+}
+
+impl LinuxNativeSourceDescriptor {
+    fn from_capture_source(source: &CaptureSource) -> Self {
+        Self {
+            id: source.id.clone(),
+            kind: source.kind,
+            display_name: source.display_name.clone(),
+            app_name: source.app_name.clone(),
+            has_audio: source.has_audio,
+            label: source.label(),
+        }
+    }
+}
+
+impl LinuxNativeCaptureBridge for PlannedPortalPipeWireBridge {
+    fn start(
+        &mut self,
+        settings: &LinuxNativeStreamSettings,
+    ) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
+        let source_id = settings.source_id.clone();
+        self.active_source_id = Some(source_id.clone());
+        Ok(vec![
+            CaptureStreamEvent::Started {
+                source_id: source_id.clone(),
+            },
+            CaptureStreamEvent::StatusChanged {
+                source_id: Some(source_id),
+                status: CaptureStreamStatus::Failed,
+                message: Some(format!(
+                    "Portal/PipeWire bridge boundary reached for {} ({:?}); target={}fps max={}x{} audio={}; native sample delivery is not implemented yet",
+                    settings.source_label,
+                    settings.source_kind,
+                    settings.target_fps,
+                    settings.max_width,
+                    settings.max_height,
+                    settings.include_audio
+                )),
+            },
+        ])
+    }
+
+    fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
+        Ok(Vec::new())
+    }
+
+    fn stop(&mut self, source_id: Option<String>) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
+        let source_id = source_id.or_else(|| self.active_source_id.take());
+        Ok(vec![CaptureStreamEvent::Stopped {
+            source_id,
+            reason: Some("Portal/PipeWire bridge stopped".to_string()),
+        }])
+    }
+}
+
+fn plan_runtime_start(
+    config: &CaptureStreamConfig,
+    catalog: &LinuxCaptureCatalog,
+) -> LinuxRuntimeStartPlan {
+    let source_id = config.source_id();
+    let Some(source) = catalog.sources.iter().find(|source| source.id == source_id) else {
+        return LinuxRuntimeStartPlan::SourceUnavailable(format!(
+            "capture source is no longer available in the Linux catalog: {source_id}"
+        ));
+    };
+
+    match catalog.permission_state {
+        CapturePermissionState::Granted => LinuxRuntimeStartPlan::StartBridge {
+            source: LinuxNativeSourceDescriptor::from_capture_source(source),
+        },
+        CapturePermissionState::Denied => LinuxRuntimeStartPlan::PermissionRequired {
+            source: LinuxNativeSourceDescriptor::from_capture_source(source),
+            message: "Linux capture permission appears denied; approve the source through the desktop portal or session environment".to_string(),
+        },
+        CapturePermissionState::Required => LinuxRuntimeStartPlan::PermissionRequired {
+            source: LinuxNativeSourceDescriptor::from_capture_source(source),
+            message: "Linux capture permission is required before starting Portal/PipeWire capture"
+                .to_string(),
+        },
+        CapturePermissionState::Unknown => LinuxRuntimeStartPlan::PermissionRequired {
+            source: LinuxNativeSourceDescriptor::from_capture_source(source),
+            message: "Linux capture permission could not be verified in this environment"
+                .to_string(),
+        },
+    }
+}
+
+fn normalize_target_fps(target_fps: Option<u32>) -> u32 {
+    target_fps.unwrap_or(30).clamp(1, 120)
+}
+
+fn normalize_dimension(value: Option<u32>, default: u32) -> u32 {
+    value.unwrap_or(default).max(1)
 }
 
 fn infer_permission_state_from_error(error: &str) -> CapturePermissionState {
@@ -300,14 +534,19 @@ fn slugify(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        LinuxCaptureBackend, blueprint, infer_permission_state_from_error,
-        infer_permission_state_from_error_with_display, make_source_id, parse_window_listing,
-        parse_window_row, runtime, slugify,
+        LinuxCaptureBackend, LinuxCaptureCatalog, LinuxNativeCaptureBridge,
+        LinuxNativeSourceDescriptor, LinuxNativeStreamSettings, LinuxRuntimeStartPlan,
+        LinuxSourceCatalogOrigin, PlannedPortalPipeWireBridge, blueprint,
+        infer_permission_state_from_error, infer_permission_state_from_error_with_display,
+        make_source_id, normalize_dimension, normalize_target_fps, parse_window_listing,
+        parse_window_row, plan_runtime_start, runtime, slugify,
     };
     use capture_core::{
-        CapturePermissionState, CaptureSelection, CaptureStreamConfig, CaptureStreamEvent,
-        CaptureStreamRuntime, CaptureStreamStatus,
+        CapturePermissionState, CaptureSelection, CaptureSource, CaptureSourceKind,
+        CaptureStreamConfig, CaptureStreamError, CaptureStreamEvent, CaptureStreamRuntime,
+        CaptureStreamStatus,
     };
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn blueprint_exposes_required_permission_and_example_sources() {
@@ -403,7 +642,7 @@ mod tests {
                 ..
             }]
         ));
-        assert!(format!("{:?}", events[0]).contains("Portal/PipeWire stream bridge"));
+        assert!(format!("{:?}", events[0]).contains("Linux capture permission"));
 
         runtime.stop().expect("stop planned Linux runtime");
         let stop_events = runtime.poll_events().expect("poll stop event");
@@ -412,5 +651,306 @@ mod tests {
             stop_events.as_slice(),
             [CaptureStreamEvent::Stopped { .. }]
         ));
+    }
+
+    #[test]
+    fn runtime_start_plan_rejects_missing_source() {
+        let catalog = test_catalog(CapturePermissionState::Granted);
+        let plan = plan_runtime_start(&test_config("missing-source"), &catalog);
+
+        assert!(matches!(
+            plan,
+            LinuxRuntimeStartPlan::SourceUnavailable(message)
+                if message.contains("missing-source")
+        ));
+    }
+
+    #[test]
+    fn runtime_start_plan_requires_portal_permission() {
+        let catalog = test_catalog(CapturePermissionState::Required);
+        let plan = plan_runtime_start(&test_config("linux-window-player"), &catalog);
+
+        assert!(matches!(
+            plan,
+            LinuxRuntimeStartPlan::PermissionRequired {
+                source,
+                message,
+            }
+                if source.label == "mpv - Video Player"
+                    && source.kind == CaptureSourceKind::Window
+                    && message.contains("Linux capture permission is required")
+        ));
+    }
+
+    #[test]
+    fn runtime_start_plan_allows_bridge_start_when_permission_is_granted() {
+        let catalog = test_catalog(CapturePermissionState::Granted);
+        let plan = plan_runtime_start(&test_config("linux-window-player"), &catalog);
+
+        assert!(matches!(
+            plan,
+            LinuxRuntimeStartPlan::StartBridge { source }
+                if source.label == "mpv - Video Player"
+                    && source.kind == CaptureSourceKind::Window
+        ));
+    }
+
+    #[test]
+    fn native_stream_settings_normalize_capture_config_for_bridge() {
+        let settings = LinuxNativeStreamSettings::from_config(
+            &CaptureStreamConfig {
+                selection: CaptureSelection {
+                    source_id: "linux-display-1".to_string(),
+                    include_audio: true,
+                },
+                target_fps: Some(0),
+                max_width: Some(0),
+                max_height: None,
+            },
+            &LinuxNativeSourceDescriptor {
+                id: "linux-display-1".to_string(),
+                kind: CaptureSourceKind::Display,
+                display_name: "Display 1".to_string(),
+                app_name: None,
+                has_audio: false,
+                label: "Display 1".to_string(),
+            },
+        );
+
+        assert_eq!(settings.source_id, "linux-display-1");
+        assert_eq!(settings.source_label, "Display 1");
+        assert_eq!(settings.source_kind, CaptureSourceKind::Display);
+        assert_eq!(settings.display_name, "Display 1");
+        assert_eq!(settings.app_name, None);
+        assert!(!settings.source_has_audio);
+        assert!(!settings.include_audio);
+        assert_eq!(settings.target_fps, 1);
+        assert_eq!(settings.max_width, 1);
+        assert_eq!(settings.max_height, 720);
+        assert_eq!(normalize_target_fps(Some(240)), 120);
+        assert_eq!(normalize_dimension(None, 1280), 1280);
+    }
+
+    #[test]
+    fn planned_bridge_reports_native_boundary_without_media_samples() {
+        let mut bridge = PlannedPortalPipeWireBridge::default();
+        let settings = LinuxNativeStreamSettings::from_config(
+            &test_config("linux-window-player"),
+            &test_source_descriptor(),
+        );
+        let events = bridge.start(&settings).expect("start planned bridge");
+
+        assert!(matches!(
+            events.as_slice(),
+            [
+                CaptureStreamEvent::Started { .. },
+                CaptureStreamEvent::StatusChanged {
+                    status: CaptureStreamStatus::Failed,
+                    ..
+                }
+            ]
+        ));
+        assert!(
+            format!("{:?}", events).contains(
+                "Portal/PipeWire bridge boundary reached for mpv - Video Player (Window); target=30fps max=1920x1080 audio=true"
+            )
+        );
+        assert!(
+            bridge
+                .poll_events()
+                .expect("poll planned bridge")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn runtime_hands_normalized_settings_to_injected_bridge() {
+        let seen_settings = Arc::new(Mutex::new(Vec::new()));
+        let mut runtime = super::LinuxCaptureRuntime::with_bridge(Box::new(RecordingBridge {
+            seen_settings: seen_settings.clone(),
+            start_events: vec![CaptureStreamEvent::Started {
+                source_id: "linux-window-player".to_string(),
+            }],
+            poll_events: Vec::new(),
+        }));
+
+        runtime
+            .start_native_bridge(
+                &test_config("linux-window-player"),
+                &test_source_descriptor(),
+            )
+            .expect("start recording bridge");
+
+        let settings = seen_settings.lock().expect("settings lock");
+        assert_eq!(settings.len(), 1);
+        assert_eq!(settings[0].source_id, "linux-window-player");
+        assert_eq!(settings[0].source_label, "mpv - Video Player");
+        assert_eq!(settings[0].target_fps, 30);
+        assert_eq!(settings[0].max_width, 1920);
+        assert_eq!(settings[0].max_height, 1080);
+        assert!(settings[0].include_audio);
+        drop(settings);
+
+        let events = runtime.poll_events().expect("poll recording bridge");
+        assert_eq!(runtime.status(), CaptureStreamStatus::Running);
+        assert!(matches!(
+            events.as_slice(),
+            [CaptureStreamEvent::Started { .. }]
+        ));
+    }
+
+    #[test]
+    fn runtime_polls_injected_bridge_events_and_updates_status() {
+        let seen_settings = Arc::new(Mutex::new(Vec::new()));
+        let mut runtime = super::LinuxCaptureRuntime::with_bridge(Box::new(RecordingBridge {
+            seen_settings,
+            start_events: vec![CaptureStreamEvent::Started {
+                source_id: "linux-window-player".to_string(),
+            }],
+            poll_events: vec![CaptureStreamEvent::StatusChanged {
+                source_id: Some("linux-window-player".to_string()),
+                status: CaptureStreamStatus::Running,
+                message: Some("PipeWire stream loop is active".to_string()),
+            }],
+        }));
+
+        runtime
+            .start_native_bridge(
+                &test_config("linux-window-player"),
+                &test_source_descriptor(),
+            )
+            .expect("start recording bridge");
+
+        let first_events = runtime.poll_events().expect("poll started event");
+        assert_eq!(first_events.len(), 2);
+        assert_eq!(runtime.status(), CaptureStreamStatus::Running);
+        assert!(format!("{:?}", first_events).contains("PipeWire stream loop is active"));
+
+        runtime.stop().expect("stop runtime");
+        let stop_events = runtime.poll_events().expect("poll stop event");
+        assert_eq!(runtime.status(), CaptureStreamStatus::Stopped);
+        assert!(matches!(
+            stop_events.as_slice(),
+            [CaptureStreamEvent::Stopped { .. }]
+        ));
+    }
+
+    #[test]
+    fn runtime_marks_failed_when_injected_bridge_start_fails() {
+        let mut runtime = super::LinuxCaptureRuntime::with_bridge(Box::new(FailingBridge));
+
+        let error = runtime
+            .start_native_bridge(
+                &test_config("linux-window-player"),
+                &test_source_descriptor(),
+            )
+            .expect_err("bridge start should fail");
+
+        assert_eq!(error.message(), "native bridge unavailable");
+        assert_eq!(runtime.status(), CaptureStreamStatus::Failed);
+        let events = runtime.poll_events().expect("poll failure event");
+        assert!(matches!(
+            events.as_slice(),
+            [CaptureStreamEvent::Error { source_id, message }]
+                if source_id.as_deref() == Some("linux-window-player")
+                    && message.contains("Portal/PipeWire bridge failed to start")
+        ));
+    }
+
+    fn test_config(source_id: &str) -> CaptureStreamConfig {
+        CaptureStreamConfig {
+            selection: CaptureSelection {
+                source_id: source_id.to_string(),
+                include_audio: true,
+            },
+            target_fps: Some(30),
+            max_width: Some(1920),
+            max_height: Some(1080),
+        }
+    }
+
+    fn test_catalog(permission_state: CapturePermissionState) -> LinuxCaptureCatalog {
+        LinuxCaptureCatalog {
+            backend_label: "test".to_string(),
+            permission_state,
+            sources: vec![CaptureSource {
+                id: "linux-window-player".to_string(),
+                kind: CaptureSourceKind::Window,
+                display_name: "Video Player".to_string(),
+                app_name: Some("mpv".to_string()),
+                has_audio: true,
+            }],
+            origin: LinuxSourceCatalogOrigin::Runtime,
+            notes: Vec::new(),
+        }
+    }
+
+    fn test_source_descriptor() -> LinuxNativeSourceDescriptor {
+        LinuxNativeSourceDescriptor {
+            id: "linux-window-player".to_string(),
+            kind: CaptureSourceKind::Window,
+            display_name: "Video Player".to_string(),
+            app_name: Some("mpv".to_string()),
+            has_audio: true,
+            label: "mpv - Video Player".to_string(),
+        }
+    }
+
+    struct RecordingBridge {
+        seen_settings: Arc<Mutex<Vec<LinuxNativeStreamSettings>>>,
+        start_events: Vec<CaptureStreamEvent>,
+        poll_events: Vec<CaptureStreamEvent>,
+    }
+
+    impl LinuxNativeCaptureBridge for RecordingBridge {
+        fn start(
+            &mut self,
+            settings: &LinuxNativeStreamSettings,
+        ) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            self.seen_settings
+                .lock()
+                .expect("settings lock")
+                .push(settings.clone());
+            Ok(self.start_events.clone())
+        }
+
+        fn poll_events(&mut self) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Ok(std::mem::take(&mut self.poll_events))
+        }
+
+        fn stop(
+            &mut self,
+            source_id: Option<String>,
+        ) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Ok(vec![CaptureStreamEvent::Stopped {
+                source_id,
+                reason: Some("recording bridge stopped".to_string()),
+            }])
+        }
+    }
+
+    struct FailingBridge;
+
+    impl LinuxNativeCaptureBridge for FailingBridge {
+        fn start(
+            &mut self,
+            _settings: &LinuxNativeStreamSettings,
+        ) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Err(CaptureStreamError::new("native bridge unavailable"))
+        }
+
+        fn poll_events(&mut self) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Ok(Vec::new())
+        }
+
+        fn stop(
+            &mut self,
+            source_id: Option<String>,
+        ) -> capture_core::CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Ok(vec![CaptureStreamEvent::Stopped {
+                source_id,
+                reason: Some("failing bridge stopped".to_string()),
+            }])
+        }
     }
 }

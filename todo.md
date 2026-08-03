@@ -67,6 +67,7 @@
 - Done in part: `capture-linux` now exposes a best-effort `wmctrl`-based runtime window catalog with blueprint fallback
 - Done in part: runtime probing on Linux now maps catalog results into live permission-state diagnostics
 - Done in part: `capture-linux` now has a planned Portal/PipeWire runtime scaffold implementing the shared capture stream runtime contract
+- Done in part: `capture-linux` now validates selected sources against the current catalog and routes startup through a planned Portal/PipeWire bridge boundary with normalized stream settings
 - Still open: real portal session lifecycle, PipeWire media consumption, and robust Wayland coverage
 
 ## Iteration 4: Tauri Production Flow
