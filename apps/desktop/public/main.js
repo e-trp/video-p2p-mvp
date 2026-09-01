@@ -239,8 +239,16 @@ function syncPrototypeControls(session) {
   debugButton.disabled = isPreview || !isHost || !hasSource;
   refreshButton.disabled = isPreview;
 
-  hostButton.title = canStart ? "" : "Room and signaling address are required.";
-  viewerButton.title = canStart ? "" : "Room and signaling address are required.";
+  hostButton.title = canStart
+    ? ""
+    : isPreview
+      ? "Start the app with cargo tauri dev so desktop commands are available."
+      : "Room and signaling address are required.";
+  viewerButton.title = canStart
+    ? ""
+    : isPreview
+      ? "Start the app with cargo tauri dev so desktop commands are available."
+      : "Room and signaling address are required.";
   debugButton.title = debugButton.disabled
     ? "Start a host session with a selected source before sending a test frame."
     : "";
