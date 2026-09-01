@@ -193,6 +193,20 @@ fn join_room(
 }
 
 #[tauri::command]
+fn start_local_demo(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
+    let snapshot = state
+        .lock()
+        .expect("session state poisoned")
+        .start_local_demo();
+
+    CommandResult {
+        ok: true,
+        message: "local desktop demo started without signaling server setup".to_string(),
+        session: map_snapshot(snapshot),
+    }
+}
+
+#[tauri::command]
 fn update_session_config(
     room: Option<String>,
     signaling_addr: Option<String>,
@@ -389,6 +403,7 @@ fn main() {
             capture_catalog,
             start_host,
             join_room,
+            start_local_demo,
             update_session_config,
             select_capture_source,
             publish_debug_capture_samples,

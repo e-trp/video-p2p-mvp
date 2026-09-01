@@ -226,6 +226,34 @@ impl SessionManager {
         self.snapshot()
     }
 
+    pub fn start_local_demo(&mut self) -> SessionSnapshot {
+        self.sync_capture_catalog();
+        self.ensure_default_host_capture_selection();
+        let selected_source_label = selected_source_label(
+            &self.state.capture_catalog,
+            self.state.capture_selection.as_ref(),
+        );
+        self.replace_state(
+            SessionMode::Host,
+            SessionStage::MockStreaming,
+            SessionTransport::MockUdp,
+            SessionIntent {
+                room: "local-demo".to_string(),
+                signaling_addr: "local demo - no signaling server".to_string(),
+                source_label: selected_source_label,
+                ice_servers: Vec::new(),
+            },
+        );
+        self.state.active_peer = Some("local viewer demo".to_string());
+        self.state.last_signaling_message =
+            Some("local demo bypasses signaling and WebRTC negotiation".to_string());
+        self.push_log(
+            "local GUI demo started without external signaling or peer setup".to_string(),
+        );
+        self.log_host_capture_readiness();
+        self.snapshot()
+    }
+
     pub fn mark_mock_streaming(&mut self, peer: String) -> SessionSnapshot {
         self.state.stage = SessionStage::MockStreaming;
         self.state.transport = SessionTransport::MockUdp;
@@ -2382,6 +2410,29 @@ mod tests {
             snapshot.recovery_reason,
             "Signaling is disconnected. Verify the signaling server or address, then reconnect."
         );
+    }
+
+    #[test]
+    fn local_demo_starts_without_signaling() {
+        let (mut manager, config_dir) = new_test_manager("local-demo");
+        let snapshot = manager.start_local_demo();
+
+        assert_eq!(snapshot.mode, SessionMode::Host);
+        assert_eq!(snapshot.stage, SessionStage::MockStreaming);
+        assert_eq!(snapshot.transport, SessionTransport::MockUdp);
+        assert_eq!(snapshot.room.as_deref(), Some("local-demo"));
+        assert!(!snapshot.signaling_connected);
+        assert_eq!(snapshot.active_peer.as_deref(), Some("local viewer demo"));
+        assert!(snapshot.selected_source_id.is_some());
+        assert!(
+            snapshot
+                .last_signaling_message
+                .as_deref()
+                .unwrap_or_default()
+                .contains("bypasses signaling")
+        );
+
+        let _ = fs::remove_dir_all(config_dir);
     }
 
     #[test]

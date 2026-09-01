@@ -91,6 +91,7 @@ It now exposes commands for:
 - persisting last-used room, signaling address, and capture-source selection across session-manager restarts
 - persisting desktop auto-refresh enablement and polling interval across restarts
 - preparing host and viewer sessions against the live signaling server
+- starting a local no-network desktop demo from the first-screen host workflow
 - configuring custom ICE server entries for STUN/TURN-assisted traversal
 - auto-creating and sending the first local SDP offer from the host once signaling is connected
 - publishing debug `capture-core` audio/video payloads into the attached host tracks for smoke testing
@@ -156,6 +157,7 @@ What changed relative to the earlier scaffold:
 - the desktop GUI now opens with a compact live overview for role, signaling, capture runtime, transport, and next action before the detailed diagnostics
 - the desktop GUI now renders backend-provided labels, notes, and session fields through escaped detail rows with semantic state tokens in the live overview
 - the desktop GUI now starts with prototype-first host/viewer workflow panels, including a host action that prepares signaling, attempts native capture, and sends a test capture frame
+- the desktop GUI now includes a local demo action for exercising the first-screen workflow without a signaling server or second peer
 - the desktop GUI now serializes button actions behind a busy state so manual commands do not compete with background refresh polling
 - the desktop GUI now shows a first-screen prototype readiness strip for room, source, native capture, signaling, and peer-link state
 - the desktop shell now exposes a reconnect action that rebuilds the current host/viewer session using the active backend configuration

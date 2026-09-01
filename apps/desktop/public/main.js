@@ -273,8 +273,9 @@ function syncPrototypeControls(session) {
   const hostButton = document.getElementById("host-prototype-btn");
   const viewerButton = document.getElementById("viewer-prototype-btn");
   const debugButton = document.getElementById("host-debug-btn");
+  const demoButton = document.getElementById("local-demo-btn");
   const refreshButton = document.getElementById("flow-refresh-btn");
-  if (!hostButton || !viewerButton || !debugButton || !refreshButton) {
+  if (!hostButton || !viewerButton || !debugButton || !demoButton || !refreshButton) {
     return;
   }
 
@@ -291,6 +292,7 @@ function syncPrototypeControls(session) {
   hostButton.disabled = actionInFlight || !canStart;
   viewerButton.disabled = actionInFlight || !canStart;
   debugButton.disabled = actionInFlight || isPreview || !isHost || !hasSource;
+  demoButton.disabled = actionInFlight || isPreview;
   refreshButton.disabled = actionInFlight || isPreview;
   hostButton.textContent = isHost
     ? captureActive
@@ -316,6 +318,9 @@ function syncPrototypeControls(session) {
   debugButton.title = debugButton.disabled
     ? "Start a host session with a selected source before sending a test frame."
     : "";
+  demoButton.title = isPreview
+    ? "Start the app with cargo tauri dev so desktop commands are available."
+    : "Start a local no-network demo session with the current capture catalog.";
 }
 
 function setCaptureRuntime(session) {
@@ -832,6 +837,13 @@ async function joinViewerPrototype() {
   });
 }
 
+async function startLocalDemo() {
+  return runCommand("start_local_demo", {}, {
+    forceFormSync: true,
+    clearDraftOnSuccess: true,
+  });
+}
+
 async function applySelectedSource() {
   if (!isTauri) {
     return;
@@ -896,6 +908,11 @@ async function load() {
     .getElementById("viewer-prototype-btn")
     .addEventListener("click", () =>
       runUserAction("Joining viewer session...", joinViewerPrototype),
+    );
+  document
+    .getElementById("local-demo-btn")
+    .addEventListener("click", () =>
+      runUserAction("Starting local desktop demo...", startLocalDemo),
     );
   document.getElementById("host-debug-btn").addEventListener("click", async () => {
     await runUserAction("Sending test capture frame...", () =>
