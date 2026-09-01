@@ -226,6 +226,14 @@ button:disabled {
   opacity: 0.52;
 }
 
+body.is-busy {
+  cursor: progress;
+}
+
+body.is-busy button {
+  cursor: wait;
+}
+
 .result {
   margin: 16px 0 0;
   padding: 10px 12px;
@@ -323,6 +331,44 @@ dd {
 
 .compact-status dd {
   overflow-wrap: anywhere;
+}
+
+.readiness-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--border);
+  box-shadow: var(--shadow);
+}
+
+.readiness-strip div {
+  min-width: 0;
+  padding: 12px 14px;
+  background: var(--panel);
+}
+
+.readiness-strip span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.readiness-strip strong {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 1.35em;
+  padding: 4px 8px;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+  font-size: 0.92rem;
 }
 
 .diagnostics {
@@ -437,6 +483,26 @@ pre {
   color: #344054;
 }
 
+.readiness-token.tone-good {
+  background: rgba(32, 107, 95, 0.1);
+  color: var(--accent-strong);
+}
+
+.readiness-token.tone-warn {
+  background: rgba(180, 83, 9, 0.1);
+  color: var(--warning);
+}
+
+.readiness-token.tone-bad {
+  background: rgba(180, 35, 24, 0.1);
+  color: #912018;
+}
+
+.readiness-token.tone-neutral {
+  background: #eef2f7;
+  color: #344054;
+}
+
 @media (max-width: 800px) {
   .shell {
     width: min(100% - 20px, 1120px);
@@ -457,6 +523,10 @@ pre {
   }
 
   .live-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .readiness-strip {
     grid-template-columns: 1fr;
   }
 

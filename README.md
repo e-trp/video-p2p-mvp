@@ -156,6 +156,8 @@ What changed relative to the earlier scaffold:
 - the desktop GUI now opens with a compact live overview for role, signaling, capture runtime, transport, and next action before the detailed diagnostics
 - the desktop GUI now renders backend-provided labels, notes, and session fields through escaped detail rows with semantic state tokens in the live overview
 - the desktop GUI now starts with prototype-first host/viewer workflow panels, including a host action that prepares signaling, attempts native capture, and sends a test capture frame
+- the desktop GUI now serializes button actions behind a busy state so manual commands do not compete with background refresh polling
+- the desktop GUI now shows a first-screen prototype readiness strip for room, source, native capture, signaling, and peer-link state
 - the desktop shell now exposes a reconnect action that rebuilds the current host/viewer session using the active backend configuration
 - the desktop shell now exposes native capture runtime start/poll/stop controls above the platform runtime scaffolds
 - session snapshots and the desktop GUI now also expose recovery state, recovery reason, and whether reconnect is currently available or recommended

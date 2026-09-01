@@ -45,6 +45,8 @@ The backend around the GUI has moved one step forward:
 - the first viewport now prioritizes a live Tauri workflow overview for role, signaling, capture runtime, transport, and next action
 - live overview values now use semantic state tokens, and backend-provided window labels, notes, and session values are escaped before rendering into HTML
 - the first viewport now also has prototype-first host/viewer panels, with diagnostics collapsed below the main workflow
+- frontend actions now run through a single busy state so button presses pause background refresh work instead of piling up competing session commands
+- the first viewport now shows a prototype readiness strip for room, source, native capture, signaling, and peer-link state
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
 - session config now includes editable ICE server entries that persist through the desktop preferences store
 - transport diagnostics now include an ICE path summary derived from candidate-pair stats so the GUI can hint whether the current route looks direct or relay-backed
@@ -90,6 +92,8 @@ The current Tauri UI is wired to the session manager and supports:
 - starting a host prototype path that prepares signaling, applies the selected source, attempts native capture, and sends a debug capture frame for smoke testing
 - joining as a viewer from the first-viewport workflow without opening the diagnostics panels
 - reading command feedback as success, warning, or error state after each Tauri action
+- seeing an in-progress command state while long-running host/viewer/capture actions are executing
+- scanning room/source/capture/signaling/peer readiness before using the deeper diagnostics panels
 - tuning persisted auto-refresh polling behavior for the desktop shell
 - selecting a platform source and audio preference
 - applying capture-source changes immediately from the picker state

@@ -12,6 +12,8 @@ const allowedRefreshIntervalSeconds = new Set([1, 3, 5, 10, 15]);
 const dirtySessionFields = new Set();
 let refreshTimerId = null;
 let refreshInFlight = null;
+let actionInFlight = false;
+let lastSession = null;
 
 const htmlEscapeMap = {
   "&": "&amp;",
@@ -75,6 +77,15 @@ function setOverviewToken(id, value, tone = statusTone(value)) {
   element.className = `overview-token tone-${tone}`;
 }
 
+function setReadinessToken(id, value, tone = statusTone(value)) {
+  const element = document.getElementById(id);
+  if (!element) {
+    return;
+  }
+  element.textContent = value;
+  element.className = `readiness-token tone-${tone}`;
+}
+
 function setCommandResult(message, tone = "neutral") {
   const element = document.getElementById("command-result");
   element.textContent = message;
@@ -85,6 +96,22 @@ function setText(id, value) {
   const element = document.getElementById(id);
   if (element) {
     element.textContent = value;
+  }
+}
+
+function setActionBusy(isBusy, message = null) {
+  actionInFlight = isBusy;
+  document.body.classList.toggle("is-busy", isBusy);
+  document.querySelectorAll("button").forEach((button) => {
+    button.disabled = isBusy;
+  });
+  if (message) {
+    setCommandResult(message, "neutral");
+  }
+  if (!isBusy && lastSession) {
+    syncPrototypeControls(lastSession);
+    syncCaptureRuntimeControls(lastSession);
+    syncReconnectControl(lastSession);
   }
 }
 
@@ -145,6 +172,25 @@ function setOverview(session) {
   setOverviewToken("overview-next", session.next_action ?? "n/a", "neutral");
 }
 
+function setPrototypeReadiness(session) {
+  const room = session.room ?? document.getElementById("room")?.value.trim();
+  const signaling = session.signaling_connected ? "connected" : "offline";
+  const hasSource = Boolean(session.selected_source_id || session.source_label);
+  const captureStatus = session.capture_runtime_status ?? "not_started";
+  const peerReady = Boolean(
+    session.active_peer
+      || session.remote_description_ready
+      || session.local_data_channel_ready
+      || session.transport_state === "connected",
+  );
+
+  setReadinessToken("ready-room", room ? room : "missing", room ? "good" : "warn");
+  setReadinessToken("ready-source", hasSource ? "selected" : "choose source", hasSource ? "good" : "warn");
+  setReadinessToken("ready-capture", captureStatus, statusTone(captureStatus));
+  setReadinessToken("ready-signaling", signaling, session.signaling_connected ? "good" : "bad");
+  setReadinessToken("ready-peer", peerReady ? "active" : "waiting", peerReady ? "good" : "neutral");
+}
+
 function setPrototypeFlow(session) {
   setText("host-flow-source", session.source_label ?? session.selected_source_id ?? "none selected");
   setText(
@@ -161,6 +207,7 @@ function setPrototypeFlow(session) {
     "viewer-flow-transport",
     `${session.transport_stage ?? "n/a"} / ${session.transport_ice_path_kind ?? "unknown"}`,
   );
+  setPrototypeReadiness(session);
   syncPrototypeControls(session);
 }
 
@@ -201,10 +248,14 @@ function syncCaptureRuntimeControls(session) {
   const hasSource = Boolean(session.selected_source_id);
   const active = isRuntimeActive(runtimeStatus);
 
-  startButton.disabled = !isHost || !hasSource || active;
-  pollButton.disabled = runtimeStatus === "not_started";
-  stopButton.disabled = !active && runtimeStatus !== "permission_required" && runtimeStatus !== "permission_denied" && runtimeStatus !== "failed";
-  debugButton.disabled = !isHost || !hasSource;
+  startButton.disabled = actionInFlight || !isHost || !hasSource || active;
+  pollButton.disabled = actionInFlight || runtimeStatus === "not_started";
+  stopButton.disabled = actionInFlight
+    || (!active
+      && runtimeStatus !== "permission_required"
+      && runtimeStatus !== "permission_denied"
+      && runtimeStatus !== "failed");
+  debugButton.disabled = actionInFlight || !isHost || !hasSource;
 
   startButton.title = !isHost
     ? "Prepare a host session before starting native capture."
@@ -232,12 +283,25 @@ function syncPrototypeControls(session) {
   const hasSignaling = Boolean(document.getElementById("signaling")?.value.trim());
   const canStart = !isPreview && hasRoom && hasSignaling;
   const isHost = session.mode === "host";
+  const isViewer = session.mode === "viewer";
   const hasSource = Boolean(session.selected_source_id);
+  const captureActive = isRuntimeActive(session.capture_runtime_status);
+  const peerLive = Boolean(session.active_peer || session.local_data_channel_ready);
 
-  hostButton.disabled = !canStart;
-  viewerButton.disabled = !canStart;
-  debugButton.disabled = isPreview || !isHost || !hasSource;
-  refreshButton.disabled = isPreview;
+  hostButton.disabled = actionInFlight || !canStart;
+  viewerButton.disabled = actionInFlight || !canStart;
+  debugButton.disabled = actionInFlight || isPreview || !isHost || !hasSource;
+  refreshButton.disabled = actionInFlight || isPreview;
+  hostButton.textContent = isHost
+    ? captureActive
+      ? "Host Prototype Running"
+      : "Restart Host Prototype"
+    : "Start Host Prototype";
+  viewerButton.textContent = isViewer
+    ? peerLive
+      ? "Viewer Connected"
+      : "Refresh Viewer Session"
+    : "Join Viewer";
 
   hostButton.title = canStart
     ? ""
@@ -361,7 +425,7 @@ function syncReconnectControl(session) {
     return;
   }
 
-  button.disabled = !session.can_reconnect;
+  button.disabled = actionInFlight || !session.can_reconnect;
   button.classList.toggle("secondary", Boolean(session.reconnect_recommended));
   button.classList.toggle("ghost", !session.reconnect_recommended);
   button.title = session.recovery_reason ?? "";
@@ -385,6 +449,7 @@ function setRecoveryStatus(session) {
 }
 
 function setSession(session, { forceFormSync = false } = {}) {
+  lastSession = session;
   const container = document.getElementById("session");
   container.innerHTML = detailRows([
     ["Mode", session.mode],
@@ -659,6 +724,9 @@ async function performRefresh() {
 }
 
 async function refresh() {
+  if (actionInFlight) {
+    return null;
+  }
   if (refreshInFlight) {
     return refreshInFlight;
   }
@@ -667,6 +735,21 @@ async function refresh() {
     refreshInFlight = null;
   });
   return refreshInFlight;
+}
+
+async function runUserAction(message, action) {
+  if (actionInFlight) {
+    return null;
+  }
+
+  setActionBusy(true, message);
+  try {
+    const result = await action();
+    return result;
+  } finally {
+    setActionBusy(false);
+    await refresh();
+  }
 }
 
 async function runCommand(command, args = {}, options = {}) {
@@ -739,16 +822,14 @@ async function startHostPrototype() {
       "warn",
     );
   }
-  await refresh();
 }
 
 async function joinViewerPrototype() {
   const values = formValues();
-  await runCommand("join_room", values, {
+  return runCommand("join_room", values, {
     forceFormSync: true,
     clearDraftOnSuccess: true,
   });
-  await refresh();
 }
 
 async function applySelectedSource() {
@@ -763,7 +844,6 @@ async function applySelectedSource() {
   }
 
   await runCommand("select_capture_source", { source_id, include_audio });
-  await refresh();
 }
 
 async function load() {
@@ -779,33 +859,48 @@ async function load() {
 
   document.getElementById("save-btn").addEventListener("click", async () => {
     const values = formValues();
-    await runCommand("update_session_config", values, {
-      forceFormSync: true,
-      clearDraftOnSuccess: true,
-    });
+    await runUserAction("Saving session configuration...", () =>
+      runCommand("update_session_config", values, {
+        forceFormSync: true,
+        clearDraftOnSuccess: true,
+      }),
+    );
   });
 
   document.getElementById("host-btn").addEventListener("click", async () => {
     const values = formValues();
-    await runCommand("start_host", values, {
-      forceFormSync: true,
-      clearDraftOnSuccess: true,
-    });
+    await runUserAction("Preparing host session...", () =>
+      runCommand("start_host", values, {
+        forceFormSync: true,
+        clearDraftOnSuccess: true,
+      }),
+    );
   });
 
   document.getElementById("join-btn").addEventListener("click", async () => {
     const values = formValues();
-    await runCommand("join_room", values, {
-      forceFormSync: true,
-      clearDraftOnSuccess: true,
-    });
+    await runUserAction("Preparing viewer session...", () =>
+      runCommand("join_room", values, {
+        forceFormSync: true,
+        clearDraftOnSuccess: true,
+      }),
+    );
   });
 
-  document.getElementById("host-prototype-btn").addEventListener("click", startHostPrototype);
-  document.getElementById("viewer-prototype-btn").addEventListener("click", joinViewerPrototype);
+  document
+    .getElementById("host-prototype-btn")
+    .addEventListener("click", () =>
+      runUserAction("Starting host prototype...", startHostPrototype),
+    );
+  document
+    .getElementById("viewer-prototype-btn")
+    .addEventListener("click", () =>
+      runUserAction("Joining viewer session...", joinViewerPrototype),
+    );
   document.getElementById("host-debug-btn").addEventListener("click", async () => {
-    await runCommand("publish_debug_capture_samples");
-    await refresh();
+    await runUserAction("Sending test capture frame...", () =>
+      runCommand("publish_debug_capture_samples"),
+    );
   });
   document.getElementById("flow-refresh-btn").addEventListener("click", refresh);
 
@@ -814,47 +909,63 @@ async function load() {
     if (catalog) {
       syncCaptureAudioState(catalog);
     }
-    await applySelectedSource();
+    await runUserAction("Selecting capture source...", applySelectedSource);
   });
 
-  document.getElementById("source-audio").addEventListener("change", applySelectedSource);
+  document
+    .getElementById("source-audio")
+    .addEventListener("change", () =>
+      runUserAction("Updating capture audio preference...", applySelectedSource),
+    );
 
   document
     .getElementById("auto-refresh-enabled")
-    .addEventListener("change", updateUiPreferences);
-  document.getElementById("refresh-interval").addEventListener("change", updateUiPreferences);
+    .addEventListener("change", () =>
+      runUserAction("Updating refresh preferences...", updateUiPreferences),
+    );
+  document
+    .getElementById("refresh-interval")
+    .addEventListener("change", () =>
+      runUserAction("Updating refresh preferences...", updateUiPreferences),
+    );
 
   document.getElementById("publish-media-btn").addEventListener("click", async () => {
-    await runCommand("publish_debug_capture_samples");
+    await runUserAction("Sending test capture frame...", () =>
+      runCommand("publish_debug_capture_samples"),
+    );
   });
 
   document.getElementById("start-capture-btn").addEventListener("click", async () => {
-    await runCommand("start_capture_stream");
+    await runUserAction("Starting native capture...", () => runCommand("start_capture_stream"));
   });
 
   document.getElementById("poll-capture-btn").addEventListener("click", async () => {
-    await runCommand("poll_capture_stream");
+    await runUserAction("Polling native capture...", () => runCommand("poll_capture_stream"));
   });
 
   document.getElementById("stop-capture-btn").addEventListener("click", async () => {
-    await runCommand("stop_capture_stream");
+    await runUserAction("Stopping native capture...", () => runCommand("stop_capture_stream"));
   });
 
   document.getElementById("stop-btn").addEventListener("click", async () => {
-    await runCommand("stop_session");
+    await runUserAction("Stopping session...", () => runCommand("stop_session"));
   });
 
-  document.getElementById("reconnect-btn").addEventListener("click", reconnectSession);
+  document
+    .getElementById("reconnect-btn")
+    .addEventListener("click", () => runUserAction("Reconnecting session...", reconnectSession));
 
   document.getElementById("reset-btn").addEventListener("click", async () => {
-    await runCommand("reset_session", {}, {
-      forceFormSync: true,
-      clearDraftOnSuccess: true,
-    });
+    await runUserAction("Resetting session...", () =>
+      runCommand("reset_session", {}, {
+        forceFormSync: true,
+        clearDraftOnSuccess: true,
+      }),
+    );
   });
 
   document.getElementById("clear-logs-btn").addEventListener("click", async () => {
-    await runCommand("clear_session_logs");
+    await runUserAction("Clearing session logs...", () => runCommand("clear_session_logs"));
   });
 
   document.getElementById("refresh-btn").addEventListener("click", refresh);

@@ -107,6 +107,8 @@
 - Done in part: the desktop GUI now surfaces explicit recovery-state diagnostics so stopped, disconnected, failed, and healthy session states are visible alongside reconnect guidance
 - Done in part: the desktop GUI now surfaces candidate-pair RTT, available bitrate, byte counters, and packet-loss diagnostics alongside the existing ICE path summary
 - Done in part: the desktop GUI now leads with prototype-first host/viewer workflow panels, including a host path that prepares signaling, attempts native capture, and sends a debug capture frame while native capture is still incomplete
+- Done in part: the desktop GUI now guards user actions with a single busy state, and signaling startup has a bounded TCP connect timeout to reduce visible hangs in the prototype flow
+- Done in part: the desktop GUI now exposes first-screen prototype readiness for room, source, native capture, signaling, and peer-link state
 - Still open: replace metadata-only runtime catalogs with real capture-session enumeration and Wayland portal flow
 
 ## Iteration 5: Audio/Video Pipeline Hardening

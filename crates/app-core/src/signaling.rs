@@ -5,9 +5,10 @@ use crate::protocol::{
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 #[cfg(test)]
 use std::os::unix::net::UnixStream;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct SignalingError(pub String);
@@ -33,15 +34,27 @@ pub struct SignalingConnection {
 }
 
 impl SignalingConnection {
+    const TCP_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+
     pub fn connect(
         signaling_addr: &str,
         room: &str,
         role: Role,
         udp_port: u16,
     ) -> Result<Self, SignalingError> {
-        let mut stream = TcpStream::connect(signaling_addr).map_err(|error| {
-            SignalingError(format!("failed to connect signaling server: {error}"))
-        })?;
+        let socket_addr = signaling_addr
+            .to_socket_addrs()
+            .map_err(|error| {
+                SignalingError(format!("failed to resolve signaling address: {error}"))
+            })?
+            .next()
+            .ok_or_else(|| {
+                SignalingError("failed to resolve signaling address: no socket address".to_string())
+            })?;
+        let mut stream = TcpStream::connect_timeout(&socket_addr, Self::TCP_CONNECT_TIMEOUT)
+            .map_err(|error| {
+                SignalingError(format!("failed to connect signaling server: {error}"))
+            })?;
         let request = format!("JOIN {room} {role} {udp_port}\n");
         stream
             .write_all(request.as_bytes())
