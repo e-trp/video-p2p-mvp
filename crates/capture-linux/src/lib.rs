@@ -5,7 +5,9 @@ use capture_core::{
 };
 use std::collections::HashSet;
 use std::env;
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LinuxCaptureBackend {
@@ -419,10 +421,13 @@ fn infer_permission_state_from_error_with_display(
 }
 
 fn enumerate_runtime_sources() -> Result<Vec<CaptureSource>, String> {
-    let output = Command::new("wmctrl")
-        .arg("-lp")
-        .output()
-        .map_err(|error| format!("failed to launch wmctrl: {error}"))?;
+    let mut command = Command::new("wmctrl");
+    command.arg("-lp");
+    let output = command_output_with_timeout(
+        command,
+        Duration::from_millis(800),
+        "wmctrl runtime catalog",
+    )?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -482,13 +487,9 @@ fn parse_window_row(line: &str) -> Option<CaptureSource> {
 }
 
 fn process_name_for_pid(pid: &str) -> Result<String, String> {
-    let output = Command::new("ps")
-        .arg("-p")
-        .arg(pid)
-        .arg("-o")
-        .arg("comm=")
-        .output()
-        .map_err(|error| format!("failed to launch ps: {error}"))?;
+    let mut command = Command::new("ps");
+    command.arg("-p").arg(pid).arg("-o").arg("comm=");
+    let output = command_output_with_timeout(command, Duration::from_millis(250), "ps")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -507,6 +508,35 @@ fn process_name_for_pid(pid: &str) -> Result<String, String> {
         .filter(|name| !name.is_empty())
         .unwrap_or("unknown-app");
     Ok(app_name.to_string())
+}
+
+fn command_output_with_timeout(
+    mut command: Command,
+    timeout: Duration,
+    label: &str,
+) -> Result<Output, String> {
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("failed to launch {label}: {error}"))?;
+    let start = Instant::now();
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                return child
+                    .wait_with_output()
+                    .map_err(|error| format!("failed to collect {label} output: {error}"));
+            }
+            Ok(None) if start.elapsed() >= timeout => {
+                let _ = child.kill();
+                let _ = child.wait_with_output();
+                return Err(format!("{label} timed out after {}ms", timeout.as_millis()));
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(10)),
+            Err(error) => return Err(format!("failed to poll {label}: {error}")),
+        }
+    }
 }
 
 fn make_source_id(window_id: &str, app_name: &str, display_name: &str) -> String {

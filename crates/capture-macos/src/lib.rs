@@ -4,7 +4,9 @@ use capture_core::{
     CaptureStreamStatus,
 };
 use std::collections::HashSet;
-use std::process::Command;
+use std::process::{Command, Output, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MacCaptureStage {
@@ -502,11 +504,13 @@ fn describe_permission_state(state: CapturePermissionState) -> &'static str {
 }
 
 fn enumerate_runtime_sources() -> Result<Vec<CaptureSource>, String> {
-    let output = Command::new("osascript")
-        .arg("-e")
-        .arg(runtime_catalog_script())
-        .output()
-        .map_err(|error| format!("failed to launch osascript: {error}"))?;
+    let mut command = Command::new("osascript");
+    command.arg("-e").arg(runtime_catalog_script());
+    let output = command_output_with_timeout(
+        command,
+        Duration::from_millis(800),
+        "osascript runtime catalog",
+    )?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -520,6 +524,35 @@ fn enumerate_runtime_sources() -> Result<Vec<CaptureSource>, String> {
     }
 
     Ok(sources)
+}
+
+fn command_output_with_timeout(
+    mut command: Command,
+    timeout: Duration,
+    label: &str,
+) -> Result<Output, String> {
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("failed to launch {label}: {error}"))?;
+    let start = Instant::now();
+
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                return child
+                    .wait_with_output()
+                    .map_err(|error| format!("failed to collect {label} output: {error}"));
+            }
+            Ok(None) if start.elapsed() >= timeout => {
+                let _ = child.kill();
+                let _ = child.wait_with_output();
+                return Err(format!("{label} timed out after {}ms", timeout.as_millis()));
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(10)),
+            Err(error) => return Err(format!("failed to poll {label}: {error}")),
+        }
+    }
 }
 
 fn runtime_catalog_script() -> &'static str {

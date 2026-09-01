@@ -18,6 +18,7 @@ The repository now has two layers:
 - `docs/USER_GUIDE.md`: how to run the Tauri GUI and what works today
 - `docs/INSTALLATION.md`: setup, release build, and troubleshooting notes
 - `docs/QA_CHECKLIST.md`: manual QA checklist for current MVP behavior
+- `docs/DEMO_MANUAL_TEST.md`: focused manual steps for checking the desktop demo app
 - `docs/NETWORKING.md`: signaling, STUN/TURN, deployment, and security assumptions
 - `docs/ARCHITECTURE.md`: architecture notes
 - `docs/GUI_TAURI.md`: GUI plan

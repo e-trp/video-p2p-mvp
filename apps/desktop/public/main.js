@@ -1,13 +1,8 @@
-async function invoke(command) {
-  if (!window.__TAURI__?.core?.invoke) {
-    return null;
-  }
-  return window.__TAURI__.core.invoke(command);
-}
-
 const isTauri = Boolean(window.__TAURI__?.core?.invoke);
 const sessionFieldIds = ["room", "signaling", "ice-servers"];
 const defaultRefreshIntervalSeconds = 3;
+const defaultCommandTimeoutMs = 2_500;
+const userActionTimeoutMs = 6_000;
 const allowedRefreshIntervalSeconds = new Set([1, 3, 5, 10, 15]);
 const dirtySessionFields = new Set();
 let refreshTimerId = null;
@@ -23,11 +18,27 @@ const htmlEscapeMap = {
   "'": "&#039;",
 };
 
-async function invokeWithArgs(command, args = {}) {
+function withTimeout(promise, timeoutMs, label) {
+  let timeoutId = null;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(
+      () => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  });
+}
+
+async function invokeWithTimeout(command, args = {}, timeoutMs = defaultCommandTimeoutMs) {
   if (!isTauri) {
     return null;
   }
-  return window.__TAURI__.core.invoke(command, args);
+  return withTimeout(window.__TAURI__.core.invoke(command, args), timeoutMs, command);
 }
 
 function escapeHtml(value) {
@@ -598,18 +609,28 @@ function formValues() {
 }
 
 async function performRefresh() {
-  const [status, session, captureCatalog] = await Promise.all([
-    invoke("project_status"),
-    invoke("session_snapshot"),
-    invoke("capture_catalog"),
+  const [statusResult, sessionResult, captureCatalogResult] = await Promise.allSettled([
+    invokeWithTimeout("project_status"),
+    invokeWithTimeout("session_snapshot"),
+    invokeWithTimeout("capture_catalog"),
   ]);
+  const status = statusResult.status === "fulfilled" ? statusResult.value : null;
+  const session = sessionResult.status === "fulfilled" ? sessionResult.value : null;
+  const captureCatalog =
+    captureCatalogResult.status === "fulfilled" ? captureCatalogResult.value : null;
+
+  [statusResult, sessionResult, captureCatalogResult]
+    .filter((result) => result.status === "rejected")
+    .forEach((result) => console.warn(result.reason));
 
   if (status) {
     setStatus(status);
     document.getElementById("runtime-badge").textContent = "Tauri runtime connected";
     document.getElementById("runtime-badge").className = "badge live";
   } else {
-    document.getElementById("runtime-badge").textContent = "Browser preview";
+    document.getElementById("runtime-badge").textContent = isTauri
+      ? "Tauri command timeout"
+      : "Browser preview";
     document.getElementById("runtime-badge").className = "badge preview";
     setPreviewOverview();
   }
@@ -622,8 +643,10 @@ async function performRefresh() {
       refresh_interval_secs: session.ui_refresh_interval_secs,
     });
   } else {
+    const fallbackMode = isTauri ? "idle" : "preview";
+    const fallbackNextAction = isTauri ? "refresh timed out; run local demo or try refresh" : "run inside Tauri";
     document.getElementById("session").innerHTML = `
-      <div><dt>Mode</dt><dd>preview</dd></div>
+      <div><dt>Mode</dt><dd>${fallbackMode}</dd></div>
       <div><dt>Room</dt><dd>n/a</dd></div>
       <div><dt>Signaling</dt><dd>n/a</dd></div>
       <div><dt>ICE Servers</dt><dd>0 / none</dd></div>
@@ -655,11 +678,13 @@ async function performRefresh() {
       <div><dt>Remote Desc</dt><dd>n/a / false</dd></div>
       <div><dt>Local ICE</dt><dd>0</dd></div>
       <div><dt>Remote ICE</dt><dd>0</dd></div>
-      <div><dt>Recovery</dt><dd>preview / n/a</dd></div>
-      <div><dt>Next Action</dt><dd>run inside Tauri</dd></div>
+      <div><dt>Recovery</dt><dd>${fallbackMode} / n/a</dd></div>
+      <div><dt>Next Action</dt><dd>${fallbackNextAction}</dd></div>
     `;
     document.getElementById("session-log").textContent =
-      "Run inside Tauri to drive the in-memory session manager.";
+      isTauri
+        ? "Session refresh did not finish quickly. Run Local Demo remains available."
+        : "Run inside Tauri to drive the in-memory session manager.";
     document.getElementById("signal-preview").textContent =
       "Run inside Tauri to preview signaling state.";
     document.getElementById("transport-diagnostics").innerHTML = `
@@ -701,11 +726,11 @@ async function performRefresh() {
       refresh_interval_secs: defaultRefreshIntervalSeconds,
     });
     setPrototypeFlow({
-      mode: "preview",
-      room: "demo",
+      mode: fallbackMode,
+      room: document.getElementById("room")?.value || "demo",
       signaling_connected: false,
       signaling_addr: "offline",
-      transport_stage: "preview",
+      transport_stage: fallbackMode,
       transport_ice_path_kind: "unknown",
       capture_runtime_status: "not_started",
       capture_permission_state: "unknown",
@@ -721,7 +746,7 @@ async function performRefresh() {
       <div><dt>Origin</dt><dd>preview</dd></div>
       <div><dt>Permission</dt><dd>unknown</dd></div>
       <div><dt>Sources</dt><dd>0</dd></div>
-      <div><dt>Notes</dt><dd>Run inside Tauri to inspect capture catalog diagnostics.</dd></div>
+      <div><dt>Notes</dt><dd>${isTauri ? "Capture catalog refresh timed out." : "Run inside Tauri to inspect capture catalog diagnostics."}</dd></div>
     `;
     document.getElementById("source-picker").innerHTML = "";
     document.getElementById("source-picker").disabled = true;
@@ -759,7 +784,13 @@ async function runUserAction(message, action) {
 
 async function runCommand(command, args = {}, options = {}) {
   const { forceFormSync = false, clearDraftOnSuccess = false } = options;
-  const result = await invokeWithArgs(command, args);
+  let result = null;
+  try {
+    result = await invokeWithTimeout(command, args, userActionTimeoutMs);
+  } catch (error) {
+    setCommandResult(`${command} did not finish: ${error.message}`, "bad");
+    return null;
+  }
   if (!result) {
     setCommandResult(`Preview mode: skipped ${command}`, "warn");
     return null;
@@ -770,7 +801,10 @@ async function runCommand(command, args = {}, options = {}) {
   if (result.ok && clearDraftOnSuccess) {
     clearSessionFieldDrafts();
   }
-  const status = await invoke("project_status");
+  const status = await invokeWithTimeout("project_status").catch((error) => {
+    console.warn(error);
+    return null;
+  });
   if (status) {
     setStatus(status);
   }
@@ -859,7 +893,10 @@ async function applySelectedSource() {
 }
 
 async function load() {
-  const specification = await invoke("specification_markdown");
+  const specification = await invokeWithTimeout("specification_markdown").catch((error) => {
+    console.warn(error);
+    return null;
+  });
   await refresh();
 
   document.getElementById("spec").textContent =
@@ -922,7 +959,10 @@ async function load() {
   document.getElementById("flow-refresh-btn").addEventListener("click", refresh);
 
   document.getElementById("source-picker").addEventListener("change", async () => {
-    const catalog = await invoke("capture_catalog");
+    const catalog = await invokeWithTimeout("capture_catalog").catch((error) => {
+      console.warn(error);
+      return null;
+    });
     if (catalog) {
       syncCaptureAudioState(catalog);
     }
