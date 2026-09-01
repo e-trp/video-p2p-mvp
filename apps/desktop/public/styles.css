@@ -208,7 +208,29 @@ button:disabled {
 
 .result {
   margin: 16px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   color: var(--muted);
+  background: #f9fafb;
+}
+
+.result.tone-good {
+  border-color: rgba(32, 107, 95, 0.26);
+  background: rgba(32, 107, 95, 0.08);
+  color: var(--accent-strong);
+}
+
+.result.tone-warn {
+  border-color: rgba(180, 83, 9, 0.28);
+  background: rgba(180, 83, 9, 0.08);
+  color: var(--warning);
+}
+
+.result.tone-bad {
+  border-color: rgba(180, 35, 24, 0.28);
+  background: rgba(180, 35, 24, 0.08);
+  color: #912018;
 }
 
 .debug-panel {
@@ -321,10 +343,34 @@ pre {
 }
 
 .live-overview strong {
-  display: block;
+  display: inline-flex;
+  align-items: center;
   min-height: 1.35em;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 6px;
   overflow-wrap: anywhere;
   font-size: 0.95rem;
+}
+
+.overview-token.tone-good {
+  background: rgba(32, 107, 95, 0.1);
+  color: var(--accent-strong);
+}
+
+.overview-token.tone-warn {
+  background: rgba(180, 83, 9, 0.1);
+  color: var(--warning);
+}
+
+.overview-token.tone-bad {
+  background: rgba(180, 35, 24, 0.1);
+  color: #912018;
+}
+
+.overview-token.tone-neutral {
+  background: #eef2f7;
+  color: #344054;
 }
 
 @media (max-width: 800px) {

@@ -13,11 +13,72 @@ const dirtySessionFields = new Set();
 let refreshTimerId = null;
 let refreshInFlight = null;
 
+const htmlEscapeMap = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#039;",
+};
+
 async function invokeWithArgs(command, args = {}) {
   if (!isTauri) {
     return null;
   }
   return window.__TAURI__.core.invoke(command, args);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => htmlEscapeMap[character]);
+}
+
+function detailRows(rows) {
+  return rows
+    .map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`)
+    .join("");
+}
+
+function statusTone(value) {
+  const normalized = String(value ?? "").toLowerCase();
+  if (
+    normalized.includes("denied")
+    || normalized.includes("failed")
+    || normalized.includes("offline")
+    || normalized.includes("unavailable")
+    || normalized.includes("disconnected")
+  ) {
+    return "bad";
+  }
+  if (
+    normalized.includes("required")
+    || normalized.includes("recommended")
+    || normalized.includes("negotiating")
+    || normalized.includes("starting")
+  ) {
+    return "warn";
+  }
+  if (
+    normalized.includes("connected")
+    || normalized.includes("running")
+    || normalized.includes("healthy")
+    || normalized.includes("live")
+    || normalized.includes("granted")
+  ) {
+    return "good";
+  }
+  return "neutral";
+}
+
+function setOverviewToken(id, value, tone = statusTone(value)) {
+  const element = document.getElementById(id);
+  element.textContent = value;
+  element.className = `overview-token tone-${tone}`;
+}
+
+function setCommandResult(message, tone = "neutral") {
+  const element = document.getElementById("command-result");
+  element.textContent = message;
+  element.className = `result tone-${tone}`;
 }
 
 function markSessionFieldDirty(event) {
@@ -50,33 +111,39 @@ function setStatus(status) {
   if (!container) {
     return;
   }
-  container.innerHTML = `
-    <div><dt>Stage</dt><dd>${status.stage}</dd></div>
-    <div><dt>GUI</dt><dd>${status.gui}</dd></div>
-    <div><dt>Transport</dt><dd>${status.transport}</dd></div>
-    <div><dt>macOS Capture</dt><dd>${status.capture_macos}</dd></div>
-    <div><dt>Linux Capture</dt><dd>${status.capture_linux}</dd></div>
-  `;
+  container.innerHTML = detailRows([
+    ["Stage", status.stage],
+    ["GUI", status.gui],
+    ["Transport", status.transport],
+    ["macOS Capture", status.capture_macos],
+    ["Linux Capture", status.capture_linux],
+  ]);
 }
 
 function setOverview(session) {
-  document.getElementById("overview-role").textContent =
-    `${session.mode ?? "unknown"} / ${session.stage ?? "unknown"}`;
-  document.getElementById("overview-signaling").textContent =
-    session.signaling_connected ? "connected" : "offline";
-  document.getElementById("overview-capture").textContent =
-    `${session.capture_runtime_status ?? "not_started"} / ${session.capture_permission_state ?? "unknown"}`;
-  document.getElementById("overview-transport").textContent =
-    `${session.transport_stage ?? "n/a"} / ${session.transport_ice_path_kind ?? "unknown"}`;
-  document.getElementById("overview-next").textContent = session.next_action ?? "n/a";
+  setOverviewToken(
+    "overview-role",
+    `${session.mode ?? "unknown"} / ${session.stage ?? "unknown"}`,
+    session.mode === "idle" ? "neutral" : "good",
+  );
+  setOverviewToken("overview-signaling", session.signaling_connected ? "connected" : "offline");
+  setOverviewToken(
+    "overview-capture",
+    `${session.capture_runtime_status ?? "not_started"} / ${session.capture_permission_state ?? "unknown"}`,
+  );
+  setOverviewToken(
+    "overview-transport",
+    `${session.transport_stage ?? "n/a"} / ${session.transport_ice_path_kind ?? "unknown"}`,
+  );
+  setOverviewToken("overview-next", session.next_action ?? "n/a", "neutral");
 }
 
 function setPreviewOverview() {
-  document.getElementById("overview-role").textContent = "preview";
-  document.getElementById("overview-signaling").textContent = "offline";
-  document.getElementById("overview-capture").textContent = "not_started / unknown";
-  document.getElementById("overview-transport").textContent = "preview / unknown";
-  document.getElementById("overview-next").textContent = "run inside Tauri";
+  setOverviewToken("overview-role", "preview", "neutral");
+  setOverviewToken("overview-signaling", "offline", "bad");
+  setOverviewToken("overview-capture", "not_started / unknown", "neutral");
+  setOverviewToken("overview-transport", "preview / unknown", "neutral");
+  setOverviewToken("overview-next", "run inside Tauri", "neutral");
 }
 
 function isRuntimeActive(status) {
@@ -120,31 +187,31 @@ function setCaptureRuntime(session) {
     return;
   }
 
-  container.innerHTML = `
-    <div><dt>Status</dt><dd>${session.capture_runtime_status ?? "not_started"}</dd></div>
-    <div><dt>Permission</dt><dd>${session.capture_permission_state ?? "unknown"}</dd></div>
-    <div><dt>Selected</dt><dd>${session.source_label ?? session.selected_source_id ?? "n/a"}</dd></div>
-    <div><dt>Audio</dt><dd>${session.selected_source_audio ? "enabled" : "disabled"}</dd></div>
-  `;
+  container.innerHTML = detailRows([
+    ["Status", session.capture_runtime_status ?? "not_started"],
+    ["Permission", session.capture_permission_state ?? "unknown"],
+    ["Selected", session.source_label ?? session.selected_source_id ?? "n/a"],
+    ["Audio", session.selected_source_audio ? "enabled" : "disabled"],
+  ]);
   syncCaptureRuntimeControls(session);
 }
 
 function setCaptureCatalog(catalog) {
   const container = document.getElementById("capture-catalog");
   const noteText = catalog.notes?.length ? catalog.notes.join(" | ") : "none";
-  container.innerHTML = `
-    <div><dt>Backend</dt><dd>${catalog.backend}</dd></div>
-    <div><dt>Origin</dt><dd>${catalog.origin}</dd></div>
-    <div><dt>Permission</dt><dd>${catalog.permission_state}</dd></div>
-    <div><dt>Sources</dt><dd>${catalog.sources.length}</dd></div>
-    <div><dt>Notes</dt><dd>${noteText}</dd></div>
-  `;
+  container.innerHTML = detailRows([
+    ["Backend", catalog.backend],
+    ["Origin", catalog.origin],
+    ["Permission", catalog.permission_state],
+    ["Sources", catalog.sources.length],
+    ["Notes", noteText],
+  ]);
 
   const picker = document.getElementById("source-picker");
   picker.innerHTML = catalog.sources
     .map(
       (source) =>
-        `<option value="${source.id}">${source.label} (${source.kind}${source.has_audio ? ", audio" : ""})</option>`,
+        `<option value="${escapeHtml(source.id)}">${escapeHtml(source.label)} (${escapeHtml(source.kind)}${source.has_audio ? ", audio" : ""})</option>`,
     )
     .join("");
 
@@ -229,66 +296,97 @@ function syncReconnectControl(session) {
 
 function setRecoveryStatus(session) {
   const container = document.getElementById("recovery-status");
-  container.innerHTML = `
-    <div><dt>State</dt><dd>${session.recovery_state ?? "unknown"}</dd></div>
-    <div><dt>Reconnect</dt><dd>${session.can_reconnect ? (session.reconnect_recommended ? "recommended" : "available") : "unavailable"}</dd></div>
-    <div><dt>Reason</dt><dd>${session.recovery_reason ?? "n/a"}</dd></div>
-  `;
+  container.innerHTML = detailRows([
+    ["State", session.recovery_state ?? "unknown"],
+    [
+      "Reconnect",
+      session.can_reconnect
+        ? session.reconnect_recommended
+          ? "recommended"
+          : "available"
+        : "unavailable",
+    ],
+    ["Reason", session.recovery_reason ?? "n/a"],
+  ]);
   syncReconnectControl(session);
 }
 
 function setSession(session, { forceFormSync = false } = {}) {
   const container = document.getElementById("session");
-  container.innerHTML = `
-    <div><dt>Mode</dt><dd>${session.mode}</dd></div>
-    <div><dt>Room</dt><dd>${session.room ?? "n/a"}</dd></div>
-    <div><dt>Signaling</dt><dd>${session.signaling_addr ?? "n/a"}</dd></div>
-    <div><dt>ICE Servers</dt><dd>${session.ice_server_count ?? 0} / ${session.ice_server_summary ?? "none"}</dd></div>
-    <div><dt>Signal Link</dt><dd>${String(session.signaling_connected)}</dd></div>
-    <div><dt>Source</dt><dd>${session.source_label ?? "n/a"}</dd></div>
-    <div><dt>Selected Source</dt><dd>${session.selected_source_id ?? "n/a"} / ${String(session.selected_source_audio)}</dd></div>
-    <div><dt>Capture Backend</dt><dd>${session.capture_backend ?? "n/a"}</dd></div>
-    <div><dt>Permission</dt><dd>${session.capture_permission_state ?? "n/a"}</dd></div>
-    <div><dt>Capture Runtime</dt><dd>${session.capture_runtime_status ?? "not_started"}</dd></div>
-    <div><dt>Peer</dt><dd>${session.active_peer ?? "n/a"}</dd></div>
-    <div><dt>Transport State</dt><dd>${session.transport_state ?? "n/a"}</dd></div>
-    <div><dt>Transport Stage</dt><dd>${session.transport_stage ?? "n/a"}</dd></div>
-    <div><dt>ICE Path</dt><dd>${session.transport_ice_path_kind ?? "unknown"} / ${session.transport_ice_path_summary ?? "n/a"}</dd></div>
-    <div><dt>RTT</dt><dd>${formatMetricMs(session.transport_rtt_ms)}</dd></div>
-    <div><dt>Outgoing Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_outgoing_bitrate_bps)}</dd></div>
-    <div><dt>Incoming Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_incoming_bitrate_bps)}</dd></div>
-    <div><dt>Link Bytes</dt><dd>${formatMetricBytes(session.transport_bytes_sent)} sent / ${formatMetricBytes(session.transport_bytes_received)} recv</dd></div>
-    <div><dt>Packet Loss</dt><dd>${formatPacketLoss(session)}</dd></div>
-    <div><dt>Media Tracks</dt><dd>${session.local_media_track_count ?? 0}</dd></div>
-    <div><dt>Video Track</dt><dd>${String(session.local_video_track_attached)}</dd></div>
-    <div><dt>Audio Track</dt><dd>${String(session.local_audio_track_attached)}</dd></div>
-    <div><dt>Data Channel</dt><dd>${String(session.local_data_channel_ready)}</dd></div>
-    <div><dt>Stats Reports</dt><dd>${session.transport_stats_report_count ?? 0}</dd></div>
-    <div><dt>Video Samples</dt><dd>${session.published_video_sample_count ?? 0} / ${session.last_video_sample_bytes ?? 0}B</dd></div>
-    <div><dt>Audio Samples</dt><dd>${session.published_audio_sample_count ?? 0} / ${session.last_audio_sample_bytes ?? 0}B</dd></div>
-    <div><dt>Video Payload</dt><dd>${session.last_video_capture_summary ?? "n/a"}</dd></div>
-    <div><dt>Audio Payload</dt><dd>${session.last_audio_capture_summary ?? "n/a"}</dd></div>
-    <div><dt>Local Desc</dt><dd>${session.local_description_kind ?? "n/a"} / ${String(session.local_description_ready)}</dd></div>
-    <div><dt>Remote Desc</dt><dd>${session.remote_description_kind ?? "n/a"} / ${String(session.remote_description_ready)}</dd></div>
-    <div><dt>Local ICE</dt><dd>${session.local_candidate_count ?? 0}</dd></div>
-    <div><dt>Remote ICE</dt><dd>${session.remote_candidate_count ?? 0}</dd></div>
-    <div><dt>Recovery</dt><dd>${session.recovery_state ?? "unknown"} / ${session.recovery_reason ?? "n/a"}</dd></div>
-    <div><dt>Next Action</dt><dd>${session.next_action ?? "n/a"}</dd></div>
-  `;
+  container.innerHTML = detailRows([
+    ["Mode", session.mode],
+    ["Room", session.room ?? "n/a"],
+    ["Signaling", session.signaling_addr ?? "n/a"],
+    ["ICE Servers", `${session.ice_server_count ?? 0} / ${session.ice_server_summary ?? "none"}`],
+    ["Signal Link", String(session.signaling_connected)],
+    ["Source", session.source_label ?? "n/a"],
+    [
+      "Selected Source",
+      `${session.selected_source_id ?? "n/a"} / ${String(session.selected_source_audio)}`,
+    ],
+    ["Capture Backend", session.capture_backend ?? "n/a"],
+    ["Permission", session.capture_permission_state ?? "n/a"],
+    ["Capture Runtime", session.capture_runtime_status ?? "not_started"],
+    ["Peer", session.active_peer ?? "n/a"],
+    ["Transport State", session.transport_state ?? "n/a"],
+    ["Transport Stage", session.transport_stage ?? "n/a"],
+    [
+      "ICE Path",
+      `${session.transport_ice_path_kind ?? "unknown"} / ${session.transport_ice_path_summary ?? "n/a"}`,
+    ],
+    ["RTT", formatMetricMs(session.transport_rtt_ms)],
+    ["Outgoing Bitrate", formatMetricBitrate(session.transport_available_outgoing_bitrate_bps)],
+    ["Incoming Bitrate", formatMetricBitrate(session.transport_available_incoming_bitrate_bps)],
+    [
+      "Link Bytes",
+      `${formatMetricBytes(session.transport_bytes_sent)} sent / ${formatMetricBytes(session.transport_bytes_received)} recv`,
+    ],
+    ["Packet Loss", formatPacketLoss(session)],
+    ["Media Tracks", session.local_media_track_count ?? 0],
+    ["Video Track", String(session.local_video_track_attached)],
+    ["Audio Track", String(session.local_audio_track_attached)],
+    ["Data Channel", String(session.local_data_channel_ready)],
+    ["Stats Reports", session.transport_stats_report_count ?? 0],
+    [
+      "Video Samples",
+      `${session.published_video_sample_count ?? 0} / ${session.last_video_sample_bytes ?? 0}B`,
+    ],
+    [
+      "Audio Samples",
+      `${session.published_audio_sample_count ?? 0} / ${session.last_audio_sample_bytes ?? 0}B`,
+    ],
+    ["Video Payload", session.last_video_capture_summary ?? "n/a"],
+    ["Audio Payload", session.last_audio_capture_summary ?? "n/a"],
+    [
+      "Local Desc",
+      `${session.local_description_kind ?? "n/a"} / ${String(session.local_description_ready)}`,
+    ],
+    [
+      "Remote Desc",
+      `${session.remote_description_kind ?? "n/a"} / ${String(session.remote_description_ready)}`,
+    ],
+    ["Local ICE", session.local_candidate_count ?? 0],
+    ["Remote ICE", session.remote_candidate_count ?? 0],
+    ["Recovery", `${session.recovery_state ?? "unknown"} / ${session.recovery_reason ?? "n/a"}`],
+    ["Next Action", session.next_action ?? "n/a"],
+  ]);
   document.getElementById("session-log").textContent = session.logs.join("\n");
   document.getElementById("signal-preview").textContent =
     session.last_signaling_message ?? "No signaling messages yet.";
-  document.getElementById("transport-diagnostics").innerHTML = `
-    <div><dt>Transport Stage</dt><dd>${session.transport_stage ?? "n/a"}</dd></div>
-    <div><dt>ICE Path</dt><dd>${session.transport_ice_path_summary ?? "n/a"}</dd></div>
-    <div><dt>RTT</dt><dd>${formatMetricMs(session.transport_rtt_ms)}</dd></div>
-    <div><dt>Outgoing Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_outgoing_bitrate_bps)}</dd></div>
-    <div><dt>Incoming Bitrate</dt><dd>${formatMetricBitrate(session.transport_available_incoming_bitrate_bps)}</dd></div>
-    <div><dt>Link Bytes</dt><dd>${formatMetricBytes(session.transport_bytes_sent)} sent / ${formatMetricBytes(session.transport_bytes_received)} recv</dd></div>
-    <div><dt>Packet Loss</dt><dd>${formatPacketLoss(session)}</dd></div>
-    <div><dt>Data Channel</dt><dd>${String(session.local_data_channel_ready)}</dd></div>
-    <div><dt>Stats Reports</dt><dd>${session.transport_stats_report_count ?? 0}</dd></div>
-  `;
+  document.getElementById("transport-diagnostics").innerHTML = detailRows([
+    ["Transport Stage", session.transport_stage ?? "n/a"],
+    ["ICE Path", session.transport_ice_path_summary ?? "n/a"],
+    ["RTT", formatMetricMs(session.transport_rtt_ms)],
+    ["Outgoing Bitrate", formatMetricBitrate(session.transport_available_outgoing_bitrate_bps)],
+    ["Incoming Bitrate", formatMetricBitrate(session.transport_available_incoming_bitrate_bps)],
+    [
+      "Link Bytes",
+      `${formatMetricBytes(session.transport_bytes_sent)} sent / ${formatMetricBytes(session.transport_bytes_received)} recv`,
+    ],
+    ["Packet Loss", formatPacketLoss(session)],
+    ["Data Channel", String(session.local_data_channel_ready)],
+    ["Stats Reports", session.transport_stats_report_count ?? 0],
+  ]);
   document.getElementById("transport-notes").textContent =
     session.transport_notes?.join("\n") || "No transport diagnostics yet.";
   setOverview(session);
@@ -490,12 +588,11 @@ async function runCommand(command, args = {}, options = {}) {
   const { forceFormSync = false, clearDraftOnSuccess = false } = options;
   const result = await invokeWithArgs(command, args);
   if (!result) {
-    document.getElementById("command-result").textContent =
-      `Preview mode: skipped ${command}`;
+    setCommandResult(`Preview mode: skipped ${command}`, "warn");
     return null;
   }
 
-  document.getElementById("command-result").textContent = result.message;
+  setCommandResult(result.message, result.ok ? "good" : "bad");
   setSession(result.session, { forceFormSync: forceFormSync && result.ok });
   if (result.ok && clearDraftOnSuccess) {
     clearSessionFieldDrafts();
