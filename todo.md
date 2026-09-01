@@ -106,6 +106,7 @@
 - Done in part: the desktop shell now supports an explicit reconnect action that rebuilds the current host/viewer session with the active room, signaling, and ICE configuration
 - Done in part: the desktop GUI now surfaces explicit recovery-state diagnostics so stopped, disconnected, failed, and healthy session states are visible alongside reconnect guidance
 - Done in part: the desktop GUI now surfaces candidate-pair RTT, available bitrate, byte counters, and packet-loss diagnostics alongside the existing ICE path summary
+- Done in part: the desktop GUI now leads with prototype-first host/viewer workflow panels, including a host path that prepares signaling, attempts native capture, and sends a debug capture frame while native capture is still incomplete
 - Still open: replace metadata-only runtime catalogs with real capture-session enumeration and Wayland portal flow
 
 ## Iteration 5: Audio/Video Pipeline Hardening

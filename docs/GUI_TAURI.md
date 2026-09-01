@@ -44,6 +44,7 @@ The backend around the GUI has moved one step forward:
 - room/signaling/ICE draft edits now survive background refresh polling until a successful session action re-syncs them
 - the first viewport now prioritizes a live Tauri workflow overview for role, signaling, capture runtime, transport, and next action
 - live overview values now use semantic state tokens, and backend-provided window labels, notes, and session values are escaped before rendering into HTML
+- the first viewport now also has prototype-first host/viewer panels, with diagnostics collapsed below the main workflow
 - transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
 - session config now includes editable ICE server entries that persist through the desktop preferences store
 - transport diagnostics now include an ICE path summary derived from candidate-pair stats so the GUI can hint whether the current route looks direct or relay-backed
@@ -86,6 +87,8 @@ The current Tauri UI is wired to the session manager and supports:
 
 - editing room, signaling, and ICE server fields
 - scanning the live overview for current role, signaling reachability, capture runtime state, transport state, and next action
+- starting a host prototype path that prepares signaling, applies the selected source, attempts native capture, and sends a debug capture frame for smoke testing
+- joining as a viewer from the first-viewport workflow without opening the diagnostics panels
 - reading command feedback as success, warning, or error state after each Tauri action
 - tuning persisted auto-refresh polling behavior for the desktop shell
 - selecting a platform source and audio preference

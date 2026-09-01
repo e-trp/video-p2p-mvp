@@ -10,10 +10,44 @@
     <main class="shell">
       <section class="hero">
         <div>
-          <p class="eyebrow">Rust + Tauri Desktop Shell</p>
-          <h1>Video P2P Console</h1>
+          <p class="eyebrow">Rust + Tauri Desktop</p>
+          <h1>Video P2P Prototype</h1>
         </div>
         <div id="runtime-badge" class="badge">Detecting runtime...</div>
+      </section>
+
+      <section class="prototype-flow">
+        <article class="workflow-panel">
+          <div>
+            <p class="eyebrow">Host</p>
+            <h2>Share This Desktop</h2>
+          </div>
+          <dl class="compact-status">
+            <div><dt>Source</dt><dd id="host-flow-source">loading...</dd></div>
+            <div><dt>Capture</dt><dd id="host-flow-capture">loading...</dd></div>
+            <div><dt>Peer</dt><dd id="host-flow-peer">loading...</dd></div>
+          </dl>
+          <div class="actions">
+            <button type="button" id="host-prototype-btn">Start Host Prototype</button>
+            <button type="button" id="host-debug-btn" class="secondary">Send Test Frame</button>
+          </div>
+        </article>
+
+        <article class="workflow-panel">
+          <div>
+            <p class="eyebrow">Viewer</p>
+            <h2>Join A Room</h2>
+          </div>
+          <dl class="compact-status">
+            <div><dt>Room</dt><dd id="viewer-flow-room">loading...</dd></div>
+            <div><dt>Signaling</dt><dd id="viewer-flow-signaling">loading...</dd></div>
+            <div><dt>Transport</dt><dd id="viewer-flow-transport">loading...</dd></div>
+          </dl>
+          <div class="actions">
+            <button type="button" id="viewer-prototype-btn">Join Viewer</button>
+            <button type="button" id="flow-refresh-btn" class="ghost">Refresh</button>
+          </div>
+        </article>
       </section>
 
       <section class="live-overview">
@@ -180,26 +214,29 @@
           </dl>
         </article>
 
-        <article class="card wide">
-          <div class="section-head">
-            <h2>Session Log</h2>
-            <div class="actions compact">
-              <button type="button" id="refresh-btn" class="ghost">Refresh</button>
-              <button type="button" id="clear-logs-btn" class="ghost">Clear Logs</button>
+        <details class="diagnostics wide">
+          <summary>Diagnostics</summary>
+          <article class="card">
+            <div class="section-head">
+              <h2>Session Log</h2>
+              <div class="actions compact">
+                <button type="button" id="refresh-btn" class="ghost">Refresh</button>
+                <button type="button" id="clear-logs-btn" class="ghost">Clear Logs</button>
+              </div>
             </div>
-          </div>
-          <pre id="session-log">loading...</pre>
-        </article>
+            <pre id="session-log">loading...</pre>
+          </article>
 
-        <article class="card wide">
-          <h2>Last Signaling Message</h2>
-          <pre id="signal-preview">loading...</pre>
-        </article>
+          <article class="card">
+            <h2>Last Signaling Message</h2>
+            <pre id="signal-preview">loading...</pre>
+          </article>
 
-        <article class="card wide">
-          <h2>Saved Specification</h2>
-          <pre id="spec">loading...</pre>
-        </article>
+          <article class="card">
+            <h2>Saved Specification</h2>
+            <pre id="spec">loading...</pre>
+          </article>
+        </details>
       </section>
     </main>
 

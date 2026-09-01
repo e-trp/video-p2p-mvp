@@ -81,6 +81,13 @@ function setCommandResult(message, tone = "neutral") {
   element.className = `result tone-${tone}`;
 }
 
+function setText(id, value) {
+  const element = document.getElementById(id);
+  if (element) {
+    element.textContent = value;
+  }
+}
+
 function markSessionFieldDirty(event) {
   dirtySessionFields.add(event.target.id);
 }
@@ -138,12 +145,42 @@ function setOverview(session) {
   setOverviewToken("overview-next", session.next_action ?? "n/a", "neutral");
 }
 
+function setPrototypeFlow(session) {
+  setText("host-flow-source", session.source_label ?? session.selected_source_id ?? "none selected");
+  setText(
+    "host-flow-capture",
+    `${session.capture_runtime_status ?? "not_started"} / ${session.capture_permission_state ?? "unknown"}`,
+  );
+  setText("host-flow-peer", session.active_peer ?? "waiting");
+  setText("viewer-flow-room", session.room ?? document.getElementById("room")?.value ?? "demo");
+  setText(
+    "viewer-flow-signaling",
+    session.signaling_connected ? "connected" : (session.signaling_addr ?? "offline"),
+  );
+  setText(
+    "viewer-flow-transport",
+    `${session.transport_stage ?? "n/a"} / ${session.transport_ice_path_kind ?? "unknown"}`,
+  );
+  syncPrototypeControls(session);
+}
+
 function setPreviewOverview() {
   setOverviewToken("overview-role", "preview", "neutral");
   setOverviewToken("overview-signaling", "offline", "bad");
   setOverviewToken("overview-capture", "not_started / unknown", "neutral");
   setOverviewToken("overview-transport", "preview / unknown", "neutral");
   setOverviewToken("overview-next", "run inside Tauri", "neutral");
+  setPrototypeFlow({
+    mode: "preview",
+    room: "demo",
+    signaling_connected: false,
+    signaling_addr: "offline",
+    transport_stage: "preview",
+    transport_ice_path_kind: "unknown",
+    capture_runtime_status: "not_started",
+    capture_permission_state: "unknown",
+    can_reconnect: false,
+  });
 }
 
 function isRuntimeActive(status) {
@@ -178,6 +215,34 @@ function syncCaptureRuntimeControls(session) {
         : "";
   debugButton.title = !isHost || !hasSource
     ? "Prepare a host session and select a source before publishing debug media."
+    : "";
+}
+
+function syncPrototypeControls(session) {
+  const hostButton = document.getElementById("host-prototype-btn");
+  const viewerButton = document.getElementById("viewer-prototype-btn");
+  const debugButton = document.getElementById("host-debug-btn");
+  const refreshButton = document.getElementById("flow-refresh-btn");
+  if (!hostButton || !viewerButton || !debugButton || !refreshButton) {
+    return;
+  }
+
+  const isPreview = !isTauri;
+  const hasRoom = Boolean(document.getElementById("room")?.value.trim());
+  const hasSignaling = Boolean(document.getElementById("signaling")?.value.trim());
+  const canStart = !isPreview && hasRoom && hasSignaling;
+  const isHost = session.mode === "host";
+  const hasSource = Boolean(session.selected_source_id);
+
+  hostButton.disabled = !canStart;
+  viewerButton.disabled = !canStart;
+  debugButton.disabled = isPreview || !isHost || !hasSource;
+  refreshButton.disabled = isPreview;
+
+  hostButton.title = canStart ? "" : "Room and signaling address are required.";
+  viewerButton.title = canStart ? "" : "Room and signaling address are required.";
+  debugButton.title = debugButton.disabled
+    ? "Start a host session with a selected source before sending a test frame."
     : "";
 }
 
@@ -390,6 +455,7 @@ function setSession(session, { forceFormSync = false } = {}) {
   document.getElementById("transport-notes").textContent =
     session.transport_notes?.join("\n") || "No transport diagnostics yet.";
   setOverview(session);
+  setPrototypeFlow(session);
   setCaptureRuntime(session);
   setRecoveryStatus(session);
   syncSessionFieldValue("room", session.room, forceFormSync);
@@ -556,6 +622,17 @@ async function performRefresh() {
       auto_refresh_enabled: false,
       refresh_interval_secs: defaultRefreshIntervalSeconds,
     });
+    setPrototypeFlow({
+      mode: "preview",
+      room: "demo",
+      signaling_connected: false,
+      signaling_addr: "offline",
+      transport_stage: "preview",
+      transport_ice_path_kind: "unknown",
+      capture_runtime_status: "not_started",
+      capture_permission_state: "unknown",
+      can_reconnect: false,
+    });
   }
 
   if (captureCatalog) {
@@ -635,6 +712,37 @@ async function reconnectSession() {
   });
 }
 
+async function startHostPrototype() {
+  const values = formValues();
+  const hostResult = await runCommand("start_host", values, {
+    forceFormSync: true,
+    clearDraftOnSuccess: true,
+  });
+  if (!hostResult?.ok) {
+    return;
+  }
+
+  await applySelectedSource();
+  const captureResult = await runCommand("start_capture_stream");
+  await runCommand("publish_debug_capture_samples");
+  if (!captureResult?.ok) {
+    setCommandResult(
+      "Host prototype started with test frames; native capture is not available yet.",
+      "warn",
+    );
+  }
+  await refresh();
+}
+
+async function joinViewerPrototype() {
+  const values = formValues();
+  await runCommand("join_room", values, {
+    forceFormSync: true,
+    clearDraftOnSuccess: true,
+  });
+  await refresh();
+}
+
 async function applySelectedSource() {
   if (!isTauri) {
     return;
@@ -684,6 +792,14 @@ async function load() {
       clearDraftOnSuccess: true,
     });
   });
+
+  document.getElementById("host-prototype-btn").addEventListener("click", startHostPrototype);
+  document.getElementById("viewer-prototype-btn").addEventListener("click", joinViewerPrototype);
+  document.getElementById("host-debug-btn").addEventListener("click", async () => {
+    await runCommand("publish_debug_capture_samples");
+    await refresh();
+  });
+  document.getElementById("flow-refresh-btn").addEventListener("click", refresh);
 
   document.getElementById("source-picker").addEventListener("change", async () => {
     const catalog = await invoke("capture_catalog");
