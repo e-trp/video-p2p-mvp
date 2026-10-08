@@ -29,6 +29,7 @@ You need:
 - Tauri CLI available as `cargo tauri`
 - platform prerequisites required by Tauri on your OS
 - on macOS: Xcode Command Line Tools and macOS 12.3+ (macOS 13+ for audio); see [macOS capture setup](MACOS_CAPTURE.md)
+- CMake and a C compiler to build the vendored Opus codec; no system libopus is required
 
 Quick checks:
 

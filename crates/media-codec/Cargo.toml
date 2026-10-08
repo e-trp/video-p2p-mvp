@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 capture-core = { path = "../capture-core" }
+opus = "0.4.0"

@@ -7,6 +7,8 @@ use std::{
 
 mod video;
 pub use video::{H264Encoder, VideoEncoderSettings};
+mod audio;
+pub use audio::{AudioEncoderSettings, OpusEncoder};
 
 pub const H264_FMTP: &str =
     "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f";
@@ -20,6 +22,15 @@ pub struct EncodedVideoFrame {
     pub timestamp_micros: u64,
     pub duration: Duration,
     pub keyframe: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncodedAudioPacket {
+    /// One raw Opus packet, with no Ogg/container headers.
+    pub bytes: Vec<u8>,
+    pub channels: u16,
+    pub timestamp_micros: u64,
+    pub duration: Duration,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

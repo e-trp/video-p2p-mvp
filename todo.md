@@ -128,7 +128,7 @@
 
 1. Choose and implement initial codec set:
    video `H.264` or `VP8`, audio `Opus`.
-   Current state: `media-codec` provides a native macOS VideoToolbox H.264 encoder and an encoded Annex B frame contract. Opus and live transport integration are next.
+   Current state: `media-codec` provides native macOS VideoToolbox H.264 and cross-platform vendored Opus encoders with separate encoded packet contracts. Live transport integration is next.
 2. Add bitrate presets and adaptive quality controls.
 3. Add frame pacing and backpressure handling.
 4. Add A/V sync monitoring.
@@ -140,7 +140,10 @@
 - Implemented: realtime configuration without B-frame reordering, 2 Mbit/s default target, two-second keyframe interval, SPS/PPS on keyframes, and AVCC-to-Annex B conversion
 - Implemented: source resize recreates the encoder and forces an IDR; odd dimensions are edge-padded to even dimensions; invalid buffers and non-increasing PTS are rejected
 - Verified: actual native encoding of synthetic frames, parameter-set/IDR output, PTS durations, resize, and malformed input without recording the screen
-- Still open: Opus encoder, continuous capture-to-transport processing, codec-aware SDP/track publication, and viewer playback
+- Implemented: vendored libopus encoder for mono/stereo interleaved 48 kHz PCM, 64 kbit/s stereo default, and 20 ms packets with preserved timestamps
+- Implemented: arbitrary audio buffer aggregation, finite/sample-count validation, and partial-packet reset on capture discontinuities
+- Verified: Opus roundtrip decoding, packet duration/PTS, discontinuity handling, and malformed audio
+- Still open: continuous capture-to-transport processing, codec-aware SDP/track publication, and viewer playback
 
 ## Iteration 6: NAT Traversal And Deployment
 
