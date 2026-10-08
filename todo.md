@@ -28,23 +28,29 @@
 ## Iteration 2: macOS Capture Backend
 
 1. Add a native bridge for `ScreenCaptureKit`.
+   Current state: implemented via Objective-C/C ABI; asynchronous SCStream start, bounded sample queue, stop/drop cleanup, and startup timeout.
 2. Enumerate shareable windows and applications.
+   Current state: implemented via SCShareableContent, including displays; sources use native window/process/display IDs.
 3. Request and validate Screen Recording permission.
+   Current state: passive preflight and explicit start-time request implemented; real user permission/relaunch flow still needs manual QA.
 4. Capture video frames from the selected window.
+   Current state: raw BGRA extraction implemented with packed rows, PTS timestamps, aspect-preserving sizing, and incomplete-frame filtering.
 5. Capture available audio buffers and normalize them for transport.
+   Current state: macOS 13+ PCM extraction implemented with 48 kHz stereo configuration and planar-to-interleaved float32 conversion.
 6. Feed captured samples into the WebRTC publishing pipeline.
+   Current state: native events reach session diagnostics; actual publication remains blocked on video/Opus encoding and viewer playback.
 
 ### Iteration 2 Progress
 
 - Done in part: `capture-core` now exists for shared source, permission, video-frame, and audio-buffer types
 - Done in part: `capture-core` now also defines live capture stream config/status/event contracts for native backends to emit video/audio samples without using the debug burst path
-- Done in part: `capture-core` now exposes a common capture stream runtime trait, and macOS/Linux crates provide planned runtime scaffolds that emit structured status/stop events until native bridges are implemented
-- Done in part: `capture-macos` now exposes a best-effort runtime application/window catalog with blueprint fallback
+- Done in part: `capture-core` now exposes a common capture stream runtime trait, and macOS provides native ScreenCaptureKit events and Linux provides a planned runtime scaffold
+- Done in part: `capture-macos` now enumerates windows, applications, and displays through SCShareableContent with blueprint fallback
 - Done in part: runtime probing on macOS now maps catalog results into live permission-state diagnostics
 - Done in part: Tauri/app-core now surface the current platform capture catalog and selected source metadata
 - Done in part: session manager and `transport-webrtc` now accept debug `capture-core` video/audio payloads, including source-audio opt-out during smoke tests
-- Done in part: `app-core::SessionManager` now exposes source-validated capture video/audio publish APIs that future native backends can target directly
-- Done in part: `app-core::SessionManager` now ingests live `capture-core` stream events and maps media events into the same source-validated WebRTC publishing pipeline
+- Done in part: `app-core::SessionManager` now exposes source-validated debug video/audio publish APIs; native media diagnostics use the same source/audio validation before future encoding
+- Done in part: `app-core::SessionManager` ingests live `capture-core` stream events with source/audio validation; native samples update separate diagnostics while the debug path remains available
 - Done in part: `app-core::SessionManager` now owns a platform capture runtime lifecycle, with start/poll/stop APIs that drain runtime events into the same capture ingestion path
 - Done in part: `capture-macos` now preflights macOS Screen Recording permission through CoreGraphics, validates the selected runtime source before stream start, and reports permission-vs-bridge-unavailable states separately
 - Done in part: `capture-macos` now requests Screen Recording access during native stream start when preflight reports permission is still required
@@ -53,7 +59,12 @@
 - Done in part: `capture-macos` now passes catalog-backed source kind, display name, app name, and audio capability into native bridge settings so future ScreenCaptureKit target matching does not depend on UI labels
 - Done in part: `capture-macos` now has injected bridge-boundary tests for normalized settings, poll-event status updates, and native bridge startup failures
 - Done in part: macOS and Linux stream start planning now preserve denied capture permission as a distinct runtime status for GUI diagnostics
-- Still open: the actual ScreenCaptureKit bridge, permission flow, and live sample delivery
+- Implemented: native ScreenCaptureKit catalog and raw video/audio delivery into the existing runtime event contract
+- Implemented: separate native sample counters/summaries in session snapshots and the Tauri capture panel; raw samples are never automatically packetized as VP8/Opus
+- Implemented: stop active capture before source/audio changes or catalog rebinding, and release native capture on runtime drop
+- Verified: native CoreVideo/CoreMedia buffer extraction, timestamps, planar/interleaved audio, bounded queues, and stop behavior without screen-recording access
+- Added: macOS CI coverage and an opt-in `capture_probe` example; see `docs/MACOS_CAPTURE.md`
+- Still open: manual permission/source/audio QA on real desktop sessions, native sample encoding, and viewer playback
 
 ## Iteration 3: Linux Capture Backend
 
@@ -85,7 +96,7 @@
 
 - Done in part: GUI session actions already drive real signaling, negotiation, and debug capture media publishing
 - Done in part: GUI transport smoke test now drives a debug `capture-core` media bridge instead of hardcoded anonymous sample bytes
-- Done in part: the debug GUI publish path now uses the same source-validated session ingest API planned for future native capture backends
+- Done in part: debug and native capture paths share source/audio validation while keeping raw-capture and transport-publication counters separate
 - Done in part: session orchestration now has a production-facing live capture event ingestion API, so native backend events can enter the pipeline without going through GUI debug publishing
 - Done in part: GUI session actions can now start, poll, and stop the platform capture runtime scaffold instead of only pushing synthetic debug samples
 - Done in part: session snapshots and the desktop GUI now expose native capture runtime status directly instead of requiring log inspection
@@ -106,16 +117,18 @@
 - Done in part: the desktop shell now supports an explicit reconnect action that rebuilds the current host/viewer session with the active room, signaling, and ICE configuration
 - Done in part: the desktop GUI now surfaces explicit recovery-state diagnostics so stopped, disconnected, failed, and healthy session states are visible alongside reconnect guidance
 - Done in part: the desktop GUI now surfaces candidate-pair RTT, available bitrate, byte counters, and packet-loss diagnostics alongside the existing ICE path summary
-- Done in part: the desktop GUI now leads with prototype-first host/viewer workflow panels, including a host path that prepares signaling, attempts native capture, and sends a debug capture frame while native capture is still incomplete
+- Done in part: the desktop GUI now leads with prototype-first host/viewer workflow panels, including a host path that prepares signaling and attempts native capture; debug publishing is an explicit action
 - Done in part: the desktop GUI now exposes a local no-network demo path so the user-facing prototype can be exercised without a signaling server or second peer
 - Done in part: the desktop GUI now guards user actions with a single busy state, and signaling startup has a bounded TCP connect timeout to reduce visible hangs in the prototype flow
 - Done in part: the desktop GUI now exposes first-screen prototype readiness for room, source, native capture, signaling, and peer-link state
-- Still open: replace metadata-only runtime catalogs with real capture-session enumeration and Wayland portal flow
+- Implemented: macOS capture panel shows native video/audio counts and latest sample summaries; host startup no longer sends debug samples automatically
+- Still open: Wayland portal flow, codecs, and viewer playback
 
 ## Iteration 5: Audio/Video Pipeline Hardening
 
-1. Choose initial codec set:
+1. Choose and implement initial codec set:
    video `H.264` or `VP8`, audio `Opus`.
+   Next priority: encode macOS raw BGRA/PCM before publishing samples to WebRTC; then implement viewer decoding/rendering.
 2. Add bitrate presets and adaptive quality controls.
 3. Add frame pacing and backpressure handling.
 4. Add A/V sync monitoring.

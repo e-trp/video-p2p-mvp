@@ -3,10 +3,8 @@ use capture_core::{
     CaptureStreamError, CaptureStreamEvent, CaptureStreamResult, CaptureStreamRuntime,
     CaptureStreamStatus,
 };
-use std::collections::HashSet;
-use std::process::{Command, Output, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
+#[cfg(any(target_os = "macos", test))]
+mod native;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MacCaptureStage {
@@ -100,6 +98,7 @@ trait MacNativeCaptureBridge {
     fn stop(&mut self, source_id: Option<String>) -> CaptureStreamResult<Vec<CaptureStreamEvent>>;
 }
 
+#[cfg(any(not(target_os = "macos"), test))]
 #[derive(Debug, Default)]
 struct PlannedScreenCaptureKitBridge {
     active_source_id: Option<String>,
@@ -111,8 +110,19 @@ impl Default for MacCaptureRuntime {
             status: CaptureStreamStatus::Stopped,
             active_source_id: None,
             pending_events: Vec::new(),
-            bridge: Box::<PlannedScreenCaptureKitBridge>::default(),
+            bridge: default_native_bridge(),
         }
+    }
+}
+
+fn default_native_bridge() -> Box<dyn MacNativeCaptureBridge + Send> {
+    #[cfg(target_os = "macos")]
+    {
+        Box::<native::ScreenCaptureKitBridge>::default()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Box::<PlannedScreenCaptureKitBridge>::default()
     }
 }
 
@@ -162,7 +172,7 @@ pub fn current_catalog() -> MacCaptureCatalog {
                 permission_state,
                 notes: vec![
                     format!(
-                        "runtime catalog enumerated {} sources through osascript/System Events",
+                        "runtime catalog enumerated {} sources through ScreenCaptureKit SCShareableContent",
                         sources.len()
                     ),
                     format!(
@@ -176,14 +186,14 @@ pub fn current_catalog() -> MacCaptureCatalog {
         }
         Err(error) => MacCaptureCatalog {
             backend_label: format!("{} blueprint fallback", blueprint.sources_api),
-            permission_state: infer_permission_state_from_error(&error),
+            permission_state: screen_recording_permission_state(),
             notes: vec![format!("runtime catalog fallback: {error}")],
             sources: blueprint.example_sources,
             origin: MacSourceCatalogOrigin::BlueprintFallback,
         },
         Ok(_) => MacCaptureCatalog {
             backend_label: format!("{} blueprint fallback", blueprint.sources_api),
-            permission_state: CapturePermissionState::Required,
+            permission_state: screen_recording_permission_state(),
             notes: vec!["runtime catalog fallback: runtime source list was empty".to_string()],
             sources: blueprint.example_sources,
             origin: MacSourceCatalogOrigin::BlueprintFallback,
@@ -194,6 +204,8 @@ pub fn current_catalog() -> MacCaptureCatalog {
 impl CaptureStreamRuntime for MacCaptureRuntime {
     fn start(&mut self, config: CaptureStreamConfig) -> CaptureStreamResult<()> {
         let source_id = config.source_id().to_string();
+        // Stop the previous native stream before replacing any selection or configuration.
+        self.bridge.stop(self.active_source_id.take())?;
         self.pending_events.clear();
         self.active_source_id = Some(source_id.clone());
 
@@ -348,6 +360,7 @@ impl MacNativeSourceDescriptor {
     }
 }
 
+#[cfg(any(not(target_os = "macos"), test))]
 impl MacNativeCaptureBridge for PlannedScreenCaptureKitBridge {
     fn start(
         &mut self,
@@ -385,25 +398,6 @@ impl MacNativeCaptureBridge for PlannedScreenCaptureKitBridge {
             source_id,
             reason: Some("ScreenCaptureKit bridge stopped".to_string()),
         }])
-    }
-}
-
-fn infer_permission_state_from_error(error: &str) -> CapturePermissionState {
-    let lower = error.to_ascii_lowercase();
-
-    if lower.contains("-1743")
-        || lower.contains("-1744")
-        || lower.contains("not authorized")
-        || lower.contains("not permitted")
-    {
-        CapturePermissionState::Denied
-    } else if lower.contains("-10827")
-        || lower.contains("failed to launch osascript")
-        || lower.contains("application isn’t running")
-    {
-        CapturePermissionState::Unknown
-    } else {
-        CapturePermissionState::Required
     }
 }
 
@@ -446,11 +440,15 @@ fn normalize_target_fps(target_fps: Option<u32>) -> u32 {
 }
 
 fn normalize_dimension(value: Option<u32>, default: u32) -> u32 {
-    value.unwrap_or(default).max(1)
+    value.unwrap_or(default).clamp(1, 4096)
 }
 
 fn resolve_permission_requirement(message: String) -> MacPermissionResolution {
-    if request_screen_recording_permission() {
+    permission_resolution(message, request_screen_recording_permission())
+}
+
+fn permission_resolution(message: String, granted: bool) -> MacPermissionResolution {
+    if granted {
         MacPermissionResolution::Granted
     } else {
         MacPermissionResolution::StillRequired(format!(
@@ -503,155 +501,14 @@ fn describe_permission_state(state: CapturePermissionState) -> &'static str {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn enumerate_runtime_sources() -> Result<Vec<CaptureSource>, String> {
-    let mut command = Command::new("osascript");
-    command.arg("-e").arg(runtime_catalog_script());
-    let output = command_output_with_timeout(
-        command,
-        Duration::from_millis(800),
-        "osascript runtime catalog",
-    )?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(format!("osascript returned {}: {stderr}", output.status));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let sources = parse_runtime_listing(&stdout);
-    if sources.is_empty() {
-        return Err("runtime catalog output was empty".to_string());
-    }
-
-    Ok(sources)
+    native::catalog()
 }
 
-fn command_output_with_timeout(
-    mut command: Command,
-    timeout: Duration,
-    label: &str,
-) -> Result<Output, String> {
-    command.stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = command
-        .spawn()
-        .map_err(|error| format!("failed to launch {label}: {error}"))?;
-    let start = Instant::now();
-
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => {
-                return child
-                    .wait_with_output()
-                    .map_err(|error| format!("failed to collect {label} output: {error}"));
-            }
-            Ok(None) if start.elapsed() >= timeout => {
-                let _ = child.kill();
-                let _ = child.wait_with_output();
-                return Err(format!("{label} timed out after {}ms", timeout.as_millis()));
-            }
-            Ok(None) => thread::sleep(Duration::from_millis(10)),
-            Err(error) => return Err(format!("failed to poll {label}: {error}")),
-        }
-    }
-}
-
-fn runtime_catalog_script() -> &'static str {
-    r#"
-set outputLines to {}
-tell application "System Events"
-	repeat with proc in (application processes whose background only is false)
-		set appName to (name of proc) as text
-		try
-			set windowNames to name of every window of proc
-			if (count of windowNames) is 0 then
-				set end of outputLines to "application" & tab & appName & tab & appName
-			else
-				repeat with windowName in windowNames
-					set windowNameText to (windowName as text)
-					if windowNameText is "" then
-						set windowNameText to appName
-					end if
-					set end of outputLines to "window" & tab & appName & tab & windowNameText
-				end repeat
-			end if
-		on error
-			set end of outputLines to "application" & tab & appName & tab & appName
-		end try
-	end repeat
-end tell
-set AppleScript's text item delimiters to linefeed
-set outputText to outputLines as text
-set AppleScript's text item delimiters to ""
-return outputText
-"#
-}
-
-fn parse_runtime_listing(raw: &str) -> Vec<CaptureSource> {
-    let mut seen_ids = HashSet::new();
-    let mut sources = Vec::new();
-
-    for line in raw.lines().map(str::trim).filter(|line| !line.is_empty()) {
-        let mut fields = line.split('\t');
-        let kind = fields.next().unwrap_or_default();
-        let app_name = fields.next().unwrap_or_default().trim();
-        let display_name = fields.next().unwrap_or_default().trim();
-        if app_name.is_empty() || display_name.is_empty() {
-            continue;
-        }
-
-        let kind = match kind {
-            "window" => CaptureSourceKind::Window,
-            "application" => CaptureSourceKind::Application,
-            _ => continue,
-        };
-
-        let source = CaptureSource {
-            id: make_source_id(kind, app_name, display_name),
-            kind,
-            display_name: display_name.to_string(),
-            app_name: Some(app_name.to_string()),
-            has_audio: true,
-        };
-
-        if seen_ids.insert(source.id.clone()) {
-            sources.push(source);
-        }
-    }
-
-    sources
-}
-
-fn make_source_id(kind: CaptureSourceKind, app_name: &str, display_name: &str) -> String {
-    let kind_label = match kind {
-        CaptureSourceKind::Window => "window",
-        CaptureSourceKind::Application => "application",
-        CaptureSourceKind::Display => "display",
-    };
-    let app_slug = slugify(app_name);
-    let display_slug = slugify(display_name);
-    format!("macos-{kind_label}-{app_slug}-{display_slug}")
-}
-
-fn slugify(input: &str) -> String {
-    let mut slug = String::new();
-    let mut last_was_dash = false;
-
-    for character in input.chars() {
-        if character.is_ascii_alphanumeric() {
-            slug.push(character.to_ascii_lowercase());
-            last_was_dash = false;
-        } else if !last_was_dash {
-            slug.push('-');
-            last_was_dash = true;
-        }
-    }
-
-    let slug = slug.trim_matches('-');
-    if slug.is_empty() {
-        "unnamed".to_string()
-    } else {
-        slug.to_string()
-    }
+#[cfg(not(target_os = "macos"))]
+fn enumerate_runtime_sources() -> Result<Vec<CaptureSource>, String> {
+    Err("ScreenCaptureKit is only available on macOS".to_string())
 }
 
 #[cfg(test)]
@@ -660,9 +517,8 @@ mod tests {
         MacCaptureCatalog, MacCaptureStage, MacNativeCaptureBridge, MacNativeSourceDescriptor,
         MacNativeStreamSettings, MacPermissionResolution, MacRuntimeStartPlan,
         MacSourceCatalogOrigin, PlannedScreenCaptureKitBridge, blueprint,
-        describe_permission_state, infer_permission_state_from_error, normalize_dimension,
-        normalize_target_fps, parse_runtime_listing, plan_runtime_start,
-        resolve_permission_requirement, runtime, runtime_catalog_script, slugify,
+        describe_permission_state, normalize_dimension, normalize_target_fps,
+        permission_resolution, plan_runtime_start,
     };
     use capture_core::{
         CapturePermissionState, CaptureSelection, CaptureSource, CaptureSourceKind,
@@ -677,57 +533,6 @@ mod tests {
         assert_eq!(blueprint.stage, MacCaptureStage::Planned);
         assert_eq!(blueprint.permission_state, CapturePermissionState::Required);
         assert_eq!(blueprint.example_sources.len(), 2);
-    }
-
-    #[test]
-    fn runtime_listing_parser_maps_window_and_application_sources() {
-        let sources = parse_runtime_listing(
-            "window\tVLC\tNow Playing\napplication\tSafari\tSafari\nwindow\tMusic\t\n",
-        );
-
-        assert_eq!(sources.len(), 2);
-        assert_eq!(sources[0].id, "macos-window-vlc-now-playing");
-        assert_eq!(sources[0].label(), "VLC - Now Playing");
-        assert_eq!(sources[1].id, "macos-application-safari-safari");
-        assert_eq!(sources[1].label(), "Safari - Safari");
-    }
-
-    #[test]
-    fn runtime_listing_parser_deduplicates_identical_rows() {
-        let sources = parse_runtime_listing("window\tVLC\tNow Playing\nwindow\tVLC\tNow Playing\n");
-
-        assert_eq!(sources.len(), 1);
-    }
-
-    #[test]
-    fn slugify_normalizes_runtime_source_identifiers() {
-        assert_eq!(slugify("QuickTime Player"), "quicktime-player");
-        assert_eq!(slugify("###"), "unnamed");
-    }
-
-    #[test]
-    fn runtime_catalog_script_mentions_system_events() {
-        assert!(runtime_catalog_script().contains("System Events"));
-    }
-
-    #[test]
-    fn permission_probe_maps_authorization_and_runtime_errors() {
-        assert_eq!(
-            infer_permission_state_from_error(
-                "execution error: Not authorized to send Apple events to System Events. (-1743)"
-            ),
-            CapturePermissionState::Denied
-        );
-        assert_eq!(
-            infer_permission_state_from_error(
-                "execution error: An error of type -10827 has occurred. (-10827)"
-            ),
-            CapturePermissionState::Unknown
-        );
-        assert_eq!(
-            infer_permission_state_from_error("runtime catalog output was empty"),
-            CapturePermissionState::Required
-        );
     }
 
     #[test]
@@ -786,7 +591,7 @@ mod tests {
     #[test]
     fn permission_resolution_keeps_context_when_access_is_not_granted() {
         let resolution =
-            resolve_permission_requirement("Screen Recording permission is required".to_string());
+            permission_resolution("Screen Recording permission is required".to_string(), false);
 
         assert!(matches!(
             resolution,
@@ -866,37 +671,7 @@ mod tests {
         assert_eq!(settings.max_height, 720);
         assert_eq!(normalize_target_fps(Some(240)), 120);
         assert_eq!(normalize_dimension(None, 1280), 1280);
-    }
-
-    #[test]
-    fn planned_runtime_reports_permission_or_bridge_state() {
-        let mut runtime = runtime();
-        runtime
-            .start(CaptureStreamConfig {
-                selection: CaptureSelection {
-                    source_id: "mac-window-vlc".to_string(),
-                    include_audio: true,
-                },
-                target_fps: Some(30),
-                max_width: Some(1920),
-                max_height: Some(1080),
-            })
-            .expect("start planned macOS runtime");
-
-        let events = runtime.poll_events().expect("poll planned events");
-        assert!(matches!(
-            runtime.status(),
-            CaptureStreamStatus::PermissionRequired | CaptureStreamStatus::Failed
-        ));
-        assert!(!events.is_empty());
-
-        runtime.stop().expect("stop planned macOS runtime");
-        let stop_events = runtime.poll_events().expect("poll stop event");
-        assert_eq!(runtime.status(), CaptureStreamStatus::Stopped);
-        assert!(matches!(
-            stop_events.as_slice(),
-            [CaptureStreamEvent::Stopped { .. }]
-        ));
+        assert_eq!(normalize_dimension(Some(u32::MAX), 1280), 4096);
     }
 
     #[test]
@@ -956,8 +731,7 @@ mod tests {
         assert_eq!(runtime.status(), CaptureStreamStatus::Running);
         assert!(format!("{:?}", first_events).contains("native sample loop is active"));
 
-        let stop_events = runtime.stop().expect("stop runtime");
-        assert_eq!(stop_events, ());
+        runtime.stop().expect("stop runtime");
         let stop_events = runtime.poll_events().expect("poll stop event");
         assert_eq!(runtime.status(), CaptureStreamStatus::Stopped);
         assert!(matches!(

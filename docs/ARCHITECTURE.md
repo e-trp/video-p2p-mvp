@@ -9,7 +9,7 @@ Components:
 - `crates/app-core`: shared protocol, CLI parsing, live signaling client, session orchestration, debug capture-burst bridging, platform capture runtime lifecycle, and live capture event ingestion
 - `crates/capture-core`: shared capture-domain types for source selection, permissions, capture stream events, audio buffers, and video frames
 - `crates/transport-webrtc`: real `RTCPeerConnection` bootstrap with attached host media tracks and control data channel
-- `crates/capture-macos`: planned ScreenCaptureKit backend blueprint crate
+- `crates/capture-macos`: native ScreenCaptureKit catalog and raw video/audio runtime
 - `crates/capture-linux`: planned Linux capture backend blueprint crate
 - `crates/signaling-server`: TCP room coordination between exactly two peers
 - `apps/cli`: sender/receiver CLI for testing the direct peer flow
@@ -19,14 +19,14 @@ Components:
 
 1. `signaling-server` starts and listens on a TCP port.
 2. `app-core` exposes the current platform capture catalog and selected source metadata to the GUI.
-   On macOS, that catalog now attempts runtime application/window enumeration before falling back to blueprint data.
+   On macOS, that catalog now attempts SCShareableContent window/application/display enumeration before falling back to blueprint data.
    On Linux, it now attempts `wmctrl`-based runtime window enumeration before falling back to blueprint data.
 3. A host/viewer session joins a room through `app-core::SignalingConnection`.
 4. `transport-webrtc` creates a real `PeerConnection`, attaches placeholder host audio/video tracks, and keeps a bootstrap data channel for control flow.
 5. Local SDP/ICE is encoded through shared protocol messages and sent through `signaling-server`.
 6. The peer receives signaling messages, and the GUI session refresh path auto-applies remote answer/ICE through the same signaling channel.
 7. The session manager exposes source-validated video/audio publish APIs above `transport-webrtc`.
-   The debug smoke path synthesizes `capture-core` payloads through that route, and future native capture backends can now enter through `CaptureStreamEvent` ingestion without using GUI debug publishing.
+   The debug smoke path synthesizes `capture-core` payloads through that route. Native ScreenCaptureKit events use source-validated `CaptureStreamEvent` ingestion and update separate raw-capture diagnostics; encoding must land before real native RTP publication.
 8. The session manager can start, poll, and stop the current platform `CaptureStreamRuntime`, draining its events into the same source-validated ingestion path.
 9. Mock UDP sender/receiver flow still exists separately for the old media scaffold.
 
@@ -62,10 +62,10 @@ Cross-platform capture contracts that now exist in code:
 ### `capture-macos`
 
 - native ScreenCaptureKit bridge
-- shared runtime scaffold that reports structured planned/permission status until the native bridge lands
+- native Objective-C SCStream bridge compiled only on macOS, with asynchronous start, permission checks, bounded sample queues, and stop/drop cleanup
 - normalized native stream settings for selected source id, source label, source kind, display/app names, audio capability, audio opt-in, target FPS, and maximum frame size before bridge startup
-- video frame extraction
-- audio sample extraction
+- packed BGRA frame extraction with CoreMedia PTS timestamps
+- macOS 13+ planar/interleaved PCM extraction normalized to interleaved float32
 - permission handling
 
 ### `capture-linux-wayland`
@@ -118,7 +118,7 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - Tauri commands and session snapshots that surface local media-track state, debug capture-payload counters, and payload summaries in the GUI
 - the CLI host flow now follows the same automatic first-offer path as the GUI and can optionally publish a debug capture burst after connect
 - `app-core::SessionManager` now validates selected source identity and audio opt-in before accepting capture payloads for publication
-- `app-core::SessionManager` now ingests live `capture-core` stream events and maps video/audio events into the same validated WebRTC publish path
+- `app-core::SessionManager` now ingests live `capture-core` stream events and validates video/audio events and records separate native counters/summaries until encoders are available
 - `app-core::SessionManager` now owns the active platform capture runtime lifecycle and exposes start/poll/stop entry points for native capture events
 - `capture-macos` now separates catalog/permission validation from a native ScreenCaptureKit bridge lifecycle boundary, with catalog-backed source metadata and normalized stream settings passed into the bridge startup path
 - the main Tauri GUI path now relies on automatic signaling refresh instead of exposing manual answer/ICE controls

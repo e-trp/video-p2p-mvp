@@ -11,6 +11,8 @@ The repository now has two layers:
 
 - `crates/app-core`: shared protocol and mock session logic
 - `crates/capture-core`: shared capture types for sources, permissions, video frames, and audio buffers
+- `crates/capture-macos`: native ScreenCaptureKit window/application/display capture and PCM audio
+- `docs/MACOS_CAPTURE.md`: native capture setup, limitations, and verification
 - `crates/signaling-server`: standalone signaling binary
 - `apps/cli`: sender/receiver CLI for backend testing
 - `apps/desktop`: Tauri GUI scaffold
@@ -112,13 +114,11 @@ The Tauri shell is still not included in the default workspace build yet.
 
 ## What Is Still Missing
 
-This is not yet a real screen-sharing application. It does not currently include:
+macOS now has native ScreenCaptureKit source enumeration and raw video/audio capture. The desktop capture panel reports native sample counters separately from debug transport counters. Viewer playback is still pending because it requires media encoding and rendering. Missing components include:
 
-- ScreenCaptureKit integration
-- Portal/PipeWire integration
-- real source enumeration from the operating system
-- real captured samples flowing through the attached tracks
-- real audio/video codecs
+- Linux Portal/PipeWire integration
+- encoded native samples flowing through the attached WebRTC tracks
+- real audio/video codecs and viewer playback
 - bundled STUN/TURN deployment defaults
 - production GUI workflow
 - production signing/notarization flow
@@ -135,17 +135,17 @@ What changed relative to the earlier scaffold:
 - host session refresh now auto-creates its local offer when signaling is available
 - session snapshots and the Tauri UI now expose local media-track attachment state
 - session manager and transport now expose capture-payload publishing state and payload summaries
-- session manager now exposes source-validated capture video/audio publishing APIs above `transport-webrtc`, and the debug burst uses that same path
-- `capture-core` now defines live capture stream config/status/event contracts, and `app-core` can ingest those events into the same source-validated WebRTC publishing path
-- `capture-core` now also exposes a shared capture stream runtime trait, with planned macOS/Linux runtime scaffolds ready for native bridge implementations
-- `app-core` now owns the active platform capture runtime lifecycle and can start/poll/stop it through the same event ingestion path used by future native media samples
+- session manager exposes source-validated debug video/audio publishing APIs above `transport-webrtc`, while native raw events update separate capture diagnostics until encoding is implemented
+- `capture-core` now defines live capture stream config/status/event contracts, and `app-core` ingests native samples into source-validated capture diagnostics
+- `capture-core` now also exposes a shared capture stream runtime trait, with a native macOS runtime and a planned Linux runtime
+- `app-core` now owns the active platform capture runtime lifecycle and can start/poll/stop it through the event ingestion path now used by ScreenCaptureKit raw samples
 - session snapshots and the Tauri UI now expose transport stage, bootstrap data-channel state, and transport notes
 - session snapshots and the Tauri UI now expose native capture runtime status alongside capture permission state
 - native capture runtime start planning now preserves denied permission as `permission_denied` instead of folding it into `permission_required`
 - the CLI host path can now push one debug `capture-core` burst after the peer connection connects
 - `capture-core` now provides shared Rust-side contracts for capture sources, permission state, and raw media payloads
 - the Tauri shell now exposes capture backend, permission state, and source selection from `app-core`
-- macOS capture-source listing now attempts runtime application/window enumeration and falls back to blueprint data when the environment blocks it
+- macOS capture-source listing uses SCShareableContent with OS window/process/display IDs and falls back to blueprint data when permission or enumeration is unavailable
 - Linux capture-source listing now attempts `wmctrl`-based runtime window enumeration and falls back to blueprint data when the environment blocks it
 - capture catalog diagnostics now surface runtime-vs-fallback origin and backend notes in the GUI
 - capture permission state is now derived from runtime probing and refreshed with the catalog instead of staying a static scaffold value
@@ -157,7 +157,7 @@ What changed relative to the earlier scaffold:
 - desktop session-form drafts now survive background refresh polling until a successful save/start/reset syncs them explicitly
 - the desktop GUI now opens with a compact live overview for role, signaling, capture runtime, transport, and next action before the detailed diagnostics
 - the desktop GUI now renders backend-provided labels, notes, and session fields through escaped detail rows with semantic state tokens in the live overview
-- the desktop GUI now starts with prototype-first host/viewer workflow panels, including a host action that prepares signaling, attempts native capture, and sends a test capture frame
+- the desktop GUI starts with host/viewer workflow panels; the host action prepares signaling and starts native capture, while test payload publishing remains an explicit debug action
 - the desktop GUI now includes a local demo action for exercising the first-screen workflow without a signaling server or second peer
 - the desktop GUI now serializes button actions behind a busy state so manual commands do not compete with background refresh polling
 - the desktop GUI now shows a first-screen prototype readiness strip for room, source, native capture, signaling, and peer-link state
@@ -173,7 +173,7 @@ What changed relative to the earlier scaffold:
 
 ## Recommended Next Build Steps
 
-1. Replace debug `capture-core` media bursts with real captured audio/video input.
-2. Implement the `capture-macos` ScreenCaptureKit bridge on top of `capture-core`.
-3. Wire native capture stream events into the existing `SessionManager::ingest_capture_stream_event` path with real permission-aware capture/session lifecycle control.
+1. Add H.264/VP8 video and Opus audio encoders between native capture events and WebRTC tracks.
+2. Add viewer decoding and playback, then verify real end-to-end streaming.
+3. Manually validate macOS Screen Recording permission, application/window capture, and audio routing using [the native capture guide](docs/MACOS_CAPTURE.md).
 4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.

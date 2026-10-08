@@ -345,6 +345,10 @@ function setCaptureRuntime(session) {
     ["Permission", session.capture_permission_state ?? "unknown"],
     ["Selected", session.source_label ?? session.selected_source_id ?? "n/a"],
     ["Audio", session.selected_source_audio ? "enabled" : "disabled"],
+    ["Captured Video", session.captured_video_frame_count ?? 0],
+    ["Captured Audio", session.captured_audio_buffer_count ?? 0],
+    ["Native Video", session.last_native_video_summary ?? "waiting for frames"],
+    ["Native Audio", session.last_native_audio_summary ?? "waiting for audio"],
   ]);
   syncCaptureRuntimeControls(session);
 }
@@ -854,11 +858,13 @@ async function startHostPrototype() {
 
   await applySelectedSource();
   const captureResult = await runCommand("start_capture_stream");
-  await runCommand("publish_debug_capture_samples");
-  if (!captureResult?.ok) {
+  if (captureResult?.ok) {
+    const status = captureResult.session?.capture_runtime_status;
     setCommandResult(
-      "Host prototype started with test frames; native capture is not available yet.",
-      "warn",
+      status === "starting" || status === "running"
+        ? "Host prepared. Native capture started; viewer playback is still pending."
+        : `Host prepared. Capture status: ${status ?? "unavailable"}. Check permissions and refresh the source list.`,
+      status === "starting" || status === "running" ? "ok" : "warn",
     );
   }
 }

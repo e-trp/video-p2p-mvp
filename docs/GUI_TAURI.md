@@ -32,7 +32,8 @@ The backend around the GUI has moved one step forward:
 - a debug command can now push synthetic `capture-core` audio/video payloads into those attached tracks
 - the session manager can now ingest backend `capture-core` stream events for native capture implementations without routing them through the GUI debug command
 - the GUI now shows a platform capture catalog and allows selecting a source in-session
-- the macOS source picker now attempts live application/window enumeration before falling back to blueprint data
+- the capture panel shows separate native sample counts and summaries; viewer playback remains pending on encoding/rendering
+- the macOS source picker now uses SCShareableContent window/application/display enumeration before falling back to blueprint data
 - the Linux source picker now attempts `wmctrl`-based runtime window enumeration before falling back to blueprint data
 - capture catalog diagnostics now show whether the GUI is using runtime data or blueprint fallback, plus backend notes
 - capture permission state now follows the latest runtime probe instead of a fixed scaffold default
@@ -67,7 +68,7 @@ The backend around the GUI has moved one step forward:
 
 - `app-core`: shared protocol, session state, signaling orchestration, source-validated capture-burst bridging, and live capture event ingestion
 - `transport-webrtc`: real peer transport bootstrap with attached host tracks
-- `capture-macos`: planned ScreenCaptureKit bridge
+- `capture-macos`: native ScreenCaptureKit raw video/audio bridge
 - `capture-linux`: planned Portal + PipeWire integration
 - `desktop-app`: Tauri shell and user-facing commands
 
@@ -90,7 +91,7 @@ The current Tauri UI is wired to the session manager and supports:
 
 - editing room, signaling, and ICE server fields
 - scanning the live overview for current role, signaling reachability, capture runtime state, transport state, and next action
-- starting a host prototype path that prepares signaling, applies the selected source, attempts native capture, and sends a debug capture frame for smoke testing
+- starting a host prototype path that prepares signaling, applies the selected source, attempts native capture, and displays native capture samples; debug publication remains a separate action
 - running a local desktop demo that marks a host/source/peer workflow active without external signaling
 - joining as a viewer from the first-viewport workflow without opening the diagnostics panels
 - reading command feedback as success, warning, or error state after each Tauri action

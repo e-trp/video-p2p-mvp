@@ -339,7 +339,7 @@ impl TransportSession {
 
     pub fn drain_local_signals(&mut self) -> Vec<WebRtcSignal> {
         let mut shared = self.shared.lock().expect("transport shared state poisoned");
-        shared.local_candidates.drain(..).collect()
+        std::mem::take(&mut shared.local_candidates)
     }
 
     pub fn publish_video_sample(

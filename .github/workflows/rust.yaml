@@ -6,7 +6,10 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repository
@@ -25,3 +28,7 @@ jobs:
 
       - name: Run tests
         run: cargo test --all --all-features
+
+      - name: Test native macOS sample extraction
+        if: runner.os == 'macOS'
+        run: sh scripts/test-macos-capture.sh

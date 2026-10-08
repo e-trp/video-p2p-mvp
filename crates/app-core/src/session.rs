@@ -65,6 +65,10 @@ pub struct SessionSnapshot {
     pub capture_backend: String,
     pub capture_permission_state: String,
     pub capture_runtime_status: String,
+    pub captured_video_frame_count: u64,
+    pub captured_audio_buffer_count: u64,
+    pub last_native_video_summary: Option<String>,
+    pub last_native_audio_summary: Option<String>,
     pub available_source_count: usize,
     pub active_peer: Option<String>,
     pub logs: Vec<String>,
@@ -133,6 +137,10 @@ struct SessionState {
     signaling_connected: bool,
     last_signaling_message: Option<String>,
     capture_runtime: Option<Box<dyn CaptureStreamRuntime + Send>>,
+    captured_video_frame_count: u64,
+    captured_audio_buffer_count: u64,
+    last_native_video_summary: Option<String>,
+    last_native_audio_summary: Option<String>,
 }
 
 struct RecoveryDiagnostics {
@@ -162,6 +170,10 @@ impl Default for SessionState {
             signaling_connected: false,
             last_signaling_message: None,
             capture_runtime: None,
+            captured_video_frame_count: 0,
+            captured_audio_buffer_count: 0,
+            last_native_video_summary: None,
+            last_native_audio_summary: None,
         }
     }
 }
@@ -396,10 +408,15 @@ impl SessionManager {
         };
 
         let include_audio = include_audio && source.has_audio;
-        self.state.capture_selection = Some(CaptureSelection {
+        let selection = CaptureSelection {
             source_id: source.id.clone(),
             include_audio,
-        });
+        };
+        if self.state.capture_selection.as_ref() != Some(&selection) {
+            self.stop_capture_runtime_without_snapshot();
+            self.reset_native_capture_diagnostics();
+        }
+        self.state.capture_selection = Some(selection);
         self.state.source_label = Some(source.label());
         self.push_log(format!(
             "capture source selected: id={} include_audio={}",
@@ -463,6 +480,7 @@ impl SessionManager {
 
         match result {
             Ok(()) => {
+                self.reset_native_capture_diagnostics();
                 self.push_log(format!(
                     "native capture stream start requested for source={source_id} include_audio={include_audio}"
                 ));
@@ -474,6 +492,7 @@ impl SessionManager {
                     "failed to start native capture stream for source={source_id}: {error}"
                 );
                 self.push_log(message.clone());
+                self.poll_capture_runtime_events();
                 Err(message)
             }
         }
@@ -567,6 +586,11 @@ impl SessionManager {
     }
 
     pub fn ingest_capture_stream_event(&mut self, event: CaptureStreamEvent) -> SessionSnapshot {
+        self.apply_capture_stream_event(event);
+        self.snapshot()
+    }
+
+    fn apply_capture_stream_event(&mut self, event: CaptureStreamEvent) {
         match event {
             CaptureStreamEvent::Started { source_id } => {
                 if let Err(message) = self.validate_capture_publish_request(&source_id, false) {
@@ -574,7 +598,6 @@ impl SessionManager {
                 } else {
                     self.push_log(format!("capture stream started for source={source_id}"));
                 }
-                self.snapshot()
             }
             CaptureStreamEvent::StatusChanged {
                 source_id,
@@ -587,13 +610,41 @@ impl SessionManager {
                     "capture stream status changed for source={source}: {} ({detail})",
                     format_capture_stream_status(status)
                 ));
-                self.snapshot()
             }
             CaptureStreamEvent::VideoFrame { source_id, frame } => {
-                self.publish_capture_video_frame(source_id, frame)
+                if let Err(message) = self.validate_capture_publish_request(&source_id, false) {
+                    self.push_log(message);
+                } else {
+                    self.state.captured_video_frame_count += 1;
+                    self.state.last_native_video_summary = Some(format!(
+                        "{:?} {}x{} / {}B / {}us; encoder pending",
+                        frame.format,
+                        frame.width,
+                        frame.height,
+                        frame.bytes.len(),
+                        frame.timestamp_micros
+                    ));
+                    if self.state.captured_video_frame_count == 1 {
+                        self.push_log("native video received; raw BGRA/NV12 requires encoding before WebRTC publication".to_string());
+                    }
+                }
             }
             CaptureStreamEvent::AudioBuffer { source_id, buffer } => {
-                self.publish_capture_audio_buffer(source_id, buffer)
+                if let Err(message) = self.validate_capture_publish_request(&source_id, true) {
+                    self.push_log(message);
+                } else {
+                    self.state.captured_audio_buffer_count += 1;
+                    self.state.last_native_audio_summary = Some(format!(
+                        "{}Hz / {}ch / {} frames / {}us; encoder pending",
+                        buffer.sample_rate_hz,
+                        buffer.channels,
+                        buffer.frames,
+                        buffer.timestamp_micros
+                    ));
+                    if self.state.captured_audio_buffer_count == 1 {
+                        self.push_log("native audio received; raw PCM requires Opus encoding before WebRTC publication".to_string());
+                    }
+                }
             }
             CaptureStreamEvent::Stopped { source_id, reason } => {
                 let source = source_id.unwrap_or_else(|| "unknown".to_string());
@@ -601,14 +652,12 @@ impl SessionManager {
                 self.push_log(format!(
                     "capture stream stopped for source={source}: {reason}"
                 ));
-                self.snapshot()
             }
             CaptureStreamEvent::Error { source_id, message } => {
                 let source = source_id.unwrap_or_else(|| "unknown".to_string());
                 self.push_log(format!(
                     "capture stream error for source={source}: {message}"
                 ));
-                self.snapshot()
             }
         }
     }
@@ -778,6 +827,10 @@ impl SessionManager {
                 .as_ref()
                 .map(|runtime| format_capture_stream_status(runtime.status()).to_string())
                 .unwrap_or_else(|| "not_started".to_string()),
+            captured_video_frame_count: self.state.captured_video_frame_count,
+            captured_audio_buffer_count: self.state.captured_audio_buffer_count,
+            last_native_video_summary: self.state.last_native_video_summary.clone(),
+            last_native_audio_summary: self.state.last_native_audio_summary.clone(),
             available_source_count: self.state.capture_catalog.sources.len(),
             active_peer: self.state.active_peer.clone(),
             logs: self.state.logs.clone(),
@@ -934,6 +987,7 @@ impl SessionManager {
         self.state.signaling_connected = false;
         self.state.last_signaling_message = None;
         self.state.capture_runtime = None;
+        self.reset_native_capture_diagnostics();
     }
 
     fn initialize_transport(&mut self, role: &str) {
@@ -1091,6 +1145,8 @@ impl SessionManager {
                 self.state.source_label = Some(label);
             } else {
                 let preferred_audio = selection.include_audio;
+                self.stop_capture_runtime_without_snapshot();
+                self.reset_native_capture_diagnostics();
                 self.state.capture_selection = None;
                 self.state.source_label = None;
                 persist_preferences = true;
@@ -1114,6 +1170,13 @@ impl SessionManager {
         if persist_preferences {
             self.persist_preferences();
         }
+    }
+
+    fn reset_native_capture_diagnostics(&mut self) {
+        self.state.captured_video_frame_count = 0;
+        self.state.captured_audio_buffer_count = 0;
+        self.state.last_native_video_summary = None;
+        self.state.last_native_audio_summary = None;
     }
 
     fn disconnect_active_session(&mut self) {
@@ -1142,7 +1205,7 @@ impl SessionManager {
         };
 
         for event in events {
-            self.ingest_capture_stream_event(event);
+            self.apply_capture_stream_event(event);
         }
     }
 
@@ -1157,7 +1220,7 @@ impl SessionManager {
                 match runtime.poll_events() {
                     Ok(events) => {
                         for event in events {
-                            self.ingest_capture_stream_event(event);
+                            self.apply_capture_stream_event(event);
                         }
                     }
                     Err(error) => {
@@ -1178,6 +1241,11 @@ impl SessionManager {
     ) -> Result<(), String> {
         if self.state.mode != SessionMode::Host {
             return Err("capture media can only be published from a host session".to_string());
+        }
+        if self.state.stage == SessionStage::Stopped {
+            return Err(
+                "capture media cannot be accepted after the session is stopped".to_string(),
+            );
         }
 
         let Some(selection) = self.state.capture_selection.as_ref() else {
@@ -1562,7 +1630,7 @@ impl SessionManager {
             }
             (_, SessionStage::Stopped, _) => "reconnect, restart, or reset session",
             (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
-                "peer connection is live; feed capture samples into the attached tracks or push debug capture samples for transport smoke testing"
+                "peer connection is live; native capture can be checked locally, while viewer playback is still pending"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
                 if self.state.capture_catalog.permission_state
@@ -1767,7 +1835,10 @@ mod tests {
         parse_join_request,
     };
     use crate::signaling::SignalingConnection;
-    use capture_core::{CaptureSource, CaptureSourceKind, CaptureStreamEvent, CaptureStreamStatus};
+    use capture_core::{
+        CaptureSource, CaptureSourceKind, CaptureStreamConfig, CaptureStreamEvent,
+        CaptureStreamResult, CaptureStreamRuntime, CaptureStreamStatus,
+    };
     use std::collections::HashMap;
     use std::fs;
     use std::io::{BufRead, BufReader, Write};
@@ -1778,6 +1849,43 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::{Duration, Instant};
+
+    struct TestCaptureRuntime {
+        status: CaptureStreamStatus,
+        events: Vec<CaptureStreamEvent>,
+        stops: Arc<AtomicUsize>,
+    }
+
+    impl CaptureStreamRuntime for TestCaptureRuntime {
+        fn start(&mut self, config: CaptureStreamConfig) -> CaptureStreamResult<()> {
+            self.status = CaptureStreamStatus::Running;
+            self.events = vec![
+                CaptureStreamEvent::Started {
+                    source_id: config.source_id().to_string(),
+                },
+                CaptureStreamEvent::VideoFrame {
+                    source_id: config.source_id().to_string(),
+                    frame: super::debug_video_frame(config.source_id()),
+                },
+            ];
+            Ok(())
+        }
+        fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {
+            Ok(std::mem::take(&mut self.events))
+        }
+        fn stop(&mut self) -> CaptureStreamResult<()> {
+            self.stops.fetch_add(1, Ordering::SeqCst);
+            self.status = CaptureStreamStatus::Stopped;
+            self.events = vec![CaptureStreamEvent::Stopped {
+                source_id: None,
+                reason: None,
+            }];
+            Ok(())
+        }
+        fn status(&self) -> CaptureStreamStatus {
+            self.status
+        }
+    }
 
     #[test]
     fn host_session_updates_state() {
@@ -2179,8 +2287,25 @@ mod tests {
             buffer: super::debug_audio_buffer(),
         });
 
-        assert_eq!(after_video.published_video_sample_count, 1);
-        assert_eq!(after_audio.published_audio_sample_count, 1);
+        assert_eq!(after_video.captured_video_frame_count, 1);
+        assert_eq!(after_audio.captured_audio_buffer_count, 1);
+        // Raw native media must never be packetized as VP8/Opus without an encoder.
+        assert_eq!(after_video.published_video_sample_count, 0);
+        assert_eq!(after_audio.published_audio_sample_count, 0);
+        assert!(
+            after_video
+                .last_native_video_summary
+                .as_deref()
+                .unwrap()
+                .contains("encoder pending")
+        );
+        assert!(
+            after_audio
+                .last_native_audio_summary
+                .as_deref()
+                .unwrap()
+                .contains("48000Hz")
+        );
         assert!(
             after_audio
                 .logs
@@ -2207,6 +2332,12 @@ mod tests {
             ice_servers: Vec::new(),
         });
 
+        let stop_count = Arc::new(AtomicUsize::new(0));
+        manager.state.capture_runtime = Some(Box::new(TestCaptureRuntime {
+            status: CaptureStreamStatus::Stopped,
+            events: Vec::new(),
+            stops: stop_count.clone(),
+        }));
         let started = manager
             .start_capture_stream()
             .expect("platform runtime should be available on supported test targets");
@@ -2218,14 +2349,56 @@ mod tests {
                 .iter()
                 .any(|line| { line.contains("native capture stream start requested for source=") })
         );
-        assert!(started.logs.iter().any(|line| {
-            line.contains("capture stream status changed for source=")
-                && (line.contains("permission_required") || line.contains("permission_denied"))
-        }));
+        assert!(
+            started
+                .logs
+                .iter()
+                .any(|line| line.contains("capture stream started for source="))
+        );
+        assert_eq!(started.capture_runtime_status, "running");
+        assert_eq!(polled.captured_video_frame_count, 1);
+        assert_eq!(polled.published_video_sample_count, 0);
+        let stopped = manager.stop_capture_stream();
+        assert_eq!(stopped.capture_runtime_status, "stopped");
+        assert_eq!(stop_count.load(Ordering::SeqCst), 1);
         assert!(polled.selected_source_id.is_some());
         assert_ne!(started.capture_runtime_status, "not_started");
         assert_ne!(polled.capture_runtime_status, "not_started");
 
+        let _ = fs::remove_dir_all(config_dir);
+    }
+
+    #[test]
+    fn changing_audio_selection_stops_native_capture_and_rejects_stale_media() {
+        let (mut manager, config_dir) = new_test_manager("native-capture-selection-change");
+        let (source, _, _) = select_source_with_retry(&mut manager, |source| {
+            source.has_audio.then_some((source, true))
+        });
+        manager.start_host(SessionIntent {
+            room: "demo".to_string(),
+            signaling_addr: "127.0.0.1:7000".to_string(),
+            source_label: None,
+            ice_servers: Vec::new(),
+        });
+        let stops = Arc::new(AtomicUsize::new(0));
+        manager.state.capture_runtime = Some(Box::new(TestCaptureRuntime {
+            status: CaptureStreamStatus::Running,
+            events: Vec::new(),
+            stops: stops.clone(),
+        }));
+        manager.select_capture_source(source.id.clone(), false);
+        assert_eq!(stops.load(Ordering::SeqCst), 1);
+        let snapshot = manager.ingest_capture_stream_event(CaptureStreamEvent::AudioBuffer {
+            source_id: source.id.clone(),
+            buffer: super::debug_audio_buffer(),
+        });
+        assert_eq!(snapshot.captured_audio_buffer_count, 0);
+        let snapshot = manager.ingest_capture_stream_event(CaptureStreamEvent::VideoFrame {
+            source_id: "stale-native-source".to_string(),
+            frame: super::debug_video_frame("stale"),
+        });
+        assert_eq!(snapshot.captured_video_frame_count, 0);
+        assert_eq!(snapshot.capture_runtime_status, "not_started");
         let _ = fs::remove_dir_all(config_dir);
     }
 

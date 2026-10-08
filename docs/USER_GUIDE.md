@@ -10,10 +10,10 @@ This repository is still an MVP. Today it can already provide:
 - configurable ICE server entries for custom STUN/TURN traversal
 - attached placeholder host audio/video tracks
 - debug `capture-core` media payload publishing for transport smoke testing
-- a backend-facing live capture event ingestion path that native capture implementations can use once they produce OS samples
+- native macOS ScreenCaptureKit video/audio events with separate capture counters in the desktop panel
 - a source picker fed by current platform capture metadata, with runtime enumeration when available and blueprint fallback otherwise
 
-It does **not** yet provide real OS screen capture, real system audio capture, bundled STUN/TURN deployment defaults, or production invite/auth flows.
+macOS raw capture is implemented; Linux capture, media encoding, viewer playback, bundled STUN/TURN deployment defaults, and production invite/auth flows remain pending. See [macOS capture](MACOS_CAPTURE.md) for setup and validation.
 
 For setup, release build notes, and troubleshooting, see `docs/INSTALLATION.md`.
 For manual validation before a release candidate, see `docs/QA_CHECKLIST.md`.
@@ -93,7 +93,7 @@ If those fields have unsaved edits when you click `Reconnect`, the GUI first sav
 ### Capture Source
 
 - `Available Source`: current platform blueprint source list
-- `Include Audio`: stores whether the chosen source should include audio when capture is wired for real
+- `Include Audio`: selects whether native capture includes audio when the source supports it
 - changing the picker or audio toggle applies the host-side capture selection immediately
 - the most recent room, signaling address, source selection, and auto-refresh preferences are restored automatically on the next desktop launch or session-manager reset
 
@@ -101,11 +101,11 @@ If you never touch the picker before starting a host session, the first availabl
 
 Today this picker is backed by:
 
-- macOS: runtime application/window enumeration when available, with a fallback to `ScreenCaptureKit`-shaped blueprint sources
+- macOS: SCShareableContent windows, applications, and displays with native IDs; blueprint fallback when permission or enumeration is unavailable
 - Linux: runtime X11 window enumeration through `wmctrl` when available, with a fallback to `Portal + PipeWire`-shaped blueprint sources
 
-This is still a contract layer overall. Both platform catalogs are best-effort metadata enumeration, not real capture sessions, and they fall back to blueprint data when the host environment blocks runtime discovery.
-On macOS, starting the native capture runtime now validates Screen Recording permission and reaches a planned ScreenCaptureKit bridge boundary with normalized source, audio, frame-rate, and frame-size settings, but it still does not emit real OS video or audio samples.
+On macOS, starting capture validates Screen Recording permission and creates a native SCStream for the selected source. Video arrives as packed BGRA, and audio on macOS 13+ arrives as 48 kHz interleaved float PCM. The capture panel shows native sample counts and summaries. Encoding and viewer playback are pending; these raw samples are not automatically sent over WebRTC.
+Changing the source or audio toggle stops the current stream; click `Start Capture` to capture the new selection. Blueprint sources support the local demo/debug flow but cannot start native capture. Linux still uses metadata discovery and a planned runtime.
 
 ### Transport Diagnostics
 
@@ -156,7 +156,7 @@ The `Reconnect` button is disabled only when no host/viewer session has been pre
 
 ### Transport Smoke Test
 
-- the capture runtime panel controls native capture start, poll, and stop actions from the Tauri shell
+- the capture runtime panel controls native capture start, poll, and stop, and reports `Captured Video`, `Captured Audio`, `Native Video`, and `Native Audio`
 - `Push Debug Capture Burst`: synthesize `capture-core` video/audio payloads and write them into the attached host tracks
 
 The debug burst respects the selected source audio toggle:
@@ -164,14 +164,14 @@ The debug burst respects the selected source audio toggle:
 - if `Include Audio` is enabled, both video and audio payload summaries are updated
 - if `Include Audio` is disabled, only the video payload is published during the smoke test
 
-This smoke path now goes through the same session-facing publish validation that future native capture backends are expected to use:
+Both debug publication and native sample diagnostics validate source selection and audio opt-in:
 
 - the selected source id must match the payload source being published
 - audio payloads are rejected when the current selection has `Include Audio` turned off
 
-The backend also now accepts live `capture-core` stream events through `SessionManager::ingest_capture_stream_event`. That API is not a user-facing GUI control yet; it is the route native ScreenCaptureKit or Portal/PipeWire implementations should use when they begin emitting real frames and audio buffers.
+The backend also now accepts live `capture-core` stream events through `SessionManager::ingest_capture_stream_event`. ScreenCaptureKit now feeds this API through the platform runtime. It validates source identity and audio opt-in, then records native sample diagnostics without sending raw data to codec-labelled tracks.
 
-Host-side offer creation, answer delivery, and ICE now flow automatically through the signaling server during refresh. The remaining manual control is only there to smoke-test media publication before real capture is wired.
+Host-side offer creation, answer delivery, and ICE flow automatically through the signaling server during refresh. Native capture and debug packetization have separate controls and counters.
 
 If signaling dies or you stop a session intentionally, the `Reconnect` action reinitializes the current host/viewer role instead of forcing a full `Reset` followed by another manual prepare step.
 
@@ -235,8 +235,9 @@ cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
 ## Current Limits
 
 - Linux runtime enumeration currently depends on X11-style `wmctrl` metadata and does not cover the real Wayland portal flow yet
-- macOS source enumeration is metadata-only and still does not capture real media
-- debug `capture-core` payload bursts are still synthetic, not OS-captured media
+- macOS native capture needs Screen Recording access; audio needs macOS 13+; real permission/source/audio behavior still needs manual QA
+- debug `capture-core` payload bursts are synthetic transport smoke tests; native sample counters are separate
+- real captured media is not viewable remotely until encoders and viewer playback are implemented
 - the GUI still falls back to blueprint/example capture sources when runtime enumeration is unavailable
 - ICE server configuration is manual; there is still no bundled TURN service or auth flow
 - the signaling service is still a minimal two-peer MVP

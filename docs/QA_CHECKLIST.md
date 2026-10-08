@@ -85,6 +85,8 @@ Verify:
 - permission state is one of `granted`, `required`, `denied`, or `unknown`
 - changing the selected source updates the session snapshot immediately
 
+For native capture, grant Screen Recording access, refresh sources, select a real window, and start capture. Confirm `Captured Video` increases after window content changes, and `Captured Audio` increases when the selected app plays audio with audio enabled (macOS 13+). Verify raw native samples do not increase debug WebRTC publication counters. Changing source/audio, stopping, resetting, or closing the app must stop the previous capture. Run `sh scripts/test-macos-capture.sh` for permission-free native extraction/backpressure checks.
+
 ### Linux
 
 Verify:
@@ -153,7 +155,7 @@ For local tests, an empty ICE server list is acceptable. For cross-network tests
 Current limitation:
 
 - the repository does not ship a TURN service or auth flow
-- real media delivery still uses placeholder tracks plus debug payload publishing; the live capture event ingestion API exists, but no OS backend feeds it yet
+- macOS native samples feed separate capture diagnostics; encoded media delivery and viewer playback are still pending
 
 Use `docs/NETWORKING.md` as the reference for expected production signaling/STUN/TURN topology and security assumptions.
 
@@ -174,7 +176,7 @@ Verify:
 
 ## Known MVP Limits To Reconfirm
 
-- no real ScreenCaptureKit media stream yet
+- macOS capture requires manual permission/window/application/audio validation using `docs/MACOS_CAPTURE.md`
 - no Linux Portal + PipeWire media stream yet
 - no real codec pipeline for captured OS samples yet
 - no production invite/auth flow yet

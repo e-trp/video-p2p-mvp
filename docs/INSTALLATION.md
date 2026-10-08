@@ -12,12 +12,12 @@ The current repository can already provide:
 - live WebRTC negotiation between host and viewer
 - configurable STUN/TURN ICE server settings for CLI and desktop runs
 - debug `capture-core` media bursts for transport validation
-- backend-facing live capture stream events and session ingestion for future native samples
+- native macOS ScreenCaptureKit capture with raw sample diagnostics
 
 It does **not** yet provide:
 
-- real OS screen capture
-- real system audio capture
+- Linux OS screen/system audio capture
+- encoded native media delivery and viewer playback
 - STUN/TURN deployment defaults
 - production packaging/signing/notarization flow
 
@@ -28,6 +28,7 @@ You need:
 - a Rust toolchain with `cargo`
 - Tauri CLI available as `cargo tauri`
 - platform prerequisites required by Tauri on your OS
+- on macOS: Xcode Command Line Tools and macOS 12.3+ (macOS 13+ for audio); see [macOS capture setup](MACOS_CAPTURE.md)
 
 Quick checks:
 
@@ -201,13 +202,13 @@ Today the repo supports:
 - debug `capture-core` payload publishing
 - a `capture-core` stream event contract that native capture backends can feed later
 
-It does not yet support real OS-captured audio/video delivery into those tracks.
+The macOS backend captures real raw samples and reports them in the capture panel. Encoded delivery into WebRTC tracks and viewer playback are still pending; debug payloads remain transport smoke tests.
 
 ### macOS source listing falls back or permission looks blocked
 
 Current behavior:
 
-- runtime application/window enumeration is attempted first
+- SCShareableContent enumeration is attempted when Screen Recording preflight is granted; passive refresh does not request permission
 - if that fails, the app falls back to blueprint metadata
 
 What to check:
@@ -217,7 +218,9 @@ What to check:
 
 Important limitation:
 
-- even successful runtime enumeration is still metadata-only today; it does not mean live capture is implemented
+- native capture starts only on an explicit capture action with a real catalog source
+- permission changes may require relaunch, catalog refresh, and reselection before retry
+- real viewer playback still requires codecs; see [the capture guide](MACOS_CAPTURE.md)
 
 ### Linux source listing is incomplete or unavailable
 

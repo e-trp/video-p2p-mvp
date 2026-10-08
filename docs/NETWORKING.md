@@ -23,7 +23,7 @@ Not implemented today:
 - bundled STUN or TURN service
 - production authentication for signaling rooms
 - HTTPS/WSS signaling deployment
-- real OS-captured media samples
+- encoded OS-captured media delivery (macOS raw capture is implemented)
 - production TURN credential issuance
 
 ## Production Topology
@@ -136,4 +136,4 @@ The current MVP is ready for local and controlled-network smoke testing. It is n
 - bundled STUN defaults
 - TURN deployment and short-lived credential flow
 - production room lifecycle
-- real captured media and codec pipeline
+- encoded native media, codec pipeline, and viewer playback
