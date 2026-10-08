@@ -8,6 +8,7 @@ Components:
 
 - `crates/app-core`: shared protocol, CLI parsing, live signaling client, session orchestration, debug capture-burst bridging, platform capture runtime lifecycle, and live capture event ingestion
 - `crates/capture-core`: shared capture-domain types for source selection, permissions, capture stream events, audio buffers, and video frames
+- `crates/media-codec`: encoded media contracts and standalone macOS VideoToolbox H.264 encoder; transport integration is pending
 - `crates/transport-webrtc`: real `RTCPeerConnection` bootstrap with attached host media tracks and control data channel
 - `crates/capture-macos`: native ScreenCaptureKit catalog and raw video/audio runtime
 - `crates/capture-linux`: planned Linux capture backend blueprint crate

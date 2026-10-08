@@ -12,6 +12,8 @@ The repository now has two layers:
 - `crates/app-core`: shared protocol and mock session logic
 - `crates/capture-core`: shared capture types for sources, permissions, video frames, and audio buffers
 - `crates/capture-macos`: native ScreenCaptureKit window/application/display capture and PCM audio
+- `crates/media-codec`: encoded media contracts and native macOS H.264 encoding
+- `docs/MEDIA_PIPELINE.md`: codec implementation and remaining publication/playback work
 - `docs/MACOS_CAPTURE.md`: native capture setup, limitations, and verification
 - `crates/signaling-server`: standalone signaling binary
 - `apps/cli`: sender/receiver CLI for backend testing
@@ -173,7 +175,7 @@ What changed relative to the earlier scaffold:
 
 ## Recommended Next Build Steps
 
-1. Add H.264/VP8 video and Opus audio encoders between native capture events and WebRTC tracks.
+1. Add Opus and wire the implemented H.264 encoder into continuous native capture-to-WebRTC publication.
 2. Add viewer decoding and playback, then verify real end-to-end streaming.
 3. Manually validate macOS Screen Recording permission, application/window capture, and audio routing using [the native capture guide](docs/MACOS_CAPTURE.md).
 4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.

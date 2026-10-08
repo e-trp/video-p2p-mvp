@@ -128,11 +128,19 @@
 
 1. Choose and implement initial codec set:
    video `H.264` or `VP8`, audio `Opus`.
-   Next priority: encode macOS raw BGRA/PCM before publishing samples to WebRTC; then implement viewer decoding/rendering.
+   Current state: `media-codec` provides a native macOS VideoToolbox H.264 encoder and an encoded Annex B frame contract. Opus and live transport integration are next.
 2. Add bitrate presets and adaptive quality controls.
 3. Add frame pacing and backpressure handling.
 4. Add A/V sync monitoring.
 5. Add graceful degradation for weak networks.
+
+### Iteration 5 Progress
+
+- Implemented: standalone VideoToolbox H.264 Baseline Level 3.1 encoder for packed BGRA up to 1280x720 at 1-30 fps
+- Implemented: realtime configuration without B-frame reordering, 2 Mbit/s default target, two-second keyframe interval, SPS/PPS on keyframes, and AVCC-to-Annex B conversion
+- Implemented: source resize recreates the encoder and forces an IDR; odd dimensions are edge-padded to even dimensions; invalid buffers and non-increasing PTS are rejected
+- Verified: actual native encoding of synthetic frames, parameter-set/IDR output, PTS durations, resize, and malformed input without recording the screen
+- Still open: Opus encoder, continuous capture-to-transport processing, codec-aware SDP/track publication, and viewer playback
 
 ## Iteration 6: NAT Traversal And Deployment
 
