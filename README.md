@@ -1,19 +1,19 @@
 # video-p2p-mvp
 
-Workspace for a future Rust desktop application that will stream a chosen window and audio peer-to-peer on macOS and Linux.
+Rust desktop prototype for peer-to-peer window and audio streaming on macOS and Linux. macOS capture and H.264/Opus publication work; viewer playback and Linux capture are still pending.
 
 The repository now has two layers:
 
 - a working backend MVP with signaling and direct UDP mock media flow
-- a Tauri desktop shell that can now drive live WebRTC negotiation state with attached host media tracks
+- a Tauri desktop shell with live WebRTC negotiation and continuous macOS capture-to-H.264/Opus publication
 
 ## Workspace Layout
 
-- `crates/app-core`: shared protocol and mock session logic
+- `crates/app-core`: signaling, session orchestration, and a continuous capture/encode/publish worker
 - `crates/capture-core`: shared capture types for sources, permissions, video frames, and audio buffers
 - `crates/capture-macos`: native ScreenCaptureKit window/application/display capture and PCM audio
 - `crates/media-codec`: encoded media contracts, native macOS H.264, and vendored Opus encoding
-- `docs/MEDIA_PIPELINE.md`: codec implementation and remaining publication/playback work
+- `docs/MEDIA_PIPELINE.md`: codec implementation, continuous publication, and remaining playback work
 - `docs/MACOS_CAPTURE.md`: native capture setup, limitations, and verification
 - `crates/signaling-server`: standalone signaling binary
 - `apps/cli`: sender/receiver CLI for backend testing
@@ -110,17 +110,17 @@ It now exposes commands for:
 - showing the saved specification
 
 The signaling server now keeps a room alive after pairing and relays validated SDP/ICE envelopes between peers, including replaying stored signaling history to a late joiner.
-`transport-webrtc` is no longer an in-memory lifecycle stub: it now creates a real `RTCPeerConnection`, attaches placeholder host-side audio/video tracks, keeps a bootstrap data channel for control traffic, gathers ICE candidates, and exposes real connection state.
+`transport-webrtc` is no longer an in-memory lifecycle stub: it now creates a real `RTCPeerConnection`, attaches H.264/Opus host-side audio/video tracks, keeps a bootstrap data channel for control traffic, gathers ICE candidates, and exposes real connection state.
 
 The Tauri shell is still not included in the default workspace build yet.
 
 ## What Is Still Missing
 
-macOS now has native ScreenCaptureKit source enumeration and raw video/audio capture. The desktop capture panel reports native sample counters separately from debug transport counters. Viewer playback is still pending because it requires media encoding and rendering. Missing components include:
+macOS now has native ScreenCaptureKit capture, VideoToolbox H.264 and Opus encoders, and continuous encoded WebRTC publication. The desktop shows raw diagnostic samples, encoded publication counts, and received RTP counts separately. Viewer decoding and rendering remain pending. Missing components include:
 
 - Linux Portal/PipeWire integration
-- encoded native samples flowing through the attached WebRTC tracks
-- real audio/video codecs and viewer playback
+- viewer H.264/Opus decoding, rendering, and A/V synchronization
+- a Linux video encoder and adaptive bitrate/backpressure controls
 - bundled STUN/TURN deployment defaults
 - production GUI workflow
 - production signing/notarization flow
@@ -132,12 +132,12 @@ What changed relative to the earlier scaffold:
 - signaling history is replayed when the second peer joins late
 - `app-core` now has a live signaling client used by CLI and Tauri session flow
 - CLI now has `webrtc-host` and `webrtc-viewer` commands for real negotiation
-- `transport-webrtc` now wraps a real `PeerConnection` with attached placeholder audio/video tracks, ICE gathering, and connection-state snapshots
+- `transport-webrtc` now wraps a real `PeerConnection` with attached H.264/Opus audio/video tracks, ICE gathering, and connection-state snapshots
 - the CLI host path now relies on the same automatic first-offer behavior as the GUI instead of forcing a second manual offer attempt
 - host session refresh now auto-creates its local offer when signaling is available
 - session snapshots and the Tauri UI now expose local media-track attachment state
 - session manager and transport now expose capture-payload publishing state and payload summaries
-- session manager exposes source-validated debug video/audio publishing APIs above `transport-webrtc`, while native raw events update separate capture diagnostics until encoding is implemented
+- session manager exposes source-validated debug video/audio publishing APIs above `transport-webrtc`, while the background worker encodes native samples before publication and exposes raw events separately for diagnostics
 - `capture-core` now defines live capture stream config/status/event contracts, and `app-core` ingests native samples into source-validated capture diagnostics
 - `capture-core` now also exposes a shared capture stream runtime trait, with a native macOS runtime and a planned Linux runtime
 - `app-core` now owns the active platform capture runtime lifecycle and can start/poll/stop it through the event ingestion path now used by ScreenCaptureKit raw samples
@@ -175,7 +175,7 @@ What changed relative to the earlier scaffold:
 
 ## Recommended Next Build Steps
 
-1. Wire the implemented H.264/Opus encoders into continuous native capture-to-WebRTC publication.
-2. Add viewer decoding and playback, then verify real end-to-end streaming.
+1. Add viewer H.264/Opus decoding, video rendering, and audio playback.
+2. Add A/V sync, adaptive bitrate, and feedback-driven keyframe recovery, then verify real end-to-end playback.
 3. Manually validate macOS Screen Recording permission, application/window capture, and audio routing using [the native capture guide](docs/MACOS_CAPTURE.md).
 4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.

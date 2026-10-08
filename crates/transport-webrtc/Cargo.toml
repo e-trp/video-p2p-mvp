@@ -10,6 +10,7 @@ path = "src/lib.rs"
 [dependencies]
 bytes = "1"
 capture-core = { path = "../capture-core" }
+media-codec = { path = "../media-codec" }
 interceptor = "0.17.1"
 media = { package = "webrtc-media", version = "0.17.1" }
 tokio = "1.52.1"

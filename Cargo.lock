@@ -60,6 +60,7 @@ dependencies = [
  "capture-linux",
  "capture-macos",
  "cfg-if",
+ "media-codec",
  "transport-webrtc",
 ]
 
@@ -2025,6 +2026,7 @@ dependencies = [
  "bytes",
  "capture-core",
  "interceptor",
+ "media-codec",
  "tokio",
  "webrtc",
  "webrtc-media",

@@ -1,6 +1,7 @@
 pub mod app;
 pub mod capture_catalog;
 pub mod ice_servers;
+mod media_pipeline;
 pub mod mock_media;
 mod preferences;
 pub mod protocol;

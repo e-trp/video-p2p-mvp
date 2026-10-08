@@ -20,10 +20,11 @@
 - Done in part: real WebRTC peer transport instead of lifecycle stubs
 - Done in part: CLI and Tauri integration with the live signaling path
 - Done in part: integration-style coverage for late-join signaling replay and host/viewer WebRTC negotiation in `app-core`
-- Done in part: host-side placeholder audio/video tracks are attached to the `PeerConnection`
+- Implemented: codec-aware H.264/Opus host tracks are attached to the `PeerConnection`
 - Done in part: session-facing debug `capture-core` sample publishing now exists above the transport
 - Done in part: CLI host startup now relies on the same automatic first-offer path as the GUI and can optionally publish a debug capture burst after connect
-- Still open: feeding real captured samples into the attached tracks and retiring the bootstrap-only path
+- Implemented: continuous macOS capture-to-H.264/Opus publication and viewer RTP reception counters
+- Still open: viewer decoding/playback and real desktop/network validation
 
 ## Iteration 2: macOS Capture Backend
 
@@ -38,7 +39,7 @@
 5. Capture available audio buffers and normalize them for transport.
    Current state: macOS 13+ PCM extraction implemented with 48 kHz stereo configuration and planar-to-interleaved float32 conversion.
 6. Feed captured samples into the WebRTC publishing pipeline.
-   Current state: native events reach session diagnostics; actual publication remains blocked on video/Opus encoding and viewer playback.
+   Current state: a source/audio-validated background worker encodes native BGRA/PCM as H.264/Opus and publishes to codec-aware WebRTC tracks when connected. Viewer RTP counters are implemented; decoding/playback is pending.
 
 ### Iteration 2 Progress
 
@@ -49,7 +50,7 @@
 - Done in part: runtime probing on macOS now maps catalog results into live permission-state diagnostics
 - Done in part: Tauri/app-core now surface the current platform capture catalog and selected source metadata
 - Done in part: session manager and `transport-webrtc` now accept debug `capture-core` video/audio payloads, including source-audio opt-out during smoke tests
-- Done in part: `app-core::SessionManager` now exposes source-validated debug video/audio publish APIs; native media diagnostics use the same source/audio validation before future encoding
+- Done in part: `app-core::SessionManager` exposes source-validated debug publish APIs; the continuous worker separately validates source/audio selection before encoding
 - Done in part: `app-core::SessionManager` ingests live `capture-core` stream events with source/audio validation; native samples update separate diagnostics while the debug path remains available
 - Done in part: `app-core::SessionManager` now owns a platform capture runtime lifecycle, with start/poll/stop APIs that drain runtime events into the same capture ingestion path
 - Done in part: `capture-macos` now preflights macOS Screen Recording permission through CoreGraphics, validates the selected runtime source before stream start, and reports permission-vs-bridge-unavailable states separately
@@ -60,11 +61,13 @@
 - Done in part: `capture-macos` now has injected bridge-boundary tests for normalized settings, poll-event status updates, and native bridge startup failures
 - Done in part: macOS and Linux stream start planning now preserve denied capture permission as a distinct runtime status for GUI diagnostics
 - Implemented: native ScreenCaptureKit catalog and raw video/audio delivery into the existing runtime event contract
-- Implemented: separate native sample counters/summaries in session snapshots and the Tauri capture panel; raw samples are never automatically packetized as VP8/Opus
+- Implemented: separate raw diagnostics, encoded H.264/Opus publication counts, and received RTP counts in snapshots/Tauri; raw samples are encoded before automatic publication
 - Implemented: stop active capture before source/audio changes or catalog rebinding, and release native capture on runtime drop
 - Verified: native CoreVideo/CoreMedia buffer extraction, timestamps, planar/interleaved audio, bounded queues, and stop behavior without screen-recording access
 - Added: macOS CI coverage and an opt-in `capture_probe` example; see `docs/MACOS_CAPTURE.md`
-- Still open: manual permission/source/audio QA on real desktop sessions, native sample encoding, and viewer playback
+- Implemented: continuous worker independent of GUI refresh; stop/join before source changes, reset, replacement, or transport-runtime drop
+- Verified: synthetic capture through actual H.264/Opus encoding and local WebRTC reception, stop halting publication, and audio opt-out after restart
+- Still open: manual permission/source/audio QA on real desktop sessions and viewer playback
 
 ## Iteration 3: Linux Capture Backend
 
@@ -122,15 +125,17 @@
 - Done in part: the desktop GUI now guards user actions with a single busy state, and signaling startup has a bounded TCP connect timeout to reduce visible hangs in the prototype flow
 - Done in part: the desktop GUI now exposes first-screen prototype readiness for room, source, native capture, signaling, and peer-link state
 - Implemented: macOS capture panel shows native video/audio counts and latest sample summaries; host startup no longer sends debug samples automatically
-- Still open: Wayland portal flow, codecs, and viewer playback
+- Implemented: encoded/received counters and continuous macOS publication independent of desktop polling
+- Still open: Wayland portal flow and viewer playback
 
 ## Iteration 5: Audio/Video Pipeline Hardening
 
 1. Choose and implement initial codec set:
    video `H.264` or `VP8`, audio `Opus`.
-   Current state: `media-codec` provides native macOS VideoToolbox H.264 and cross-platform vendored Opus encoders with separate encoded packet contracts. Live transport integration is next.
+   Current state: native macOS VideoToolbox H.264 and cross-platform vendored Opus encoding are integrated with continuous capture and codec-aware WebRTC SDP/publication. Viewer decoding/playback is next.
 2. Add bitrate presets and adaptive quality controls.
 3. Add frame pacing and backpressure handling.
+   Current state: initial bounded native queues, continuous draining, latest-only GUI diagnostics, and a 200 ms publication timeout are implemented. Network-aware pacing and adaptive dropping remain open.
 4. Add A/V sync monitoring.
 5. Add graceful degradation for weak networks.
 
@@ -143,7 +148,10 @@
 - Implemented: vendored libopus encoder for mono/stereo interleaved 48 kHz PCM, 64 kbit/s stereo default, and 20 ms packets with preserved timestamps
 - Implemented: arbitrary audio buffer aggregation, finite/sample-count validation, and partial-packet reset on capture discontinuities
 - Verified: Opus roundtrip decoding, packet duration/PTS, discontinuity handling, and malformed audio
-- Still open: continuous capture-to-transport processing, codec-aware SDP/track publication, and viewer playback
+- Implemented: continuous capture/encode/publish worker, H.264 Baseline/Opus-only SDP registration, RTP receive counters, and RTCP draining for transport interceptors
+- Implemented: encode only with a connected peer, reset encoders/request first keyframe on connection epochs, and drop partial audio on worker restart
+- Verified: actual encoded video/audio delivery over local WebRTC with synthetic capture, no dependency on GUI polling, stop/restart, and audio opt-out
+- Still open: viewer decoding/playback, Linux H.264 encoding, adaptive bitrate/pacing, A/V sync, and feedback-driven keyframe recovery
 
 ## Iteration 6: NAT Traversal And Deployment
 
@@ -194,4 +202,5 @@
 - Done in part: `app-core` now has unit coverage for reconnecting stopped host/viewer sessions and rejecting reconnect attempts from idle state
 - Done in part: `app-core` now has unit coverage for recovery diagnostics when signaling is unavailable, plus more stable isolated capture-selection tests
 - Done in part: manual QA coverage for current MVP behavior now lives in `docs/QA_CHECKLIST.md`
-- Still open: broader QA checklists and real-network validation
+- Added: continuous encoded-media WebRTC integration test and capture-worker lifecycle/permission/source checks; manual encoded/RTP counter checks are documented
+- Still open: real desktop capture-to-playback and cross-network/latency/CPU validation

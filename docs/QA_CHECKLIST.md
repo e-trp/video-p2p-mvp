@@ -85,7 +85,7 @@ Verify:
 - permission state is one of `granted`, `required`, `denied`, or `unknown`
 - changing the selected source updates the session snapshot immediately
 
-For native capture, grant Screen Recording access, refresh sources, select a real window, and start capture. Confirm `Captured Video` increases after window content changes, and `Captured Audio` increases when the selected app plays audio with audio enabled (macOS 13+). Verify raw native samples do not increase debug WebRTC publication counters. Changing source/audio, stopping, resetting, or closing the app must stop the previous capture. Run `sh scripts/test-macos-capture.sh` for permission-free native extraction/backpressure checks.
+For native capture, grant Screen Recording access, refresh sources, select a real window, and start capture. Confirm `Captured Video` increases after window content changes, and `Captured Audio` increases when the selected app plays audio with audio enabled (macOS 13+). Without a connected viewer, encoded counts must stay zero. With a connected viewer, host encoded H.264/Opus counts and viewer received RTP counts should increase. Raw samples must pass through encoders before publication. Changing source/audio, stopping, resetting, or closing the app must stop the previous capture. Run `sh scripts/test-macos-capture.sh` for permission-free native extraction/backpressure checks.
 
 ### Linux
 
@@ -96,6 +96,18 @@ Verify:
 - unsupported or blocked environments fall back to `blueprint_fallback`
 - Wayland portal capture is still reported as not implemented in current docs and troubleshooting notes
 - changing the selected source updates the session snapshot immediately
+
+## Continuous Encoded macOS Publication
+
+1. Start signaling and prepare host/viewer desktop sessions in the same room.
+2. Grant Screen Recording access, refresh/select a native source, and start capture.
+3. Change the selected window content and play audio; verify host `Encoded H.264`/`Encoded Opus` and viewer `Received Video RTP`/`Received Audio RTP` increase.
+4. Disable host auto-refresh after negotiation; media should continue arriving on the viewer. Raw diagnostic counts may update less frequently.
+5. Stop capture; encoded host counts must stop increasing. Restart and verify delivery resumes.
+6. Disable audio and restart capture; video continues while encoded audio counts stay unchanged.
+7. Stop/reset/replace/close the host session while running; check capture indicators disappear and no publication continues from the old worker.
+
+Viewer picture/sound are not implemented yet. These checks verify capture, encoding, and packet delivery only. Do not run debug bursts during this check because they inject non-playable payloads into the same tracks. For permission-free automated coverage, run `cargo test -p app-core continuous_encoded_media` with local sockets and macOS codec services available.
 
 ## Debug Capture Publishing
 
@@ -155,7 +167,7 @@ For local tests, an empty ICE server list is acceptable. For cross-network tests
 Current limitation:
 
 - the repository does not ship a TURN service or auth flow
-- macOS native samples feed separate capture diagnostics; encoded media delivery and viewer playback are still pending
+- macOS native samples are encoded and delivered over WebRTC; viewer decoding/rendering are still pending
 
 Use `docs/NETWORKING.md` as the reference for expected production signaling/STUN/TURN topology and security assumptions.
 
@@ -178,6 +190,6 @@ Verify:
 
 - macOS capture requires manual permission/window/application/audio validation using `docs/MACOS_CAPTURE.md`
 - no Linux Portal + PipeWire media stream yet
-- no real codec pipeline for captured OS samples yet
+- no viewer decoding/playback, Linux video encoder, or adaptive bitrate control yet
 - no production invite/auth flow yet
 - no bundled TURN deployment defaults yet

@@ -199,8 +199,14 @@ mod ffi {
                 ));
             }
             self.source_id = Some(settings.source_id.clone());
-            Ok(vec![CaptureStreamEvent::StatusChanged { source_id: self.source_id.clone(), status: CaptureStreamStatus::Starting,
-                message: Some("ScreenCaptureKit native capture is starting; raw BGRA/PCM samples require encoding before WebRTC playback".to_string()) }])
+            Ok(vec![CaptureStreamEvent::StatusChanged {
+                source_id: self.source_id.clone(),
+                status: CaptureStreamStatus::Starting,
+                message: Some(
+                    "ScreenCaptureKit native capture is starting with BGRA video and PCM audio"
+                        .to_string(),
+                ),
+            }])
         }
 
         fn poll_events(&mut self) -> CaptureStreamResult<Vec<CaptureStreamEvent>> {

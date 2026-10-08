@@ -2,6 +2,7 @@ use bytes::Bytes;
 use capture_core::{AudioBuffer, VideoFrame, VideoPixelFormat};
 use interceptor::registry::Registry;
 use media::Sample;
+use media_codec::{EncodedAudioPacket, EncodedVideoFrame, H264_FMTP};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -10,7 +11,7 @@ use std::time::Duration;
 use tokio::runtime::Runtime;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
-use webrtc::api::media_engine::{MIME_TYPE_OPUS, MIME_TYPE_VP8, MediaEngine};
+use webrtc::api::media_engine::{MIME_TYPE_H264, MIME_TYPE_OPUS, MediaEngine};
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::peer_connection::RTCPeerConnection;
@@ -18,7 +19,9 @@ use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::sdp_type::RTCSdpType;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
-use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
+use webrtc::rtp_transceiver::rtp_codec::{
+    RTCRtpCodecCapability, RTCRtpCodecParameters, RTPCodecType,
+};
 use webrtc::stats::{ICECandidatePairStats, ICECandidateStats, StatsReport, StatsReportType};
 use webrtc::track::track_local::TrackLocal;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
@@ -102,6 +105,10 @@ pub struct TransportSnapshot {
     pub local_audio_track_attached: bool,
     pub published_video_sample_count: usize,
     pub published_audio_sample_count: usize,
+    pub encoded_video_frame_count: usize,
+    pub encoded_audio_packet_count: usize,
+    pub received_video_packet_count: usize,
+    pub received_audio_packet_count: usize,
     pub last_video_sample_bytes: usize,
     pub last_audio_sample_bytes: usize,
     pub last_video_capture_summary: Option<String>,
@@ -131,6 +138,10 @@ struct SharedState {
     local_data_channel_ready: bool,
     published_video_sample_count: usize,
     published_audio_sample_count: usize,
+    encoded_video_frame_count: usize,
+    encoded_audio_packet_count: usize,
+    received_video_packet_count: usize,
+    received_audio_packet_count: usize,
     last_video_sample_bytes: usize,
     last_audio_sample_bytes: usize,
     last_video_capture_summary: Option<String>,
@@ -173,7 +184,7 @@ pub fn blueprint(config: WebRtcConfig) -> TransportBlueprint {
         stage: TransportStage::Planned,
         notes: vec![
             "peer connection is created eagerly with real ICE gathering",
-            "host role now attaches placeholder audio/video sample tracks before offer creation",
+            "host role attaches H264/Opus sample tracks before offer creation",
             "a bootstrap data channel keeps negotiation real before media tracks land",
             "signaling exchange still runs through the project signaling server",
             "future capture backends should feed encoded samples into the attached tracks",
@@ -192,9 +203,21 @@ impl TransportSession {
 
         let peer_connection = runtime.block_on(async {
             let mut media_engine = MediaEngine::default();
-            media_engine
-                .register_default_codecs()
-                .map_err(map_webrtc_error)?;
+            for (capability, payload_type, kind) in [
+                (video_codec(), 102, RTPCodecType::Video),
+                (audio_codec(), 111, RTPCodecType::Audio),
+            ] {
+                media_engine
+                    .register_codec(
+                        RTCRtpCodecParameters {
+                            capability,
+                            payload_type,
+                            ..Default::default()
+                        },
+                        kind,
+                    )
+                    .map_err(map_webrtc_error)?;
+            }
 
             let mut registry = Registry::new();
             registry = register_default_interceptors(registry, &mut media_engine)
@@ -458,6 +481,13 @@ impl TransportSession {
         } else {
             notes.push("bootstrap data channel not open yet".to_string());
         }
+        notes.push(format!(
+            "codecs=H264/Opus; encoded video={} audio={}; received RTP video={} audio={}",
+            shared.encoded_video_frame_count,
+            shared.encoded_audio_packet_count,
+            shared.received_video_packet_count,
+            shared.received_audio_packet_count
+        ));
         let (local_media_track_count, local_video_track_attached, local_audio_track_attached) =
             self.local_media_tracks
                 .as_ref()
@@ -509,6 +539,10 @@ impl TransportSession {
             local_audio_track_attached,
             published_video_sample_count: shared.published_video_sample_count,
             published_audio_sample_count: shared.published_audio_sample_count,
+            encoded_video_frame_count: shared.encoded_video_frame_count,
+            encoded_audio_packet_count: shared.encoded_audio_packet_count,
+            received_video_packet_count: shared.received_video_packet_count,
+            received_audio_packet_count: shared.received_audio_packet_count,
             last_video_sample_bytes: shared.last_video_sample_bytes,
             last_audio_sample_bytes: shared.last_audio_sample_bytes,
             last_video_capture_summary: shared.last_video_capture_summary.clone(),
@@ -528,6 +562,18 @@ impl TransportSession {
         }
     }
 
+    pub fn encoded_publisher(&self) -> TransportResult<TransportPublisher> {
+        let tracks = self.local_media_tracks.as_ref().ok_or_else(|| {
+            TransportError("encoded media publication requires a host session".to_string())
+        })?;
+        Ok(TransportPublisher {
+            runtime: self.runtime.handle().clone(),
+            video: tracks.video.clone(),
+            audio: tracks.audio.clone(),
+            shared: self.shared.clone(),
+        })
+    }
+
     pub fn close(&mut self) -> TransportResult<()> {
         self.runtime
             .block_on(self.peer_connection.close())
@@ -539,9 +585,122 @@ impl TransportSession {
     }
 }
 
+/// A host media sink used by the capture worker. The owner must stop workers before dropping the session runtime.
+#[derive(Clone)]
+pub struct TransportPublisher {
+    runtime: tokio::runtime::Handle,
+    video: Arc<TrackLocalStaticSample>,
+    audio: Arc<TrackLocalStaticSample>,
+    shared: Arc<Mutex<SharedState>>,
+}
+
+impl TransportPublisher {
+    pub fn is_connected(&self) -> bool {
+        self.shared
+            .lock()
+            .expect("transport state poisoned")
+            .connection_state
+            == "connected"
+    }
+
+    fn write(
+        &self,
+        track: &TrackLocalStaticSample,
+        bytes: Vec<u8>,
+        duration: Duration,
+    ) -> TransportResult<()> {
+        if !self.is_connected() {
+            return Err(TransportError(
+                "encoded media publication requires a connected peer".to_string(),
+            ));
+        }
+        self.runtime
+            .block_on(async {
+                tokio::time::timeout(
+                    Duration::from_millis(200),
+                    track.write_sample(&Sample {
+                        data: Bytes::from(bytes),
+                        duration,
+                        ..Default::default()
+                    }),
+                )
+                .await
+            })
+            .map_err(|_| TransportError("encoded media publication timed out".to_string()))?
+            .map_err(map_webrtc_error)
+    }
+
+    pub fn publish_video(&self, frame: EncodedVideoFrame) -> TransportResult<()> {
+        if frame.bytes.len() < 5
+            || !frame.bytes.starts_with(&[0, 0, 0, 1])
+            || frame.duration.is_zero()
+        {
+            return Err(TransportError(
+                "encoded video requires an H264 Annex B access unit and a nonzero duration"
+                    .to_string(),
+            ));
+        }
+        let length = frame.bytes.len();
+        let summary = format!(
+            "H264 {}x{} / {}B / {}us / keyframe={}",
+            frame.width, frame.height, length, frame.timestamp_micros, frame.keyframe
+        );
+        self.write(&self.video, frame.bytes, frame.duration)?;
+        let mut shared = self.shared.lock().expect("transport state poisoned");
+        shared.published_video_sample_count += 1;
+        shared.encoded_video_frame_count += 1;
+        shared.last_video_sample_bytes = length;
+        shared.last_video_capture_summary = Some(summary);
+        Ok(())
+    }
+
+    pub fn publish_audio(&self, packet: EncodedAudioPacket) -> TransportResult<()> {
+        if packet.bytes.is_empty()
+            || packet.bytes.len() > 1275
+            || !(1..=2).contains(&packet.channels)
+            || packet.duration != Duration::from_millis(20)
+        {
+            return Err(TransportError(
+                "encoded audio requires a 20 ms mono/stereo Opus packet".to_string(),
+            ));
+        }
+        let length = packet.bytes.len();
+        let summary = format!(
+            "Opus 48000Hz / {}ch / {}B / {}us",
+            packet.channels, length, packet.timestamp_micros
+        );
+        self.write(&self.audio, packet.bytes, packet.duration)?;
+        let mut shared = self.shared.lock().expect("transport state poisoned");
+        shared.published_audio_sample_count += 1;
+        shared.encoded_audio_packet_count += 1;
+        shared.last_audio_sample_bytes = length;
+        shared.last_audio_capture_summary = Some(summary);
+        Ok(())
+    }
+}
+
 fn tokio_runtime() -> TransportResult<Runtime> {
     Runtime::new()
         .map_err(|error| TransportError(format!("failed to create tokio runtime: {error}")))
+}
+
+fn video_codec() -> RTCRtpCodecCapability {
+    RTCRtpCodecCapability {
+        mime_type: MIME_TYPE_H264.to_owned(),
+        clock_rate: 90_000,
+        sdp_fmtp_line: H264_FMTP.to_string(),
+        ..Default::default()
+    }
+}
+
+fn audio_codec() -> RTCRtpCodecCapability {
+    RTCRtpCodecCapability {
+        mime_type: MIME_TYPE_OPUS.to_owned(),
+        clock_rate: 48_000,
+        channels: 2,
+        sdp_fmtp_line: "minptime=10;useinbandfec=1;stereo=1".to_string(),
+        ..Default::default()
+    }
 }
 
 fn attach_local_media_tracks(
@@ -551,31 +710,29 @@ fn attach_local_media_tracks(
 ) -> TransportResult<LocalMediaTracks> {
     let stream_id = format!("desktop-room-{}", config.room);
     let video = Arc::new(TrackLocalStaticSample::new(
-        RTCRtpCodecCapability {
-            mime_type: MIME_TYPE_VP8.to_owned(),
-            ..Default::default()
-        },
+        video_codec(),
         "screen-video".to_string(),
         stream_id.clone(),
     ));
     let audio = Arc::new(TrackLocalStaticSample::new(
-        RTCRtpCodecCapability {
-            mime_type: MIME_TYPE_OPUS.to_owned(),
-            ..Default::default()
-        },
+        audio_codec(),
         "system-audio".to_string(),
         stream_id,
     ));
 
     runtime.block_on(async {
-        peer_connection
+        let video_sender = peer_connection
             .add_track(Arc::clone(&video) as Arc<dyn TrackLocal + Send + Sync>)
             .await
             .map_err(map_webrtc_error)?;
-        peer_connection
+        let audio_sender = peer_connection
             .add_track(Arc::clone(&audio) as Arc<dyn TrackLocal + Send + Sync>)
             .await
             .map_err(map_webrtc_error)?;
+        for sender in [video_sender, audio_sender] {
+            // Drain RTCP so interceptor feedback keeps flowing during continuous publication.
+            tokio::spawn(async move { while sender.read_rtcp().await.is_ok() {} });
+        }
         Ok::<(), TransportError>(())
     })?;
 
@@ -895,6 +1052,24 @@ fn install_callbacks(peer_connection: &Arc<RTCPeerConnection>, shared: &Arc<Mute
         })
     }));
 
+    let receive_state = Arc::clone(shared);
+    peer_connection.on_track(Box::new(move |track, _, _| {
+        let state = receive_state.clone();
+        Box::pin(async move {
+            tokio::spawn(async move {
+                let video = track.kind() == webrtc::rtp_transceiver::rtp_codec::RTPCodecType::Video;
+                while track.read_rtp().await.is_ok() {
+                    let mut shared = state.lock().expect("transport state poisoned");
+                    if video {
+                        shared.received_video_packet_count += 1;
+                    } else {
+                        shared.received_audio_packet_count += 1;
+                    }
+                }
+            });
+        })
+    }));
+
     let shared_state = Arc::clone(shared);
     peer_connection.on_data_channel(Box::new(move |data_channel| {
         let shared_state = Arc::clone(&shared_state);
@@ -941,7 +1116,7 @@ mod tests {
     use std::time::Duration;
 
     #[test]
-    fn host_role_attaches_placeholder_audio_and_video_tracks() {
+    fn host_role_attaches_h264_and_opus_tracks() {
         let session = TransportSession::new(WebRtcConfig {
             room: "demo".to_string(),
             role: "host".to_string(),
@@ -970,6 +1145,76 @@ mod tests {
         assert_eq!(snapshot.local_media_track_count, 0);
         assert!(!snapshot.local_video_track_attached);
         assert!(!snapshot.local_audio_track_attached);
+        assert!(session.encoded_publisher().is_err());
+    }
+
+    #[test]
+    fn encoded_publication_requires_valid_packets_and_a_connected_host() {
+        use super::WebRtcSignal;
+        use media_codec::{EncodedAudioPacket, EncodedVideoFrame, H264_FMTP};
+        let mut session = TransportSession::new(WebRtcConfig {
+            room: "encoded".into(),
+            role: "host".into(),
+            signaling_url: "local".into(),
+            ice_servers: Vec::new(),
+        })
+        .unwrap();
+        let WebRtcSignal::SessionDescription { sdp, .. } = session.create_local_offer().unwrap()
+        else {
+            panic!("expected SDP");
+        };
+        assert!(sdp.contains("H264/90000"));
+        assert!(!sdp.contains("VP8/90000"));
+        assert!(sdp.contains(H264_FMTP));
+        assert!(sdp.contains("opus/48000/2"));
+        let publisher = session.encoded_publisher().unwrap();
+        assert!(!publisher.is_connected());
+        let mut video = EncodedVideoFrame {
+            bytes: vec![0, 0, 0, 1, 0x65],
+            width: 64,
+            height: 36,
+            timestamp_micros: 0,
+            duration: Duration::from_millis(33),
+            keyframe: true,
+        };
+        assert!(
+            publisher
+                .publish_video(video.clone())
+                .unwrap_err()
+                .to_string()
+                .contains("connected peer")
+        );
+        video.bytes = vec![0; 64 * 36 * 4];
+        assert!(
+            publisher
+                .publish_video(video)
+                .unwrap_err()
+                .to_string()
+                .contains("Annex B")
+        );
+        let mut audio = EncodedAudioPacket {
+            bytes: vec![0xf8, 0xff, 0xfe],
+            channels: 2,
+            timestamp_micros: 0,
+            duration: Duration::from_millis(20),
+        };
+        assert!(
+            publisher
+                .publish_audio(audio.clone())
+                .unwrap_err()
+                .to_string()
+                .contains("connected peer")
+        );
+        audio.duration = Duration::from_millis(10);
+        assert!(
+            publisher
+                .publish_audio(audio)
+                .unwrap_err()
+                .to_string()
+                .contains("20 ms")
+        );
+        assert_eq!(session.snapshot().encoded_video_frame_count, 0);
+        assert_eq!(session.snapshot().encoded_audio_packet_count, 0);
     }
 
     #[test]

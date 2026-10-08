@@ -84,7 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         thread::sleep(Duration::from_millis(20));
     }
     runtime.stop()?;
-    println!("captured video={video} audio={audio}; encoder pending");
+    println!("captured video={video} audio={audio}; raw capture probe only");
     if let Some(message) = failure {
         return Err(message.into());
     }

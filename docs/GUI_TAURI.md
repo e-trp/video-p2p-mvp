@@ -27,12 +27,12 @@ The backend around the GUI has moved one step forward:
 - `signaling-server` can now relay validated SDP/ICE envelopes between peers
 - stored signaling messages are replayed to a late joiner in the same room
 - the GUI now refreshes through a live signaling path and a real `PeerConnection`
-- host-side placeholder audio/video tracks are attached before offer creation and shown in the session snapshot
+- host-side H.264/Opus audio/video tracks are attached before offer creation and shown in the session snapshot
 - host preparation now auto-creates and sends the first local SDP offer once signaling is connected
 - a debug command can now push synthetic `capture-core` audio/video payloads into those attached tracks
 - the session manager can now ingest backend `capture-core` stream events for native capture implementations without routing them through the GUI debug command
 - the GUI now shows a platform capture catalog and allows selecting a source in-session
-- the capture panel shows separate native sample counts and summaries; viewer playback remains pending on encoding/rendering
+- the capture panel shows raw sample summaries, encoded H.264/Opus counts, and received video/audio RTP counts; viewer decoding/rendering remains pending
 - the macOS source picker now uses SCShareableContent window/application/display enumeration before falling back to blueprint data
 - the Linux source picker now attempts `wmctrl`-based runtime window enumeration before falling back to blueprint data
 - capture catalog diagnostics now show whether the GUI is using runtime data or blueprint fallback, plus backend notes
@@ -66,8 +66,8 @@ The backend around the GUI has moved one step forward:
 
 ## Backend Split
 
-- `app-core`: shared protocol, session state, signaling orchestration, source-validated capture-burst bridging, and live capture event ingestion
-- `transport-webrtc`: real peer transport bootstrap with attached host tracks
+- `app-core`: shared protocol, session state, signaling orchestration, and continuous capture/encode/publish processing
+- `transport-webrtc`: real peer transport with codec-aware H.264/Opus tracks and received RTP diagnostics
 - `capture-macos`: native ScreenCaptureKit raw video/audio bridge
 - `capture-linux`: planned Portal + PipeWire integration
 - `desktop-app`: Tauri shell and user-facing commands
@@ -83,7 +83,7 @@ It already models:
 - room and signaling metadata
 - a rolling in-memory event log
 
-This gives the Tauri shell a stable API before the real transport and capture layers are connected.
+The shell controls capture through a stable API; media processing runs on a worker independently of GUI refresh. Signaling still needs refresh to complete negotiation.
 
 ## Current User Interface
 
@@ -91,7 +91,7 @@ The current Tauri UI is wired to the session manager and supports:
 
 - editing room, signaling, and ICE server fields
 - scanning the live overview for current role, signaling reachability, capture runtime state, transport state, and next action
-- starting a host prototype path that prepares signaling, applies the selected source, attempts native capture, and displays native capture samples; debug publication remains a separate action
+- starting a host prototype path that prepares signaling, applies the selected source, starts native capture and publishes H.264/Opus after connection; debug publication remains a separate action
 - running a local desktop demo that marks a host/source/peer workflow active without external signaling
 - joining as a viewer from the first-viewport workflow without opening the diagnostics panels
 - reading command feedback as success, warning, or error state after each Tauri action

@@ -347,6 +347,10 @@ function setCaptureRuntime(session) {
     ["Audio", session.selected_source_audio ? "enabled" : "disabled"],
     ["Captured Video", session.captured_video_frame_count ?? 0],
     ["Captured Audio", session.captured_audio_buffer_count ?? 0],
+    ["Encoded H.264", session.encoded_video_frame_count ?? 0],
+    ["Encoded Opus", session.encoded_audio_packet_count ?? 0],
+    ["Received Video RTP", session.received_video_packet_count ?? 0],
+    ["Received Audio RTP", session.received_audio_packet_count ?? 0],
     ["Native Video", session.last_native_video_summary ?? "waiting for frames"],
     ["Native Audio", session.last_native_audio_summary ?? "waiting for audio"],
   ]);
@@ -862,7 +866,7 @@ async function startHostPrototype() {
     const status = captureResult.session?.capture_runtime_status;
     setCommandResult(
       status === "starting" || status === "running"
-        ? "Host prepared. Native capture started; viewer playback is still pending."
+        ? "Host prepared. Capture will stream H.264/Opus when the peer connects; viewer playback is still pending."
         : `Host prepared. Capture status: ${status ?? "unavailable"}. Check permissions and refresh the source list.`,
       status === "starting" || status === "running" ? "ok" : "warn",
     );

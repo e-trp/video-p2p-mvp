@@ -26,7 +26,7 @@ Video is packed BGRA8; the bridge removes pixel-buffer row padding and ignores n
 
 Audio is configured for 48 kHz stereo on macOS 13+. Both planar and interleaved float32 CoreMedia buffers are normalized to interleaved `AudioBuffer.samples`. The stream excludes the capturing process's audio. Actual audio availability and application filtering need manual testing; protected content may not be capturable. No microphone capture is performed.
 
-Both sample types preserve CoreMedia presentation timestamps in microseconds. The native queue retains the latest video frame and up to 32 audio buffers. This bounds memory while the desktop polls; it is an initial capture diagnostic policy, not a continuous encoded streaming pipeline.
+Both sample types preserve CoreMedia presentation timestamps in microseconds. The native queue retains the latest video frame and up to 32 audio buffers. A dedicated worker drains this queue roughly every 5 ms, encodes media, and publishes to WebRTC independently of GUI refresh. GUI diagnostics retain only the newest raw video/audio samples.
 
 Start returns `starting` while native content lookup and SCStream startup run asynchronously, then `running` only after the native completion succeeds. Startup has an eight-second timeout. Native failures become error events. Stop/drop detaches outputs, cancels further sample delivery, and stops the SCStream. Changing source/audio selection stops the old runtime; explicitly start capture again for the new selection.
 
@@ -34,7 +34,7 @@ Start returns `starting` while native content lookup and SCStream startup run as
 
 The desktop capture panel exposes `Captured Video`, `Captured Audio`, `Native Video`, and `Native Audio`. Counts reflect events drained into the session manager, so they depend on polling and queue backpressure. Samples update source-validated diagnostics without retaining raw media in the snapshot.
 
-Native raw BGRA/PCM is **not automatically sent** to the VP8/Opus WebRTC tracks. Video and audio encoders and viewer decoding/playback are still required. `Push Debug Capture Burst` remains a separate synthetic packetization smoke test and does not verify playable media. Host prototype startup now attempts native capture without automatically publishing debug samples.
+Native BGRA/PCM is encoded by VideoToolbox H.264 and vendored Opus before publication to codec-aware WebRTC tracks. Publication starts only with a connected peer. `Encoded H.264`/`Encoded Opus` count published access units/packets; viewer `Received Video RTP`/`Received Audio RTP` count received RTP packets, which may differ due to fragmentation. Viewer decoding/rendering remain pending. `Push Debug Capture Burst` is a separate non-playable packetization smoke test. See [the media pipeline guide](MEDIA_PIPELINE.md).
 
 ## Verification
 
@@ -60,7 +60,7 @@ Manual QA still required:
 
 1. Test permission denied, permission grant, relaunch, and retry on the packaged app and CLI.
 2. Verify window, application-per-display, and display selection on single/multiple monitors.
-3. Play changing video and audio in the selected app; confirm native counters and timestamps.
+3. Play changing video/audio in the selected app; confirm raw samples and timestamps, then connect a viewer and verify encoded publication and received RTP counters.
 4. Disable audio and restart capture; confirm no audio samples arrive.
 5. Change/close the selected window; verify the previous capture stops and source availability updates.
 6. Stop/reset/close the desktop while starting and while running; verify macOS recording indicators disappear.

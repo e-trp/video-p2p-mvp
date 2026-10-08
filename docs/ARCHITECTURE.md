@@ -6,10 +6,10 @@ The repository is now a workspace-based scaffold with a future desktop GUI targe
 
 Components:
 
-- `crates/app-core`: shared protocol, CLI parsing, live signaling client, session orchestration, debug capture-burst bridging, platform capture runtime lifecycle, and live capture event ingestion
+- `crates/app-core`: shared protocol, signaling, session orchestration, debug capture bridging, and a continuous capture/encode/publish worker
 - `crates/capture-core`: shared capture-domain types for source selection, permissions, capture stream events, audio buffers, and video frames
-- `crates/media-codec`: encoded media contracts and standalone macOS VideoToolbox H.264 encoder; transport integration is pending
-- `crates/transport-webrtc`: real `RTCPeerConnection` bootstrap with attached host media tracks and control data channel
+- `crates/media-codec`: encoded media contracts, macOS VideoToolbox H.264, and vendored Opus encoders
+- `crates/transport-webrtc`: real `RTCPeerConnection` with H.264/Opus SDP/tracks, encoded publication, received RTP counters, and a control data channel
 - `crates/capture-macos`: native ScreenCaptureKit catalog and raw video/audio runtime
 - `crates/capture-linux`: planned Linux capture backend blueprint crate
 - `crates/signaling-server`: TCP room coordination between exactly two peers
@@ -23,12 +23,12 @@ Components:
    On macOS, that catalog now attempts SCShareableContent window/application/display enumeration before falling back to blueprint data.
    On Linux, it now attempts `wmctrl`-based runtime window enumeration before falling back to blueprint data.
 3. A host/viewer session joins a room through `app-core::SignalingConnection`.
-4. `transport-webrtc` creates a real `PeerConnection`, attaches placeholder host audio/video tracks, and keeps a bootstrap data channel for control flow.
+4. `transport-webrtc` creates a real `PeerConnection`, attaches H.264/Opus host audio/video tracks, and keeps a bootstrap data channel for control flow.
 5. Local SDP/ICE is encoded through shared protocol messages and sent through `signaling-server`.
 6. The peer receives signaling messages, and the GUI session refresh path auto-applies remote answer/ICE through the same signaling channel.
 7. The session manager exposes source-validated video/audio publish APIs above `transport-webrtc`.
-   The debug smoke path synthesizes `capture-core` payloads through that route. Native ScreenCaptureKit events use source-validated `CaptureStreamEvent` ingestion and update separate raw-capture diagnostics; encoding must land before real native RTP publication.
-8. The session manager can start, poll, and stop the current platform `CaptureStreamRuntime`, draining its events into the same source-validated ingestion path.
+   The debug smoke path synthesizes non-playable `capture-core` payloads through that route. A dedicated worker drains ScreenCaptureKit, validates source/audio selection, encodes BGRA/PCM into H.264/Opus, and publishes only while the peer is connected. GUI refresh receives only the newest raw samples for diagnostics.
+8. The session manager owns the worker lifecycle. Stop, source/audio changes, reset, replacement, and drop join it before closing/dropping the peer runtime. Viewer track readers count received RTP; decoding and rendering remain pending.
 9. Mock UDP sender/receiver flow still exists separately for the old media scaffold.
 
 The current signaling server also accepts future WebRTC signaling envelopes after pairing:
@@ -99,7 +99,7 @@ For signaling/STUN/TURN deployment shape and security assumptions, see `docs/NET
 - no attempt at production NAT traversal
 - no media relay
 - no production persistence layer beyond local desktop session preferences
-- no encryption beyond what the transport would later provide
+- WebRTC media uses DTLS-SRTP; the MVP TCP signaling and legacy mock UDP flow remain plaintext
 
 ## Current Signaling Progress
 
@@ -115,11 +115,11 @@ The codebase now contains a minimal signaling model for future WebRTC:
 - session refresh now re-synchronizes the capture catalog so permission/origin changes are not stuck at process startup
 - host session guidance now branches on capture readiness before falling through to signaling-only advice
 - host capture selection now self-heals to the first available source when runtime catalog refresh invalidates the previous selection
-- a real `PeerConnection` bootstrap path with attached placeholder audio/video tracks, connection-state snapshots, and ICE gathering
+- a real `PeerConnection` bootstrap path with attached H.264/Opus audio/video tracks, connection-state snapshots, and ICE gathering
 - Tauri commands and session snapshots that surface local media-track state, debug capture-payload counters, and payload summaries in the GUI
 - the CLI host flow now follows the same automatic first-offer path as the GUI and can optionally publish a debug capture burst after connect
 - `app-core::SessionManager` now validates selected source identity and audio opt-in before accepting capture payloads for publication
-- `app-core::SessionManager` now ingests live `capture-core` stream events and validates video/audio events and records separate native counters/summaries until encoders are available
+- `app-core::SessionManager` now ingests live `capture-core` stream events and validates video/audio events and records separate native counters/summaries alongside continuous encoded publication
 - `app-core::SessionManager` now owns the active platform capture runtime lifecycle and exposes start/poll/stop entry points for native capture events
 - `capture-macos` now separates catalog/permission validation from a native ScreenCaptureKit bridge lifecycle boundary, with catalog-backed source metadata and normalized stream settings passed into the bridge startup path
 - the main Tauri GUI path now relies on automatic signaling refresh instead of exposing manual answer/ICE controls

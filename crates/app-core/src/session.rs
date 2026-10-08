@@ -3,6 +3,7 @@ use crate::capture_catalog::{
     new_capture_runtime, selected_source_label,
 };
 use crate::ice_servers::{IceServerEntry, format_ice_server_entries, summarize_ice_server_entries};
+use crate::media_pipeline::MediaPipelineRuntime;
 use crate::preferences::{PersistedSessionConfig, PreferencesStore, UiPreferences};
 use crate::protocol::{
     IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage,
@@ -85,6 +86,10 @@ pub struct SessionSnapshot {
     pub local_audio_track_attached: bool,
     pub published_video_sample_count: usize,
     pub published_audio_sample_count: usize,
+    pub encoded_video_frame_count: usize,
+    pub encoded_audio_packet_count: usize,
+    pub received_video_packet_count: usize,
+    pub received_audio_packet_count: usize,
     pub last_video_sample_bytes: usize,
     pub last_audio_sample_bytes: usize,
     pub last_video_capture_summary: Option<String>,
@@ -148,6 +153,12 @@ struct RecoveryDiagnostics {
     reason: String,
     can_reconnect: bool,
     reconnect_recommended: bool,
+}
+
+impl Drop for SessionManager {
+    fn drop(&mut self) {
+        self.disconnect_active_session();
+    }
 }
 
 impl Default for SessionState {
@@ -459,7 +470,17 @@ impl SessionManager {
         }
 
         if self.state.capture_runtime.is_none() {
-            self.state.capture_runtime = new_capture_runtime();
+            let backend = new_capture_runtime()
+                .ok_or_else(|| "native capture runtime is unavailable".to_string())?;
+            let publisher = self
+                .state
+                .webrtc
+                .as_ref()
+                .ok_or_else(|| "host transport is unavailable".to_string())?
+                .encoded_publisher()
+                .map_err(|error| error.to_string())?;
+            self.state.capture_runtime =
+                Some(Box::new(MediaPipelineRuntime::new(backend, publisher)));
         }
 
         let Some(runtime) = self.state.capture_runtime.as_mut() else {
@@ -617,7 +638,7 @@ impl SessionManager {
                 } else {
                     self.state.captured_video_frame_count += 1;
                     self.state.last_native_video_summary = Some(format!(
-                        "{:?} {}x{} / {}B / {}us; encoder pending",
+                        "{:?} {}x{} / {}B / {}us; raw capture input",
                         frame.format,
                         frame.width,
                         frame.height,
@@ -625,7 +646,7 @@ impl SessionManager {
                         frame.timestamp_micros
                     ));
                     if self.state.captured_video_frame_count == 1 {
-                        self.push_log("native video received; raw BGRA/NV12 requires encoding before WebRTC publication".to_string());
+                        self.push_log("native video received; background H264 publication starts when the peer connects".to_string());
                     }
                 }
             }
@@ -635,14 +656,14 @@ impl SessionManager {
                 } else {
                     self.state.captured_audio_buffer_count += 1;
                     self.state.last_native_audio_summary = Some(format!(
-                        "{}Hz / {}ch / {} frames / {}us; encoder pending",
+                        "{}Hz / {}ch / {} frames / {}us; raw capture input",
                         buffer.sample_rate_hz,
                         buffer.channels,
                         buffer.frames,
                         buffer.timestamp_micros
                     ));
                     if self.state.captured_audio_buffer_count == 1 {
-                        self.push_log("native audio received; raw PCM requires Opus encoding before WebRTC publication".to_string());
+                        self.push_log("native audio received; background Opus publication starts when the peer connects".to_string());
                     }
                 }
             }
@@ -770,10 +791,7 @@ impl SessionManager {
     }
 
     pub fn reset(&mut self) -> SessionSnapshot {
-        self.stop_capture_runtime_without_snapshot();
-        if let Some(webrtc) = self.state.webrtc.as_mut() {
-            let _ = webrtc.close();
-        }
+        self.disconnect_active_session();
         self.state = SessionState::default();
         self.load_persisted_preferences();
         self.push_log("session reset to idle state".to_string());
@@ -873,6 +891,18 @@ impl SessionManager {
                 .as_ref()
                 .map(|snapshot| snapshot.published_audio_sample_count)
                 .unwrap_or(0),
+            encoded_video_frame_count: transport_snapshot
+                .as_ref()
+                .map_or(0, |snapshot| snapshot.encoded_video_frame_count),
+            encoded_audio_packet_count: transport_snapshot
+                .as_ref()
+                .map_or(0, |snapshot| snapshot.encoded_audio_packet_count),
+            received_video_packet_count: transport_snapshot
+                .as_ref()
+                .map_or(0, |snapshot| snapshot.received_video_packet_count),
+            received_audio_packet_count: transport_snapshot
+                .as_ref()
+                .map_or(0, |snapshot| snapshot.received_audio_packet_count),
             last_video_sample_bytes: transport_snapshot
                 .as_ref()
                 .map(|snapshot| snapshot.last_video_sample_bytes)
@@ -974,6 +1004,7 @@ impl SessionManager {
         transport: SessionTransport,
         intent: SessionIntent,
     ) {
+        self.disconnect_active_session();
         self.state.mode = mode;
         self.state.stage = stage;
         self.state.transport = transport;
@@ -1630,7 +1661,7 @@ impl SessionManager {
             }
             (_, SessionStage::Stopped, _) => "reconnect, restart, or reset session",
             (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
-                "peer connection is live; native capture can be checked locally, while viewer playback is still pending"
+                "peer connection is live; encoded media counters show delivery, while viewer playback is still pending"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
                 if self.state.capture_catalog.permission_state
@@ -2289,7 +2320,7 @@ mod tests {
 
         assert_eq!(after_video.captured_video_frame_count, 1);
         assert_eq!(after_audio.captured_audio_buffer_count, 1);
-        // Raw native media must never be packetized as VP8/Opus without an encoder.
+        // Diagnostic ingestion must never packetize raw media without an encoder.
         assert_eq!(after_video.published_video_sample_count, 0);
         assert_eq!(after_audio.published_audio_sample_count, 0);
         assert!(
@@ -2297,7 +2328,7 @@ mod tests {
                 .last_native_video_summary
                 .as_deref()
                 .unwrap()
-                .contains("encoder pending")
+                .contains("raw capture input")
         );
         assert!(
             after_audio

@@ -94,7 +94,7 @@ Expected:
 - live overview shows host mode
 - signaling readiness shows `connected`
 - session log says local SDP offer was created and sent automatically, or gives a concrete warning if capture permission/source selection prevents native startup
-- on macOS with native capture active, the capture panel shows native video/audio samples separately from debug transport samples
+- on macOS with native capture active, the capture panel shows raw samples; after a viewer connects it also shows encoded H.264/Opus publication and received RTP counts
 - viewer playback remains pending; starting the host does not send synthetic debug samples automatically
 
 To test a viewer, open a second app instance or use the CLI viewer:

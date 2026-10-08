@@ -12,12 +12,12 @@ The current repository can already provide:
 - live WebRTC negotiation between host and viewer
 - configurable STUN/TURN ICE server settings for CLI and desktop runs
 - debug `capture-core` media bursts for transport validation
-- native macOS ScreenCaptureKit capture with raw sample diagnostics
+- native macOS ScreenCaptureKit capture, H.264/Opus encoding, and continuous WebRTC publication
 
 It does **not** yet provide:
 
 - Linux OS screen/system audio capture
-- encoded native media delivery and viewer playback
+- viewer decoding and playback
 - STUN/TURN deployment defaults
 - production packaging/signing/notarization flow
 
@@ -191,7 +191,7 @@ stun:stun.l.google.com:19302
 
 For the intended production signaling/STUN/TURN topology, see `docs/NETWORKING.md`.
 
-### The desktop shell shows sources, but no real media is streamed
+### The viewer receives media, but shows no picture or sound
 
 This is expected in the current MVP.
 
@@ -199,11 +199,11 @@ Today the repo supports:
 
 - live signaling
 - live WebRTC negotiation
-- attached placeholder tracks
+- codec-aware H.264/Opus tracks
 - debug `capture-core` payload publishing
-- a `capture-core` stream event contract that native capture backends can feed later
+- a continuous native macOS capture/encode/publish worker
 
-The macOS backend captures real raw samples and reports them in the capture panel. Encoded delivery into WebRTC tracks and viewer playback are still pending; debug payloads remain transport smoke tests.
+On macOS, start native capture with a real source and connect a viewer. Host `Encoded H.264`/`Encoded Opus` and viewer `Received Video RTP`/`Received Audio RTP` should increase while media is active. Viewer decoding/rendering are pending. Raw diagnostic counts depend on GUI refresh; encoded publication continues independently. Debug bursts are non-playable packetization tests.
 
 ### macOS source listing falls back or permission looks blocked
 
@@ -221,7 +221,7 @@ Important limitation:
 
 - native capture starts only on an explicit capture action with a real catalog source
 - permission changes may require relaunch, catalog refresh, and reselection before retry
-- real viewer playback still requires codecs; see [the capture guide](MACOS_CAPTURE.md)
+- viewer decoding/rendering remain pending; see [the media pipeline guide](MEDIA_PIPELINE.md)
 
 ### Linux source listing is incomplete or unavailable
 

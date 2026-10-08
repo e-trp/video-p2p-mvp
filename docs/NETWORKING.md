@@ -13,7 +13,7 @@ host desktop/CLI <---- TCP signaling ----> signaling-server <---- TCP signaling 
 Implemented today:
 
 - TCP signaling server for room join, peer announcement, SDP relay, ICE relay, and late-join signaling replay
-- WebRTC `RTCPeerConnection` bootstrap with host-side placeholder audio/video tracks
+- WebRTC `RTCPeerConnection` with H.264/Opus tracks and continuous encoded macOS publication
 - optional user-provided ICE servers in CLI and desktop UI
 - ICE path diagnostics when WebRTC stats expose a selected candidate pair
 - direct UDP mock media flow retained as a legacy scaffold
@@ -23,7 +23,7 @@ Not implemented today:
 - bundled STUN or TURN service
 - production authentication for signaling rooms
 - HTTPS/WSS signaling deployment
-- encoded OS-captured media delivery (macOS raw capture is implemented)
+- viewer decoding/playback and Linux OS-captured media delivery
 - production TURN credential issuance
 
 ## Production Topology
@@ -125,7 +125,7 @@ Future production metrics should add:
 - TURN allocation success/failure counts
 - relay usage percentage
 - connection setup duration
-- media publish/render latency once real capture is implemented
+- capture-to-render latency once viewer playback is implemented
 
 ## Current Gaps
 
@@ -136,4 +136,4 @@ The current MVP is ready for local and controlled-network smoke testing. It is n
 - bundled STUN defaults
 - TURN deployment and short-lived credential flow
 - production room lifecycle
-- encoded native media, codec pipeline, and viewer playback
+- viewer playback, Linux capture/video encoding, and adaptive media controls

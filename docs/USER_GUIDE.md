@@ -8,12 +8,12 @@ This repository is still an MVP. Today it can already provide:
 - a Tauri desktop GUI for host/viewer session control
 - a live WebRTC negotiation path between host and viewer
 - configurable ICE server entries for custom STUN/TURN traversal
-- attached placeholder host audio/video tracks
+- codec-aware H.264/Opus host audio/video tracks
 - debug `capture-core` media payload publishing for transport smoke testing
-- native macOS ScreenCaptureKit video/audio events with separate capture counters in the desktop panel
+- native macOS ScreenCaptureKit capture and continuous H.264/Opus WebRTC publication with separate raw/encoded/received counters
 - a source picker fed by current platform capture metadata, with runtime enumeration when available and blueprint fallback otherwise
 
-macOS raw capture is implemented; Linux capture, media encoding, viewer playback, bundled STUN/TURN deployment defaults, and production invite/auth flows remain pending. See [macOS capture](MACOS_CAPTURE.md) for setup and validation.
+macOS capture, encoding, and publication are implemented; Linux capture/video encoding, viewer playback, bundled STUN/TURN deployment defaults, and production invite/auth flows remain pending. See [macOS capture](MACOS_CAPTURE.md) for setup and validation.
 
 For setup, release build notes, and troubleshooting, see `docs/INSTALLATION.md`.
 For manual validation before a release candidate, see `docs/QA_CHECKLIST.md`.
@@ -104,7 +104,7 @@ Today this picker is backed by:
 - macOS: SCShareableContent windows, applications, and displays with native IDs; blueprint fallback when permission or enumeration is unavailable
 - Linux: runtime X11 window enumeration through `wmctrl` when available, with a fallback to `Portal + PipeWire`-shaped blueprint sources
 
-On macOS, starting capture validates Screen Recording permission and creates a native SCStream for the selected source. Video arrives as packed BGRA, and audio on macOS 13+ arrives as 48 kHz interleaved float PCM. The capture panel shows native sample counts and summaries. Encoding and viewer playback are pending; these raw samples are not automatically sent over WebRTC.
+On macOS, starting capture validates Screen Recording permission and creates a native SCStream for the selected source. Video arrives as packed BGRA, and audio on macOS 13+ arrives as 48 kHz interleaved float PCM. A worker encodes video as H.264 and audio as Opus and publishes after WebRTC connects. The capture panel shows raw diagnostics, encoded packet counts, and received RTP counts. Viewer decoding/playback is still pending. Disabling GUI refresh does not pause capture or publication after negotiation.
 Changing the source or audio toggle stops the current stream; click `Start Capture` to capture the new selection. Blueprint sources support the local demo/debug flow but cannot start native capture. Linux still uses metadata discovery and a planned runtime.
 
 ### Transport Diagnostics
@@ -156,7 +156,7 @@ The `Reconnect` button is disabled only when no host/viewer session has been pre
 
 ### Transport Smoke Test
 
-- the capture runtime panel controls native capture start, poll, and stop, and reports `Captured Video`, `Captured Audio`, `Native Video`, and `Native Audio`
+- the capture runtime panel controls native capture start, poll, and stop, and reports `Captured Video`, `Captured Audio`, `Native Video`, `Native Audio`, `Encoded H.264`, `Encoded Opus`, `Received Video RTP`, and `Received Audio RTP`
 - `Push Debug Capture Burst`: synthesize `capture-core` video/audio payloads and write them into the attached host tracks
 
 The debug burst respects the selected source audio toggle:
@@ -169,7 +169,7 @@ Both debug publication and native sample diagnostics validate source selection a
 - the selected source id must match the payload source being published
 - audio payloads are rejected when the current selection has `Include Audio` turned off
 
-The backend also now accepts live `capture-core` stream events through `SessionManager::ingest_capture_stream_event`. ScreenCaptureKit now feeds this API through the platform runtime. It validates source identity and audio opt-in, then records native sample diagnostics without sending raw data to codec-labelled tracks.
+The backend also now accepts live `capture-core` stream events through `SessionManager::ingest_capture_stream_event`. The continuous worker validates source identity/audio opt-in and encodes before transport publication. It retains only the latest raw video/audio event for this diagnostic API, so native diagnostic counts depend on refresh cadence while encoded counters reflect all published packets.
 
 Host-side offer creation, answer delivery, and ICE flow automatically through the signaling server during refresh. Native capture and debug packetization have separate controls and counters.
 
@@ -237,7 +237,7 @@ cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
 - Linux runtime enumeration currently depends on X11-style `wmctrl` metadata and does not cover the real Wayland portal flow yet
 - macOS native capture needs Screen Recording access; audio needs macOS 13+; real permission/source/audio behavior still needs manual QA
 - debug `capture-core` payload bursts are synthetic transport smoke tests; native sample counters are separate
-- real captured media is not viewable remotely until encoders and viewer playback are implemented
+- encoded media reaches the viewer, but remote picture/sound still require viewer decoding and rendering
 - the GUI still falls back to blueprint/example capture sources when runtime enumeration is unavailable
 - ICE server configuration is manual; there is still no bundled TURN service or auth flow
 - the signaling service is still a minimal two-peer MVP
