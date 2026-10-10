@@ -10,16 +10,26 @@ Run from the repository root with local sockets and macOS codec services availab
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all --all-features
-node --test apps/desktop/tests/viewer-player.test.mjs
 cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+cargo clippy --all-targets --all-features -- -D warnings
 cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+cargo test --all --all-features
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --all-features
+node --test apps/desktop/tests/viewer-player.test.mjs
 ```
 
 Root CI runs the root Rust/Node checks on Linux/macOS, plus `sh scripts/test-macos-capture.sh` on macOS. It does not check/package Tauri or run native browser playback probes. Native extraction and codec tests use synthetic sample buffers/frames, not actual screen recording.
 
 For synthetic decoded playback/recovery in WKWebView and Chromium, follow [viewer verification](VIEWER_PLAYBACK.md#verification). These probes verify pixels, Opus PCM, RTCP recovery, and cleanup; they do not establish actual capture, audible devices, user gestures, or cross-network behavior.
+
+[AGENTS.md](../AGENTS.md) requires formatting/lint/tests for each completed change, all available macOS native/browser probes, documentation updates, and cleanup after the checks. Save results and any needed release bundles, stop test processes, then clean both workspaces:
+
+```bash
+cargo clean
+cargo clean --manifest-path apps/desktop/src-tauri/Cargo.toml
+```
+
+Clean removes built binaries, so run it after playback probes. Rebuild before another test/probe run; never clean while Cargo or test processes are active.
 
 ## Backend Negotiation Smoke Test
 

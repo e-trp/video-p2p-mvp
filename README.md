@@ -60,9 +60,12 @@ The Tauri crate is a separate workspace; check it explicitly:
 ```bash
 cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --all-features
 cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --all-features
 ```
 
 Local sockets and macOS codec services must be available for media integration tests. Root CI runs Rust and viewer lifecycle checks on Linux/macOS, plus native sample extraction tests on macOS. It does not build/package Tauri or run the GUI/browser probe.
+
+[AGENTS.md](AGENTS.md) defines the complete per-change gate, available native/browser probes, and final `cargo clean` for both workspaces after all checks.
 
 ## Repository And Documentation
 
@@ -78,6 +81,7 @@ Local sockets and macOS codec services must be available for media integration t
 | `apps/cli` | Negotiation checks and legacy mock UDP flows |
 | `apps/desktop` | Tauri shell and WebView player |
 
+- [Agent instructions](AGENTS.md): Rust style, safe FFI, feature order, tests, documentation, and artifact cleanup.
 - [TODO](todo.md): fully completed work, incomplete work, and next steps.
 - [Specification](docs/SPECIFICATION.md): product requirements and current scope.
 - [Architecture](docs/ARCHITECTURE.md): components and data flow.
