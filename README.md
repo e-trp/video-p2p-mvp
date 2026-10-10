@@ -104,6 +104,7 @@ It now exposes commands for:
 - starting, polling, and stopping the current platform capture stream runtime from the session manager and desktop GUI
 - polling host signaling with the persisted auto-refresh cadence and viewer signaling through an independent player loop
 - playing remote H.264/Opus video/audio in the WebView with muted startup, sound controls, and decoded-media diagnostics
+- responding to viewer keyframe feedback with H.264 refresh frames and host recovery counters
 - reconnecting the current host/viewer session with the active room, signaling, and ICE settings after a stop or signaling failure
 - surfacing explicit recovery-state diagnostics in the desktop UI so reconnect guidance is visible without digging through logs
 - surfacing live transport diagnostics from the `PeerConnection` snapshot, including ICE path, RTT, bitrate, byte counters, and packet-loss metrics when available
@@ -178,6 +179,6 @@ What changed relative to the earlier scaffold:
 ## Recommended Next Build Steps
 
 1. Validate real window/audio playback and permission flows on macOS using [the viewer guide](docs/VIEWER_PLAYBACK.md).
-2. Add A/V sync monitoring, adaptive bitrate, and feedback-driven keyframe recovery.
+2. Add A/V sync monitoring, adaptive bitrate, and network-aware frame pacing.
 3. Manually validate macOS Screen Recording permission, application/window capture, and audio routing using [the native capture guide](docs/MACOS_CAPTURE.md).
 4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.

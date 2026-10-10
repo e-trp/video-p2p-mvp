@@ -291,8 +291,23 @@ mod tests {
         assert!(!next.keyframe);
         assert_eq!(next.duration, Duration::from_micros(33_333));
         assert!(encoder.encode(&frame(63, 35, 1_033_333), false).is_err());
+        let requested = encoder
+            .encode(&frame(63, 35, 1_066_666), true)
+            .unwrap()
+            .unwrap();
+        assert!(requested.keyframe);
+        let nal_types: Vec<_> = requested
+            .bytes
+            .windows(5)
+            .filter(|bytes| bytes[..4] == [0, 0, 0, 1])
+            .map(|bytes| bytes[4] & 0x1f)
+            .collect();
+        assert!(
+            nal_types.contains(&7) && nal_types.contains(&8) && nal_types.contains(&5),
+            "requested refresh must contain SPS/PPS/IDR: {nal_types:?}"
+        );
         let resized = encoder
-            .encode(&frame(128, 72, 1_066_666), false)
+            .encode(&frame(128, 72, 1_099_999), false)
             .unwrap()
             .unwrap();
         assert!(resized.keyframe);

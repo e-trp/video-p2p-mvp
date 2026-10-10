@@ -11,10 +11,12 @@ import { createInterface } from "node:readline";
 if (process.platform !== "darwin") throw new Error("The synthetic VideoToolbox host requires macOS");
 const root = resolve(import.meta.dirname, "..");
 const chromeMode = process.argv.includes("--chrome") || process.env.VIEWER_TEST_BROWSER === "chrome";
+const recoveryMode = process.argv.includes("--keyframe-recovery");
 const scratch = await mkdtemp(resolve(tmpdir(), "video-p2p-playback-"));
 const children = [];
 let logs = "";
 let httpServer;
+let hostReport = null;
 function child(program, args, options = {}) {
   const process = spawn(program, args, { cwd: root, stdio: ["pipe", "pipe", "pipe"], ...options });
   children.push(process);
@@ -95,7 +97,8 @@ try {
   const drawing = canvas.getContext("2d"); drawing.drawImage(video, 0, 0);
   const pixel = [...drawing.getImageData(32, 18, 1, 1).data];
   const backend = await invoke("snapshot");
-  const result = { width: video.videoWidth, height: video.videoHeight, amplitude, pixel, backend, state: player.context?.state };
+  const host = await invoke("host_snapshot");
+  const result = { width: video.videoWidth, height: video.videoHeight, amplitude, pixel, backend, host, state: player.context?.state };
   const tracks = player.context.stream.getTracks();
   const peer = player.context.peer;
   await invoke("stop");
@@ -125,7 +128,8 @@ try {
   await until(() => ready || server.exitCode !== null);
   assert.equal(server.exitCode, null, `Signaling server exited\n${logs}`);
   const env = { ...process.env, VIDEO_P2P_MVP_CONFIG_DIR: resolve(scratch, "preferences") };
-  child(resolve(root, "target/debug/examples/playback_probe"), ["host", address], { env });
+  const host = child(resolve(root, "target/debug/examples/playback_probe"), ["host", address, ...(recoveryMode ? ["--drop-first-keyframe"] : [])], { env });
+  createInterface({ input: host.stdout }).on("line", (line) => { hostReport = JSON.parse(line); });
   const bridge = new Bridge(child(resolve(root, "target/debug/examples/playback_probe"), ["bridge", address], { env }));
   httpServer = createHttpServer(async (request, response) => {
     try {
@@ -133,7 +137,7 @@ try {
         let body = ""; for await (const chunk of request) body += chunk;
         const { command, args } = JSON.parse(body);
         response.setHeader("Content-Type", "application/json");
-        response.end(JSON.stringify({ result: await bridge.invoke(command, args) }));
+        response.end(JSON.stringify({ result: command === "host_snapshot" ? hostReport : await bridge.invoke(command, args) }));
       } else if (request.url === "/viewer-player.mjs") {
         response.setHeader("Content-Type", "text/javascript");
         response.end(await readFile(resolve(root, "apps/desktop/public/viewer-player.mjs")));
@@ -186,7 +190,12 @@ try {
   assert.ok(result.backend.audio_samples > 0);
   assert.equal(result.backend.connection, "connected");
   assert.equal(result.stopped, true, JSON.stringify(result.cleanup));
-  console.log(`${chromeMode ? "Chrome" : "WKWebView"} playback passed: ${result.width}x${result.height}, ${result.backend.video_frames} decoded frames, ${result.backend.audio_samples} audio samples; stop released media.`);
+  if (recoveryMode) {
+    assert.ok(result.host?.initial_keyframe_dropped, "the probe did not drop its initial keyframe");
+    assert.ok(result.host.received_requests > 0, "the browser did not request a keyframe through RTCP");
+    assert.ok(result.host.recovery_keyframes > 0, "the host did not publish a feedback-driven keyframe");
+  }
+  console.log(`${chromeMode ? "Chrome" : "WKWebView"} playback passed: ${result.width}x${result.height}, ${result.backend.video_frames} decoded frames, ${result.backend.audio_samples} audio samples; stop released media.${recoveryMode ? " Browser RTCP keyframe recovery verified." : ""}`);
 } finally {
   const exits = children.map((process) => process.exitCode !== null || process.signalCode !== null ? undefined : new Promise((resolve) => process.once("exit", resolve)));
   for (const process of children) if (process.exitCode === null && process.signalCode === null) process.kill();

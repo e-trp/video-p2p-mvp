@@ -89,6 +89,9 @@ pub struct SessionSnapshot {
     pub published_audio_sample_count: usize,
     pub encoded_video_frame_count: usize,
     pub encoded_audio_packet_count: usize,
+    pub received_keyframe_request_count: usize,
+    pub published_keyframe_count: usize,
+    pub keyframe_request_pending: bool,
     pub received_video_packet_count: usize,
     pub received_audio_packet_count: usize,
     pub viewer_generation: Option<u64>,
@@ -1036,6 +1039,15 @@ impl SessionManager {
             encoded_audio_packet_count: transport_snapshot
                 .as_ref()
                 .map_or(0, |snapshot| snapshot.encoded_audio_packet_count),
+            received_keyframe_request_count: transport_snapshot
+                .as_ref()
+                .map_or(0, |snapshot| snapshot.received_keyframe_request_count),
+            published_keyframe_count: transport_snapshot
+                .as_ref()
+                .map_or(0, |snapshot| snapshot.published_keyframe_count),
+            keyframe_request_pending: transport_snapshot
+                .as_ref()
+                .is_some_and(|snapshot| snapshot.keyframe_request_pending),
             received_video_packet_count: transport_snapshot
                 .as_ref()
                 .map_or(0, |snapshot| snapshot.received_video_packet_count),

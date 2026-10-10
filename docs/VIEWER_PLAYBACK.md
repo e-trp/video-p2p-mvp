@@ -20,6 +20,8 @@ Every command is validated against the active generation and terminal playback s
 
 Both peers use BUNDLE for shared media transport. The viewer requires `max-bundle`; host SDP advertises Constrained Baseline H.264 Level 3.1 (`42e01f`, packetization mode 1), 90 kHz video, and 48 kHz stereo Opus. VideoToolbox SPS tests verify the advertised profile constraints. This combination was verified with a real macOS WKWebView.
 
+The WebView decoder sends RTCP keyframe feedback directly to the host. The host responds to video PLI/FIR through the capture worker, coalescing repeated requests and waiting at least 500 ms after the previous published keyframe. The host capture panel shows Keyframe Requests, Published Keyframes, and Keyframe Pending. Pending requests require another captured frame; keyframe recovery does not adjust bitrate or repair a sustained network outage.
+
 ## Verification
 
 Unit/lifecycle checks:
@@ -45,8 +47,15 @@ Optional Chromium interoperability check with installed Chrome:
 node scripts/test-viewer-playback.mjs --chrome
 ```
 
+To omit the initial SPS/PPS/IDR and require browser-originated RTCP feedback plus a successfully decoded refresh frame:
+
+```bash
+node scripts/test-viewer-playback.mjs --keyframe-recovery
+node scripts/test-viewer-playback.mjs --chrome --keyframe-recovery
+```
+
 ## Remaining Validation
 
-Real window/application audio capture, packaged Tauri playback, sound output devices, multiple monitors, macOS permission/relaunch behavior, and cross-network streaming require manual QA. Linux playback depends on the installed WebView's WebRTC/H.264/Opus support and has not been manually validated. Unsupported WebViews show a player error. Browser playout timing is used initially; end-to-end A/V skew, latency/CPU, adaptive bitrate, and feedback-driven keyframes remain open.
+Real window/application audio capture, packaged Tauri playback, sound output devices, multiple monitors, macOS permission/relaunch behavior, and cross-network streaming require manual QA. Linux playback depends on the installed WebView's WebRTC/H.264/Opus support and has not been manually validated. Unsupported WebViews show a player error. Browser playout timing is used initially; end-to-end A/V skew, latency/CPU, adaptive bitrate, and recovery under real weak-network conditions remain open.
 
 References: [WebKit WebRTC in WebViews](https://webkit.org/blog/7763/a-closer-look-into-webrtc/) and [the WebRTC specification](https://www.w3.org/TR/webrtc/).

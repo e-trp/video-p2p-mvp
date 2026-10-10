@@ -118,6 +118,7 @@ The desktop viewer should display the selected window. Click Enable Sound and ve
 5. Stop the viewer, then refresh diagnostics repeatedly; the session must stay stopped, the video element must clear, and sound must stop.
 6. Reconnect, reset, and switch to host mode while negotiation is in progress; old callbacks must not restore media or overwrite the new session's diagnostics.
 7. Force a peer failure; verify an error is visible and playback remains closed until reconnect.
+8. Exercise packet loss/decoder refresh with a changing source; host Keyframe Requests should increase when the viewer requests refresh, Published Keyframes should follow, and Keyframe Pending should clear after publication. Repeated feedback is coalesced with a 500 ms cooldown; initial/restart/resize keyframes remain immediate. Verify picture recovery after connectivity returns.
 
 Run `node --test apps/desktop/tests/viewer-player.test.mjs` and `cargo test -p app-core viewer` for automated lifecycle checks. See [the viewer guide](VIEWER_PLAYBACK.md) for the optional synthetic WKWebView playback test.
 

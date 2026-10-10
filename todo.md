@@ -143,6 +143,7 @@
    Current state: initial bounded native queues, continuous draining, latest-only GUI diagnostics, and a 200 ms publication timeout are implemented. Network-aware pacing and adaptive dropping remain open.
 4. Add A/V sync monitoring.
 5. Add graceful degradation for weak networks.
+   Current state: decoder refresh via RTCP PLI/FIR is implemented; repeated feedback is coalesced with a 500 ms minimum interval between feedback-driven keyframes. Adaptive quality and sustained congestion handling remain open.
 
 ### Iteration 5 Progress
 
@@ -158,7 +159,11 @@
 - Verified: actual encoded video/audio delivery over local WebRTC with synthetic capture, no dependency on GUI polling, stop/restart, and audio opt-out
 - Implemented: desktop viewer WebRTC depacketization, jitter buffering, decoding, and video/audio output without media IPC
 - Verified: real WKWebView decoded video pixels/dimensions, nonzero Opus audio PCM, backend decoded/received counters, and stop cleanup using synthetic media
-- Still open: Linux H.264 encoding/playback QA, adaptive bitrate/pacing, A/V sync monitoring, and feedback-driven keyframe recovery
+- Implemented: video RTCP PLI/FIR handling, video-SSRC filtering, FIR duplicate detection, bounded keyframe request state, and capture-worker refresh frames with SPS/PPS/IDR
+- Implemented: host keyframe request/publication/pending counters, a 500 ms feedback cooldown, and pending-state cleanup across disconnection/close
+- Verified: real SRTCP PLI/FIR delivery, native requested SPS/PPS/IDR output, capture-worker recovery before the periodic keyframe interval, and pending feedback surviving capture stop/restart
+- Verified: WKWebView and Chromium request refresh through RTCP after the initial keyframe is dropped, decode the recovered video and Opus audio, and release media on stop
+- Still open: Linux H.264 encoding/playback QA, adaptive bitrate/pacing, A/V sync monitoring, and weak-network validation
 
 ## Iteration 6: NAT Traversal And Deployment
 
@@ -212,4 +217,5 @@
 - Added: continuous encoded-media WebRTC integration test and capture-worker lifecycle/permission/source checks; manual encoded/RTP counter checks are documented
 - Added: Rust viewer signaling/generation coverage, Node lifecycle/ICE-order/autoplay/stale-callback tests, and opt-in native WKWebView playback probe; see `docs/VIEWER_PLAYBACK.md`
 - Added: regressions for stop followed by refresh, failure followed by delayed reports, stop during buffered ICE, and transient disconnect/recovery; the native probe checks closed peers and ended tracks
+- Added: keyframe feedback filtering/coalescing/cooldown and publication-race checks, SRTCP integration coverage, and an optional browser recovery probe that drops the initial keyframe
 - Still open: actual desktop capture-to-playback, packaged GUI, Linux WebView, and cross-network/latency/CPU validation

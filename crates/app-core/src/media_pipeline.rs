@@ -102,15 +102,17 @@ fn process_event(
     }
     match event {
         CaptureStreamEvent::VideoFrame { frame, .. } => {
+            let force_keyframe = encoders.force_keyframe || publisher.keyframe_requested();
             if let Some(encoded) = encoders
                 .video
-                .encode(frame, encoders.force_keyframe)
+                .encode(frame, force_keyframe)
                 .map_err(|error| error.to_string())?
             {
+                let keyframe = encoded.keyframe;
                 publisher
                     .publish_video(encoded)
                     .map_err(|error| error.to_string())?;
-                encoders.force_keyframe = false;
+                encoders.force_keyframe = force_keyframe && !keyframe;
             }
         }
         CaptureStreamEvent::AudioBuffer { buffer, .. } if config.includes_audio() => {
@@ -608,6 +610,27 @@ mod tests {
         );
         assert!(worker.poll_events().unwrap().len() <= 2); // GUI holds latest samples only
 
+        let before_feedback = host.snapshot();
+        assert!(before_feedback.published_keyframe_count > 0);
+        viewer.request_remote_video_keyframe().unwrap();
+        let feedback_started = Instant::now();
+        loop {
+            let recovered = host.snapshot();
+            if recovered.received_keyframe_request_count
+                > before_feedback.received_keyframe_request_count
+                && recovered.published_keyframe_count > before_feedback.published_keyframe_count
+                && !recovered.keyframe_request_pending
+            {
+                break;
+            }
+            // The normal encoder keyframe interval is two seconds; feedback must recover sooner.
+            assert!(
+                feedback_started.elapsed() < Duration::from_millis(1500),
+                "feedback did not produce a prompt encoded keyframe: {recovered:?}"
+            );
+            thread::sleep(Duration::from_millis(5));
+        }
+
         worker.stop().unwrap();
         let stopped = host.snapshot();
         thread::sleep(Duration::from_millis(60));
@@ -618,6 +641,19 @@ mod tests {
         assert_eq!(
             host.snapshot().encoded_audio_packet_count,
             stopped.encoded_audio_packet_count
+        );
+        viewer.request_remote_video_keyframe().unwrap();
+        let started = Instant::now();
+        while !host.snapshot().keyframe_request_pending {
+            assert!(
+                started.elapsed() < Duration::from_secs(3),
+                "paused capture lost RTCP feedback"
+            );
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(
+            host.snapshot().published_keyframe_count,
+            stopped.published_keyframe_count
         );
         capture.selection.include_audio = false;
         worker.start(capture).unwrap();
@@ -638,6 +674,9 @@ mod tests {
                 .iter()
                 .any(|event| matches!(event, CaptureStreamEvent::AudioBuffer { .. }))
         );
+        let restarted = host.snapshot();
+        assert!(restarted.published_keyframe_count > stopped.published_keyframe_count);
+        assert!(!restarted.keyframe_request_pending);
         worker.stop().unwrap();
         assert_eq!(stops.load(Ordering::SeqCst), 2);
         host.close().unwrap();

@@ -3,11 +3,13 @@ use capture_core::{AudioBuffer, VideoFrame, VideoPixelFormat};
 use interceptor::registry::Registry;
 use media::Sample;
 use media_codec::{EncodedAudioPacket, EncodedVideoFrame, H264_FMTP};
+mod keyframe;
+use keyframe::KeyframeRecovery;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
@@ -19,6 +21,8 @@ use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::sdp::sdp_type::RTCSdpType;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
+use webrtc::rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
+use webrtc::rtp_transceiver::RTCPFeedback;
 use webrtc::rtp_transceiver::rtp_codec::{
     RTCRtpCodecCapability, RTCRtpCodecParameters, RTPCodecType,
 };
@@ -107,6 +111,9 @@ pub struct TransportSnapshot {
     pub published_audio_sample_count: usize,
     pub encoded_video_frame_count: usize,
     pub encoded_audio_packet_count: usize,
+    pub received_keyframe_request_count: usize,
+    pub published_keyframe_count: usize,
+    pub keyframe_request_pending: bool,
     pub received_video_packet_count: usize,
     pub received_audio_packet_count: usize,
     pub last_video_sample_bytes: usize,
@@ -140,6 +147,7 @@ struct SharedState {
     published_audio_sample_count: usize,
     encoded_video_frame_count: usize,
     encoded_audio_packet_count: usize,
+    keyframes: KeyframeRecovery,
     received_video_packet_count: usize,
     received_audio_packet_count: usize,
     last_video_sample_bytes: usize,
@@ -222,6 +230,13 @@ impl TransportSession {
             let mut registry = Registry::new();
             registry = register_default_interceptors(registry, &mut media_engine)
                 .map_err(map_webrtc_error)?;
+            media_engine.register_feedback(
+                RTCPFeedback {
+                    typ: "ccm".into(),
+                    parameter: "fir".into(),
+                },
+                RTPCodecType::Video,
+            );
 
             let api = APIBuilder::new()
                 .with_media_engine(media_engine)
@@ -242,6 +257,7 @@ impl TransportSession {
                 &runtime,
                 &peer_connection,
                 &config,
+                &shared,
             )?)
         } else {
             None
@@ -488,6 +504,12 @@ impl TransportSession {
             shared.received_video_packet_count,
             shared.received_audio_packet_count
         ));
+        if self.local_media_tracks.is_some() {
+            notes.push(format!(
+                "keyframe recovery: requests={} published={} pending={}",
+                shared.keyframes.requests, shared.keyframes.published, shared.keyframes.pending
+            ));
+        }
         let (local_media_track_count, local_video_track_attached, local_audio_track_attached) =
             self.local_media_tracks
                 .as_ref()
@@ -541,6 +563,9 @@ impl TransportSession {
             published_audio_sample_count: shared.published_audio_sample_count,
             encoded_video_frame_count: shared.encoded_video_frame_count,
             encoded_audio_packet_count: shared.encoded_audio_packet_count,
+            received_keyframe_request_count: shared.keyframes.requests,
+            published_keyframe_count: shared.keyframes.published,
+            keyframe_request_pending: shared.keyframes.pending,
             received_video_packet_count: shared.received_video_packet_count,
             received_audio_packet_count: shared.received_audio_packet_count,
             last_video_sample_bytes: shared.last_video_sample_bytes,
@@ -581,7 +606,47 @@ impl TransportSession {
         let mut shared = self.shared.lock().expect("transport shared state poisoned");
         shared.stage = Some(TransportStage::Closed);
         shared.connection_state = RTCPeerConnectionState::Closed.to_string();
+        shared.keyframes.reset_pending();
         Ok(())
+    }
+
+    /// Ask the remote encoder to refresh the received video (used by diagnostic Rust viewers).
+    /// Desktop viewers send decoder feedback through their WebView WebRTC stack.
+    pub fn request_remote_video_keyframe(&self) -> TransportResult<()> {
+        if self
+            .shared
+            .lock()
+            .expect("transport state poisoned")
+            .connection_state
+            != "connected"
+        {
+            return Err(TransportError(
+                "keyframe feedback requires a connected peer".into(),
+            ));
+        }
+        self.runtime.block_on(async {
+            let mut packets: Vec<Box<dyn webrtc::rtcp::packet::Packet + Send + Sync>> = Vec::new();
+            for receiver in self.peer_connection.get_receivers().await {
+                for track in receiver.tracks().await {
+                    if track.kind() == RTPCodecType::Video && track.ssrc() != 0 {
+                        packets.push(Box::new(PictureLossIndication {
+                            media_ssrc: track.ssrc(),
+                            ..Default::default()
+                        }));
+                    }
+                }
+            }
+            if packets.is_empty() {
+                return Err(TransportError(
+                    "no received video track is available for keyframe feedback".into(),
+                ));
+            }
+            self.peer_connection
+                .write_rtcp(&packets)
+                .await
+                .map_err(map_webrtc_error)?;
+            Ok(())
+        })
     }
 }
 
@@ -601,6 +666,12 @@ impl TransportPublisher {
             .expect("transport state poisoned")
             .connection_state
             == "connected"
+    }
+
+    /// Reports pending feedback once the cooldown expires; checking does not consume it.
+    pub fn keyframe_requested(&self) -> bool {
+        let shared = self.shared.lock().expect("transport state poisoned");
+        shared.connection_state == "connected" && shared.keyframes.should_force(Instant::now())
     }
 
     fn write(
@@ -645,8 +716,19 @@ impl TransportPublisher {
             "H264 {}x{} / {}B / {}us / keyframe={}",
             frame.width, frame.height, length, frame.timestamp_micros, frame.keyframe
         );
+        let requests_before_write = self
+            .shared
+            .lock()
+            .expect("transport state poisoned")
+            .keyframes
+            .requests;
         self.write(&self.video, frame.bytes, frame.duration)?;
         let mut shared = self.shared.lock().expect("transport state poisoned");
+        if frame.keyframe {
+            shared
+                .keyframes
+                .published(Instant::now(), requests_before_write);
+        }
         shared.published_video_sample_count += 1;
         shared.encoded_video_frame_count += 1;
         shared.last_video_sample_bytes = length;
@@ -707,6 +789,7 @@ fn attach_local_media_tracks(
     runtime: &Runtime,
     peer_connection: &Arc<RTCPeerConnection>,
     config: &WebRtcConfig,
+    shared: &Arc<Mutex<SharedState>>,
 ) -> TransportResult<LocalMediaTracks> {
     let stream_id = format!("desktop-room-{}", config.room);
     let video = Arc::new(TrackLocalStaticSample::new(
@@ -729,10 +812,26 @@ fn attach_local_media_tracks(
             .add_track(Arc::clone(&audio) as Arc<dyn TrackLocal + Send + Sync>)
             .await
             .map_err(map_webrtc_error)?;
-        for sender in [video_sender, audio_sender] {
-            // Drain RTCP so interceptor feedback keeps flowing during continuous publication.
-            tokio::spawn(async move { while sender.read_rtcp().await.is_ok() {} });
-        }
+        let video_ssrc = video_sender
+            .get_parameters()
+            .await
+            .encodings
+            .first()
+            .ok_or_else(|| TransportError("video sender has no RTP encoding".into()))?
+            .ssrc;
+        let feedback_state = shared.clone();
+        tokio::spawn(async move {
+            while let Ok((packets, _)) = video_sender.read_rtcp().await {
+                let mut shared = feedback_state.lock().expect("transport state poisoned");
+                if shared.connection_state == "connected" {
+                    for packet in packets {
+                        shared.keyframes.observe(packet.as_ref(), video_ssrc);
+                    }
+                }
+            }
+        });
+        // Keep draining audio RTCP so the existing report/NACK interceptors can run.
+        tokio::spawn(async move { while audio_sender.read_rtcp().await.is_ok() {} });
         Ok::<(), TransportError>(())
     })?;
 
@@ -1043,6 +1142,9 @@ fn install_callbacks(peer_connection: &Arc<RTCPeerConnection>, shared: &Arc<Mute
                 .lock()
                 .expect("transport shared state poisoned");
             shared.connection_state = state.to_string();
+            if state != RTCPeerConnectionState::Connected {
+                shared.keyframes.reset_pending();
+            }
             shared.stage = Some(match state {
                 RTCPeerConnectionState::Connected => TransportStage::Streaming,
                 RTCPeerConnectionState::Connecting => TransportStage::PeerConnecting,
@@ -1167,6 +1269,8 @@ mod tests {
         assert!(!sdp.contains("VP8/90000"));
         assert!(sdp.contains(H264_FMTP));
         assert!(sdp.contains("opus/48000/2"));
+        assert!(sdp.contains("a=rtcp-fb:102 nack pli"));
+        assert!(sdp.contains("a=rtcp-fb:102 ccm fir"));
         let publisher = session.encoded_publisher().unwrap();
         assert!(!publisher.is_connected());
         let mut video = EncodedVideoFrame {
@@ -1215,6 +1319,128 @@ mod tests {
         );
         assert_eq!(session.snapshot().encoded_video_frame_count, 0);
         assert_eq!(session.snapshot().encoded_audio_packet_count, 0);
+    }
+
+    #[test]
+    fn keyframe_feedback_crosses_srtcp_and_ignores_audio_and_duplicate_fir() {
+        use super::WebRtcSignal;
+        use media_codec::EncodedVideoFrame;
+        use std::{thread, time::Instant};
+        use webrtc::rtcp::{
+            packet::Packet,
+            payload_feedbacks::{
+                full_intra_request::{FirEntry, FullIntraRequest},
+                picture_loss_indication::PictureLossIndication,
+            },
+        };
+        let config = |role: &str| WebRtcConfig {
+            room: "keyframe-test".into(),
+            role: role.into(),
+            signaling_url: "local".into(),
+            ice_servers: Vec::new(),
+        };
+        let mut host = TransportSession::new(config("host")).unwrap();
+        let mut viewer = TransportSession::new(config("viewer")).unwrap();
+        let publisher = host.encoded_publisher().unwrap();
+        assert!(viewer.request_remote_video_keyframe().is_err());
+        let WebRtcSignal::SessionDescription { sdp, .. } = host.create_local_offer().unwrap()
+        else {
+            panic!("expected offer");
+        };
+        let WebRtcSignal::SessionDescription { sdp, .. } = viewer.accept_remote_offer(sdp).unwrap()
+        else {
+            panic!("expected answer");
+        };
+        host.accept_remote_answer(sdp).unwrap();
+        fn relay_ice(sender: &mut TransportSession, receiver: &mut TransportSession) {
+            for signal in sender.drain_local_signals() {
+                if let WebRtcSignal::IceCandidate {
+                    candidate,
+                    sdp_mid,
+                    sdp_mline_index,
+                } = signal
+                {
+                    receiver
+                        .add_remote_ice_candidate(candidate, sdp_mid, sdp_mline_index)
+                        .unwrap();
+                }
+            }
+        }
+        let started = Instant::now();
+        while !publisher.is_connected() || viewer.snapshot().connection_state != "connected" {
+            relay_ice(&mut host, &mut viewer);
+            relay_ice(&mut viewer, &mut host);
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "local ICE timed out"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+        let (video_ssrc, audio_ssrc) = host.runtime.block_on(async {
+            let senders = host.peer_connection.get_senders().await;
+            (
+                senders[0].get_parameters().await.encodings[0].ssrc,
+                senders[1].get_parameters().await.encodings[0].ssrc,
+            )
+        });
+        let send = |packets: Vec<Box<dyn Packet + Send + Sync>>| {
+            viewer
+                .runtime
+                .block_on(viewer.peer_connection.write_rtcp(&packets))
+                .unwrap();
+        };
+        let fir = |sequence_number| FullIntraRequest {
+            sender_ssrc: 7,
+            media_ssrc: 0,
+            fir: vec![FirEntry {
+                ssrc: video_ssrc,
+                sequence_number,
+            }],
+        };
+        send(vec![
+            Box::new(PictureLossIndication {
+                sender_ssrc: 7,
+                media_ssrc: audio_ssrc,
+            }),
+            Box::new(fir(1)),
+            Box::new(fir(1)),
+            Box::new(fir(2)),
+            Box::new(PictureLossIndication {
+                sender_ssrc: 7,
+                media_ssrc: video_ssrc,
+            }),
+        ]);
+        let started = Instant::now();
+        while host.snapshot().received_keyframe_request_count < 3 {
+            assert!(
+                started.elapsed() < Duration::from_secs(3),
+                "video RTCP feedback timed out"
+            );
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(host.snapshot().received_keyframe_request_count, 3);
+        assert!(publisher.keyframe_requested());
+        assert!(publisher.keyframe_requested());
+        let mut frame = EncodedVideoFrame {
+            bytes: vec![0, 0, 0, 1, 0x41],
+            width: 64,
+            height: 36,
+            timestamp_micros: 1_000_000,
+            duration: Duration::from_millis(33),
+            keyframe: false,
+        };
+        publisher.publish_video(frame.clone()).unwrap();
+        assert!(publisher.keyframe_requested()); // A delta frame cannot satisfy decoder feedback.
+        frame.bytes[4] = 0x65;
+        frame.keyframe = true;
+        publisher.publish_video(frame).unwrap();
+        let refreshed = host.snapshot();
+        assert_eq!(refreshed.published_keyframe_count, 1);
+        assert!(!refreshed.keyframe_request_pending);
+        host.close().unwrap();
+        assert!(!publisher.keyframe_requested());
+        assert!(!host.snapshot().keyframe_request_pending);
+        viewer.close().unwrap();
     }
 
     #[test]

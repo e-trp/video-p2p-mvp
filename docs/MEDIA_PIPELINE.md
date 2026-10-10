@@ -26,7 +26,15 @@ Every observed connection epoch resets codec state and requests an initial video
 
 Host snapshots expose `encoded_video_frame_count` and `encoded_audio_packet_count`. CLI viewer track readers count received RTP packets and discard payloads. The desktop viewer uses WebView WebRTC for decoding/playback and reports received packets, decoded video frames, and received audio samples through a signaling/diagnostics bridge. Video fragmentation means RTP packet counts differ from encoded frame counts. RTCP is drained on host senders so transport interceptors continue processing feedback. Received RTP is evidence of media delivery, not decoded playback.
 
-Remaining work: measured A/V timing and latency, adaptive bitrate/pacing, feedback-driven keyframe requests, Linux video encoding, and Linux WebView playback QA. See [the viewer guide](VIEWER_PLAYBACK.md) for playback and interoperability tests. Current fixed defaults and bounded queues are initial backpressure measures. ScreenCaptureKit permission and actual source/audio behavior still require manual desktop QA.
+Remaining work: measured A/V timing and latency, adaptive bitrate/pacing, weak-network validation, Linux video encoding, and Linux WebView playback QA. See [the viewer guide](VIEWER_PLAYBACK.md) for playback and interoperability tests. Current fixed defaults and bounded queues are initial backpressure measures. ScreenCaptureKit permission and actual source/audio behavior still require manual desktop QA.
+
+## Keyframe Recovery
+
+The host video RTCP reader handles [PLI](https://www.rfc-editor.org/rfc/rfc4585.html#section-6.3.1) and [FIR](https://www.rfc-editor.org/rfc/rfc5104.html#section-4.3.1) for the attached video SSRC. FIR targets are checked in their FCI entries, and retransmissions of the same sender/sequence are ignored. Audio feedback and unrelated RTCP do not request video refresh. SDP advertises `nack pli` and `ccm fir`; existing NACK/report interceptors continue running.
+
+Requests coalesce into one pending refresh. The capture worker forces an H.264 keyframe on the next eligible captured frame; native output includes SPS/PPS/IDR. Feedback-driven keyframes wait at least 500 ms after the last published keyframe. Initial, source-resize, and capture-restart keyframes remain immediate. Pending feedback is cleared only after successful keyframe publication, and requests arriving during publication remain pending. Disconnection/close clears pending work while retaining the session's cumulative counters. A static/stalled capture source cannot fulfill feedback until another frame arrives.
+
+Host diagnostics expose `received_keyframe_request_count`, `published_keyframe_count`, and `keyframe_request_pending`. Published keyframes include initial/periodic/source-change frames, so their count need not match the number of feedback messages. The WebView decoder sends its own RTCP; no keyframe messages or media data are routed through Tauri IPC. Rust diagnostic viewers can explicitly request refresh with `TransportSession::request_remote_video_keyframe`.
 
 ## Validation
 
@@ -40,7 +48,7 @@ macOS tests encode synthetic frames through the real system codec and verify SPS
 
 Opus tests perform real encode/decode roundtrips and verify output frame counts, packet timestamps, capture gaps, and input validation on both platforms.
 
-The macOS continuous-worker test uses synthetic capture, actual H.264/Opus encoders, local SDP/ICE negotiation, and real RTP reception on a viewer. It verifies publication without GUI polling, stop/join, restart, and audio opt-out. Local UDP sockets and macOS codec services must be allowed by the test environment. It opens no screen capture and contacts no signaling/STUN/TURN service. Unit tests also cover stale source rejection, permission status preservation, and malformed/disconnected encoded publication.
+The macOS continuous-worker test uses synthetic capture, actual H.264/Opus encoders, local SDP/ICE negotiation, and real RTP reception on a viewer. It verifies publication without GUI polling, PLI-triggered recovery before the periodic keyframe interval, stop/join, pending feedback on capture restart, and audio opt-out. Local UDP sockets and macOS codec services must be allowed by the test environment. It opens no screen capture and contacts no signaling/STUN/TURN service. Transport tests send real SRTCP PLI/FIR and check video targeting, FIR duplicates, delta frames leaving feedback pending, and close cleanup. Clock-controlled unit tests check coalescing, the cooldown, and feedback arriving during publication.
 
 References: [Apple VideoToolbox](https://developer.apple.com/documentation/videotoolbox), [Constrained Baseline AutoLevel](https://developer.apple.com/documentation/videotoolbox/kvtprofilelevel_h264_constrainedbaseline_autolevel), [realtime compression](https://developer.apple.com/documentation/videotoolbox/kvtcompressionpropertykey_realtime), and [frame reordering](https://developer.apple.com/documentation/videotoolbox/kvtcompressionpropertykey_allowframereordering).
 

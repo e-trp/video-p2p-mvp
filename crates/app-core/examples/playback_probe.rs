@@ -9,7 +9,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get(2)
         .ok_or("usage: playback_probe <host|bridge> <signaling address>")?;
     match args.get(1).map(String::as_str) {
-        Some("host") => host(address),
+        Some("host") => host(
+            address,
+            args.iter().any(|arg| arg == "--drop-first-keyframe"),
+        ),
         Some("bridge") => bridge(address),
         _ => Err("expected host or bridge mode".into()),
     }
@@ -75,12 +78,12 @@ fn bridge(address: &str) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn host(_: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn host(_: &str, _: bool) -> Result<(), Box<dyn std::error::Error>> {
     Err("synthetic H264 host currently requires macOS".into())
 }
 
 #[cfg(target_os = "macos")]
-fn host(address: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn host(address: &str, drop_first_keyframe: bool) -> Result<(), Box<dyn std::error::Error>> {
     use app_core::{
         IceCandidate, Role, SdpType, SessionDescription, SignalingConnection, SignalingEvent,
         SignalingMessage,
@@ -126,6 +129,8 @@ fn host(address: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut video_pts = 1_000_000;
     let mut audio_pts = 1_000_000;
     let mut audio_index = 0_u64;
+    let mut dropped_first_keyframe = false;
+    let mut recovery_keyframes = 0;
     let start = Instant::now();
     let mut next_video = start;
     let mut next_audio = start;
@@ -160,8 +165,28 @@ fn host(address: &str) -> Result<(), Box<dyn std::error::Error>> {
                     timestamp_micros: video_pts,
                     bytes: [32, 64, 192, 255].repeat(64 * 36),
                 };
-                if let Some(frame) = video.encode(&frame, video_pts == 1_000_000)? {
-                    publisher.publish_video(frame)?;
+                let requested = publisher.keyframe_requested();
+                if let Some(frame) = video.encode(&frame, video_pts == 1_000_000 || requested)? {
+                    if drop_first_keyframe && !dropped_first_keyframe && frame.keyframe {
+                        // Emit delta frames without the initial SPS/PPS/IDR so the browser requests refresh.
+                        dropped_first_keyframe = true;
+                    } else {
+                        let recovered = requested && frame.keyframe;
+                        publisher.publish_video(frame)?;
+                        if recovered {
+                            recovery_keyframes += 1;
+                            let snapshot = peer.snapshot();
+                            println!(
+                                "{}",
+                                json!({
+                                    "received_requests": snapshot.received_keyframe_request_count,
+                                    "published_keyframes": snapshot.published_keyframe_count,
+                                    "recovery_keyframes": recovery_keyframes,
+                                    "initial_keyframe_dropped": dropped_first_keyframe,
+                                })
+                            );
+                        }
+                    }
                 }
                 video_pts += 33_333;
                 next_video = now + Duration::from_micros(33_333);

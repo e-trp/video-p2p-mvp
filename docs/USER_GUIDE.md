@@ -129,6 +129,7 @@ The capture panel also now shows:
 - permission state derived from the current runtime probe
 - native capture runtime status (`not_started`, `starting`, `running`, `permission_required`, `permission_denied`, `failed`, or `stopped`)
 - backend notes explaining runtime enumeration success or fallback reason
+- on the host: Keyframe Requests received from the viewer, Published Keyframes (including periodic frames), and Keyframe Pending while awaiting an eligible captured frame
 
 This data is refreshed through the session manager rather than staying fixed from initial app startup.
 
