@@ -100,6 +100,7 @@ Run all Rust tests in both workspaces, including doctests, and JS lifecycle test
 
 ```bash
 cargo test --all --all-features
+cargo test -p app-core --example playback_probe --all-features
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --all-features
 node --test apps/desktop/tests/viewer-player.test.mjs
 ```

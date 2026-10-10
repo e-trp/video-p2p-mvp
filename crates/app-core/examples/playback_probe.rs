@@ -2,6 +2,40 @@
 use app_core::{SessionIntent, SessionManager, SessionStage, ViewerPlaybackReport, ViewerSignal};
 use serde_json::{Value, json};
 use std::io::{BufRead, Write};
+#[cfg(any(target_os = "macos", test))]
+use std::time::{Duration, Instant};
+
+#[cfg(any(target_os = "macos", test))]
+struct ProbeHostLifetime {
+    waiting_since: Instant,
+    streaming_since: Option<Instant>,
+}
+
+#[cfg(any(target_os = "macos", test))]
+impl ProbeHostLifetime {
+    const STARTUP_TIMEOUT: Duration = Duration::from_secs(90);
+    const STREAMING_DURATION: Duration = Duration::from_secs(40);
+
+    fn new(now: Instant) -> Self {
+        Self {
+            waiting_since: now,
+            streaming_since: None,
+        }
+    }
+
+    fn should_continue(&mut self, now: Instant, connected: bool) -> Result<bool, &'static str> {
+        if connected {
+            self.streaming_since.get_or_insert(now);
+        }
+        if let Some(started) = self.streaming_since {
+            Ok(now.saturating_duration_since(started) < Self::STREAMING_DURATION)
+        } else if now.saturating_duration_since(self.waiting_since) >= Self::STARTUP_TIMEOUT {
+            Err("Synthetic host timed out waiting for a connected viewer")
+        } else {
+            Ok(true)
+        }
+    }
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
@@ -90,7 +124,6 @@ fn host(address: &str, drop_first_keyframe: bool) -> Result<(), Box<dyn std::err
     };
     use capture_core::{AudioBuffer, VideoFrame, VideoPixelFormat};
     use media_codec::{H264Encoder, OpusEncoder};
-    use std::time::{Duration, Instant};
     use transport_webrtc::{DescriptionKind, TransportSession, WebRtcConfig, WebRtcSignal};
     fn message(signal: WebRtcSignal) -> SignalingMessage {
         match signal {
@@ -132,9 +165,10 @@ fn host(address: &str, drop_first_keyframe: bool) -> Result<(), Box<dyn std::err
     let mut dropped_first_keyframe = false;
     let mut recovery_keyframes = 0;
     let start = Instant::now();
+    let mut lifetime = ProbeHostLifetime::new(start);
     let mut next_video = start;
     let mut next_audio = start;
-    while start.elapsed() < Duration::from_secs(40) {
+    loop {
         for event in signaling.poll()? {
             if let SignalingEvent::Message(signal) = event {
                 match signal {
@@ -156,7 +190,11 @@ fn host(address: &str, drop_first_keyframe: bool) -> Result<(), Box<dyn std::err
             signaling.send(&message(signal))?;
         }
         let now = Instant::now();
-        if publisher.is_connected() {
+        let connected = publisher.is_connected();
+        if !lifetime.should_continue(now, connected)? {
+            break;
+        }
+        if connected {
             if now >= next_video {
                 let frame = VideoFrame {
                     format: VideoPixelFormat::Bgra8,
@@ -217,4 +255,83 @@ fn host(address: &str, drop_first_keyframe: bool) -> Result<(), Box<dyn std::err
     }
     peer.close()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn delayed_browser_start_keeps_a_full_streaming_window() {
+        let start = Instant::now();
+        let mut lifetime = ProbeHostLifetime::new(start);
+        let connected = start + Duration::from_secs(45);
+        assert!(lifetime.should_continue(connected, false).unwrap());
+        assert!(lifetime.should_continue(connected, true).unwrap());
+        assert!(
+            lifetime
+                .should_continue(connected + Duration::from_secs(39), true)
+                .unwrap()
+        );
+        assert!(
+            !lifetime
+                .should_continue(connected + Duration::from_secs(40), true)
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn missing_viewer_has_an_explicit_bounded_startup_failure() {
+        let start = Instant::now();
+        let mut lifetime = ProbeHostLifetime::new(start);
+        assert!(
+            lifetime
+                .should_continue(start + Duration::from_secs(89), false)
+                .unwrap()
+        );
+        assert_eq!(
+            lifetime
+                .should_continue(start + Duration::from_secs(90), false)
+                .unwrap_err(),
+            "Synthetic host timed out waiting for a connected viewer"
+        );
+    }
+
+    #[test]
+    fn late_connection_is_not_cut_short_by_the_startup_deadline() {
+        let start = Instant::now();
+        let mut lifetime = ProbeHostLifetime::new(start);
+        assert!(
+            lifetime
+                .should_continue(start + Duration::from_secs(89), true)
+                .unwrap()
+        );
+        assert!(
+            lifetime
+                .should_continue(start + Duration::from_secs(128), true)
+                .unwrap()
+        );
+        assert!(
+            !lifetime
+                .should_continue(start + Duration::from_secs(129), true)
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn disconnect_and_reconnect_do_not_extend_the_streaming_deadline() {
+        let start = Instant::now();
+        let mut lifetime = ProbeHostLifetime::new(start);
+        assert!(lifetime.should_continue(start, true).unwrap());
+        assert!(
+            lifetime
+                .should_continue(start + Duration::from_secs(35), false)
+                .unwrap()
+        );
+        assert!(
+            !lifetime
+                .should_continue(start + Duration::from_secs(40), true)
+                .unwrap()
+        );
+    }
 }

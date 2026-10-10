@@ -27,7 +27,9 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run tests
-        run: cargo test --all --all-features
+        run: |
+          cargo test --all --all-features
+          cargo test -p app-core --example playback_probe --all-features
 
       - name: Install Node for viewer tests
         uses: actions/setup-node@v4

@@ -52,6 +52,7 @@ These commands verify negotiation and optionally inject a debug burst. For decod
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all --all-features
+cargo test -p app-core --example playback_probe --all-features
 node --test apps/desktop/tests/viewer-player.test.mjs
 ```
 

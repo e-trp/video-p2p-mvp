@@ -29,6 +29,7 @@ Unit/lifecycle checks:
 ```bash
 node --test apps/desktop/tests/viewer-player.test.mjs
 cargo test -p app-core viewer
+cargo test -p app-core --example playback_probe --all-features
 ```
 
 Permission-free native playback test on macOS with Command Line Tools, Node 22+, a desktop session, local sockets, and system codec/WebKit services available:
@@ -40,6 +41,16 @@ node scripts/test-viewer-playback.mjs
 ```
 
 The probe starts a local signaling server, a synthetic VideoToolbox/Opus host, the real SessionManager viewer bridge, and a hidden WKWebView loading the actual player module. It checks decoded video dimensions/pixel color, nonzero decoded PCM through a Web Audio analyzer, backend counters, and stop followed by diagnostic refresh closing the peer and ending its media tracks. Audio output in this test has zero gain. No screen recording, camera/microphone capture, external signaling/STUN/TURN, or user preferences are used. The hidden probe allows autoplay; actual user-gesture behavior is separately covered by unit tests and needs manual desktop QA.
+
+The synthetic host allows up to 90 seconds for a viewer connection, then streams for up to 40 seconds from the first connected state. Browser/runner startup does not consume the streaming window; disconnect/reconnect does not reset it. A missing viewer produces an explicit startup error. Root CI also runs the portable probe-lifetime unit tests above.
+
+To reproduce slow browser startup beyond the former 40-second host lifetime:
+
+```bash
+VIEWER_TEST_BROWSER_STARTUP_DELAY_MS=42000 node scripts/test-viewer-playback.mjs
+```
+
+The optional delay accepts integer milliseconds from 0 to 60000 and occurs after the host starts. Run this regression case while a separate Tauri workspace build is active when checking startup under compilation load. Probe failures print browser/mode, startup delay, host exit state, returned playback diagnostics, and bounded child stderr before cleanup. See [BUG-001](BUGS.md#bug-001-intermittent-wkwebview-playback-probe-failure).
 
 Optional Chromium interoperability check with installed Chrome:
 

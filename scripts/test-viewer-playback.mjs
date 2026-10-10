@@ -12,11 +12,17 @@ if (process.platform !== "darwin") throw new Error("The synthetic VideoToolbox h
 const root = resolve(import.meta.dirname, "..");
 const chromeMode = process.argv.includes("--chrome") || process.env.VIEWER_TEST_BROWSER === "chrome";
 const recoveryMode = process.argv.includes("--keyframe-recovery");
+const browserStartupDelayMs = Number(process.env.VIEWER_TEST_BROWSER_STARTUP_DELAY_MS ?? 0);
+if (!Number.isSafeInteger(browserStartupDelayMs) || browserStartupDelayMs < 0 || browserStartupDelayMs > 60000) {
+  throw new Error("VIEWER_TEST_BROWSER_STARTUP_DELAY_MS must be an integer between 0 and 60000");
+}
 const scratch = await mkdtemp(resolve(tmpdir(), "video-p2p-playback-"));
 const children = [];
 let logs = "";
 let httpServer;
 let hostReport = null;
+let host;
+let result;
 function child(program, args, options = {}) {
   const process = spawn(program, args, { cwd: root, stdio: ["pipe", "pipe", "pipe"], ...options });
   children.push(process);
@@ -128,7 +134,7 @@ try {
   await until(() => ready || server.exitCode !== null);
   assert.equal(server.exitCode, null, `Signaling server exited\n${logs}`);
   const env = { ...process.env, VIDEO_P2P_MVP_CONFIG_DIR: resolve(scratch, "preferences") };
-  const host = child(resolve(root, "target/debug/examples/playback_probe"), ["host", address, ...(recoveryMode ? ["--drop-first-keyframe"] : [])], { env });
+  host = child(resolve(root, "target/debug/examples/playback_probe"), ["host", address, ...(recoveryMode ? ["--drop-first-keyframe"] : [])], { env });
   createInterface({ input: host.stdout }).on("line", (line) => { hostReport = JSON.parse(line); });
   const bridge = new Bridge(child(resolve(root, "target/debug/examples/playback_probe"), ["bridge", address], { env }));
   httpServer = createHttpServer(async (request, response) => {
@@ -146,7 +152,7 @@ try {
   });
   await new Promise((resolve, reject) => { httpServer.once("error", reject); httpServer.listen(0, "127.0.0.1", resolve); });
   const url = `http://127.0.0.1:${httpServer.address().port}/`;
-  let result;
+  await delay(browserStartupDelayMs);
   if (!chromeMode) {
     const binary = resolve(scratch, "webkit-probe");
     execFileSync("xcrun", ["clang", "-fobjc-arc", "-fblocks", "-Wall", "-Wextra", "-Werror", "-framework", "Cocoa", "-framework", "WebKit", resolve(root, "scripts/viewer-webkit-probe.m"), "-o", binary]);
@@ -196,6 +202,10 @@ try {
     assert.ok(result.host.recovery_keyframes > 0, "the host did not publish a feedback-driven keyframe");
   }
   console.log(`${chromeMode ? "Chrome" : "WKWebView"} playback passed: ${result.width}x${result.height}, ${result.backend.video_frames} decoded frames, ${result.backend.audio_samples} audio samples; stop released media.${recoveryMode ? " Browser RTCP keyframe recovery verified." : ""}`);
+} catch (error) {
+  console.error(JSON.stringify({ browser: chromeMode ? "Chrome" : "WKWebView", recoveryMode, browserStartupDelayMs,
+    hostExitCode: host?.exitCode ?? null, hostSignal: host?.signalCode ?? null, result, logs }, null, 2));
+  throw error;
 } finally {
   const exits = children.map((process) => process.exitCode !== null || process.signalCode !== null ? undefined : new Promise((resolve) => process.once("exit", resolve)));
   for (const process of children) if (process.exitCode === null && process.signalCode === null) process.kill();

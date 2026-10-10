@@ -53,7 +53,8 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 - [x] Muted startup, Enable Sound/Mute Sound, playback/error states, and a separate viewer signaling pump.
 - [x] Generation guards and peer/track cleanup on stop/reset/reconnect/role change/failure; refresh or delayed callbacks cannot revive a stopped session.
 - [x] Rust bridge and Node lifecycle tests, including ICE ordering, autoplay, terminal failure, and transient disconnect/recovery.
-- [x] **BASE-VIEWER-PROBES:** Synthetic WKWebView/Chromium playback probes: decoded dimensions/pixels, nonzero Opus PCM, and media cleanup after stop/refresh. An intermittent failure remains tracked separately in the bug register.
+- [x] **BASE-VIEWER-PROBES:** Synthetic WKWebView/Chromium playback probes: decoded dimensions/pixels, nonzero Opus PCM, and media cleanup after stop/refresh.
+- [x] Bounded probe startup and connection-relative streaming lifetime, with four portable regression tests, slow-start verification under compilation load, and failure diagnostics; see [BUG-001 verification](docs/qa/BUG-001-startup-lifetime.md).
 - [x] Video-SSRC RTCP PLI/FIR, FIR duplicate detection, coalescing, and a 500 ms cooldown; successful keyframe publication or disconnect/close clears pending state.
 - [x] Host keyframe request/publication/pending diagnostics, SRTCP/publication-race tests, and capture stop/restart recovery.
 - [x] WKWebView/Chromium recovery probes that drop the first keyframe and verify browser-originated RTCP refresh.
@@ -88,7 +89,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 
 ### Current Bug Priority
 
-Consult [current issues](docs/BUGS.md#current-issues) before feature work. Investigate the actionable **BUG-001** first. **BUG-002** remains blocked on local administrator authentication; preserve that blocker and proceed with actionable work. Bug status and closure evidence live only in the register. The baseline `BASE-*` references identify existing behavior/tooling and do not count as new milestone features.
+Consult [current issues](docs/BUGS.md#current-issues) before feature work, then follow the baseline QA prerequisites below. Bug status and closure evidence live only in the register. The baseline `BASE-*` references identify existing behavior/tooling and do not count as new milestone features.
 
 ### Baseline QA Prerequisites
 

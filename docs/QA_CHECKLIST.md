@@ -36,6 +36,7 @@ cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
 cargo test --all --all-features
+cargo test -p app-core --example playback_probe --all-features
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --all-features
 node --test apps/desktop/tests/viewer-player.test.mjs
 ```
