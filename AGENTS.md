@@ -1,67 +1,81 @@
-# Правила работы над video-p2p-mvp
+# Working Guidelines for video-p2p-mvp
 
-Этот файл действует для всего репозитория. Более конкретные инструкции во вложенных `AGENTS.md` уточняют правила своего каталога. Явные указания пользователя имеют приоритет.
+These instructions apply to the entire repository. More specific instructions in nested `AGENTS.md` files refine the rules for their directories. Explicit user instructions take priority.
 
-## Общие правила
+## General Rules
 
-- Перед работой прочитай [README](README.md), [TODO](todo.md), [архитектуру](docs/ARCHITECTURE.md), [QA checklist](docs/QA_CHECKLIST.md) и руководства из `docs/`, относящиеся к изменению. Проверь `git status` и текущий diff; сохрани существующие изменения пользователя.
-- Выполняй одну законченную задачу из TODO за раз: реализация, подтверждение тестами, актуальная документация. Не смешивай с ней независимые рефакторинги.
-- Каждое изменение поведения подтверждай тестами: для исправления добавляй регрессионный сценарий, для новой функции — нормальный путь, ошибки и значимые границы. Обновление существующего теста допустимо, если он проверяет новое поведение. Проверяй результат, а не копируй реализацию в assertions.
-- Каждое законченное изменение отражай в соответствующем документе и TODO. Для изменения только документации проверь ссылки, якоря, команды и соответствие коду; новые тесты приложения ради Markdown не создавай. Общий гейт проверок ниже всё равно обязателен.
-- Реализацию, автоматическую проверку и ручную QA учитывай отдельно. Не отмечай непроверенные сценарии как выполненные и не представляй scaffold, mock/demo или RTP-счётчики как доказательство реального playback.
-- Сохраняй границы компонентов: capture contracts в `capture-core`, платформенный захват в `capture-macos`/`capture-linux`, кодеки в `media-codec`, Rust WebRTC в `transport-webrtc`, orchestration в `app-core`, UI/IPC в `apps/desktop`.
-- Media worker не должен зависеть от GUI polling. Desktop viewer декодирует media в WebView; сырые/encoded media bytes не передавай через Tauri IPC. Rust bridge обслуживает signaling и diagnostics.
-- Зависимости и публичные API добавляй только для текущей задачи. Объясняй необходимость, обновляй соответствующий lockfile и проверяй платформенные ограничения. Сохраняй edition и принятые соглашения существующих crate.
+- Before starting, read [README](README.md), [TODO](todo.md), [architecture](docs/ARCHITECTURE.md), [QA checklist](docs/QA_CHECKLIST.md), and the guides in `docs/` relevant to the change. Check `git status` and the current diff; preserve existing user changes.
+- Complete one coherent TODO task at a time: implementation, test evidence, and current documentation. Keep unrelated refactoring separate.
+- Verify every behavior change with tests: add a regression scenario for a fix, and cover the normal path, errors, and meaningful boundaries for a feature. Updating an existing test is acceptable when it verifies the new behavior. Assert outcomes rather than duplicating the implementation.
+- Document every completed change in the relevant guide and TODO. For documentation-only changes, verify links, anchors, commands, and consistency with the code; application tests created solely for Markdown are unnecessary. The automated checks below still apply.
+- Track implementation, automated verification, and manual QA separately. Keep unverified scenarios open; scaffolding, mock/demo behavior, and RTP counters do not establish actual playback.
+- Preserve component boundaries: capture contracts in `capture-core`, platform capture in `capture-macos`/`capture-linux`, codecs in `media-codec`, Rust WebRTC in `transport-webrtc`, orchestration in `app-core`, and UI/IPC in `apps/desktop`.
+- Keep the media worker independent of GUI polling. The desktop viewer decodes media in the WebView; raw/encoded media bytes must not cross Tauri IPC. The Rust bridge handles signaling and diagnostics.
+- Add dependencies and public APIs only for the current task. Explain their purpose, update the corresponding lockfile, and check platform constraints. Preserve each crate's edition and existing conventions.
 
-## Стайлгайд Rust
+## Project Language
 
-- Используй стандартный `rustfmt`; не вводи ручное форматирование, конфликтующее с ним. Имена функций/модулей — `snake_case`, типов/traits — `UpperCamelCase`, констант — `SCREAMING_SNAKE_CASE`.
-- Делай функции и модули с понятной ответственностью. Ограничивай видимость: private по умолчанию, `pub(crate)` для внутренних связей, `pub` для необходимого API.
-- Выражай состояния через enum и отдельные типы, когда это предотвращает недопустимые комбинации. Используй `Option` для отсутствия значения и `Result` для ошибки; избегай неявных sentinel-значений.
-- Для ожидаемых OS/network/codec/input ошибок возвращай `Result` с контекстом; используй `?`. `unwrap`/`expect` допустимы в тестах и для обоснованных внутренних инвариантов, а не для внешнего ввода или штатных отказов.
-- Предпочитай borrowing, slices и стандартные traits (`From`, `TryFrom`, `AsRef`, `Iterator`). Не добавляй лишние `clone`, allocation, `Arc<Mutex<_>>` или generics без необходимости.
-- Держи lock недолго; не удерживай его через `.await`, блокирующий I/O, encode или callback. Не блокируй async executor; используй подходящий worker или `spawn_blocking`.
-- Для размеров/offsets/timestamps используй проверяемую арифметику и преобразования. Валидируй входные буферы и значения перед использованием; единицы времени/bitrate явно отражай в типе или имени.
-- Документируй публичный API через rustdoc: поведение, ограничения и ошибки. Комментарии объясняют инварианты и причины решений.
-- Не скрывай проблемы широкими `#[allow(...)]` и не подавляй Clippy ради прохождения гейта. Узкое исключение сопровождай причиной.
+- Write all project changes in English: documentation, TODO entries, code comments, rustdoc, authored UI/error text, test descriptions, commit messages, tag annotations, and release/QA records.
+- When editing a file, translate any remaining Russian documentation or comments in that file. Before completing a change, scan tracked text files, including hidden configuration files, for Cyrillic text and resolve authored Russian prose. Preserve exact external data when a fixture requires it.
+- Conversation with the user may follow the user's language; repository content remains English.
 
-Основа: [Rust Style Guide](https://doc.rust-lang.org/style-guide/) и [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/checklist.html). Применяй их с учётом архитектуры проекта.
+## Rust Style Guide
 
-## Safe Rust и FFI
+- Use standard `rustfmt`; avoid manual formatting that conflicts with it. Name functions/modules with `snake_case`, types/traits with `UpperCamelCase`, and constants with `SCREAMING_SNAKE_CASE`.
+- Give functions and modules clear responsibilities. Keep visibility narrow: private by default, `pub(crate)` for internal connections, and `pub` for necessary APIs.
+- Represent states with enums and distinct types when this prevents invalid combinations. Use `Option` for absence and `Result` for errors; avoid implicit sentinel values.
+- Return contextual `Result` errors for expected OS/network/codec/input failures; propagate with `?`. Reserve `unwrap`/`expect` for tests and justified internal invariants, excluding external input and routine failures.
+- Prefer borrowing, slices, and standard traits (`From`, `TryFrom`, `AsRef`, `Iterator`). Avoid unnecessary cloning, allocation, `Arc<Mutex<_>>`, and generics.
+- Hold locks briefly; release them before `.await`, blocking I/O, encoding, or callbacks. Keep blocking work off the async executor through an appropriate worker or `spawn_blocking`.
+- Use checked arithmetic and conversions for sizes, offsets, and timestamps. Validate incoming buffers and values; make time/bitrate units explicit in types or names.
+- Document public APIs with rustdoc: behavior, constraints, and errors. Comments explain invariants and reasons for decisions.
+- Resolve lint findings instead of hiding them with broad `#[allow(...)]` attributes. Explain any narrowly scoped exception.
 
-- Safe Rust — основной вариант. Новый `unsafe` допускается только при доказанной необходимости FFI/низкоуровневого API и отсутствии подходящего safe решения. Не обходи borrow checker ради удобства или неподтверждённой оптимизации.
-- Изолируй `unsafe` в минимальном блоке внутри платформенного/codec bridge с проверяемым safe API. У каждого блока и `unsafe impl` должен быть конкретный `// SAFETY:`: валидность указателей, ownership/lifetime, bounds/alignment и синхронизация. Для `unsafe fn` документируй контракт в `# Safety` и используй явные внутренние unsafe blocks.
-- На FFI-границе проверяй null/length, переполнение и формат буфера до создания Rust references/slices. Владение нативным handle оформляй через RAII; stop/drop должны освобождать ресурсы и исключать callbacks после освобождения.
-- Не допускай unwinding panic через C/Objective-C ABI. Новые `unsafe impl Send/Sync` требуют объяснения модели потоков и синхронизации; один opaque handle сам по себе этого не доказывает.
-- Изменения FFI подтверждай extraction/validation/lifecycle тестами, включая ошибку старта, stop/drop и callback lifetime. Сначала ищи способ уменьшить существующий unsafe участок.
+References: [Rust Style Guide](https://doc.rust-lang.org/style-guide/) and [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/checklist.html), applied within this project's architecture.
 
-См. [Unsafe Rust](https://doc.rust-lang.org/book/ch20-01-unsafe-rust.html). Внешний API и комментарий не заменяют доказательство безопасности.
+## Safe Rust and FFI
 
-## Порядок реализации по TODO
+- Prefer safe Rust. Introduce `unsafe` only for a demonstrated FFI/low-level requirement without a suitable safe alternative. Borrow-checker convenience and unmeasured optimization are insufficient reasons.
+- Isolate `unsafe` in minimal blocks inside platform/codec bridges with a verifiable safe API. Every block and `unsafe impl` needs a specific `// SAFETY:` explanation covering pointer validity, ownership/lifetimes, bounds/alignment, and synchronization. Document `unsafe fn` contracts under `# Safety` and use explicit internal unsafe blocks.
+- At FFI boundaries, validate null pointers, lengths, overflow, and buffer formats before creating Rust references/slices. Use RAII for native handles; stop/drop must release resources and prevent callbacks after release.
+- Prevent panic unwinding across C/Objective-C ABI boundaries. New `unsafe impl Send/Sync` declarations require a documented threading and synchronization model; an opaque handle alone is insufficient evidence.
+- Verify FFI changes with extraction, validation, and lifecycle tests, including startup failure, stop/drop, and callback lifetimes. Look for opportunities to reduce existing unsafe sections.
 
-Источник статуса и зависимостей — [TODO](todo.md). Если пользователь задал конкретную задачу, выполни её и обнови статус; иначе выбирай первый доступный невыполненный шаг ниже.
+See [Unsafe Rust](https://doc.rust-lang.org/book/ch20-01-unsafe-rust.html). An external API or a comment alone does not establish safety.
 
-1. Реальный macOS capture/playback и permission QA. Сохраняй результаты с commit/build, OS, source/audio/monitor/network условиями. Исправляй обнаруженные дефекты до расширения media pipeline.
-2. A/V sync и latency monitoring; затем quality/FPS/bitrate presets; затем network-aware pacing/drop policy и adaptive bitrate с тестами потерь/нагрузки.
-3. Linux Wayland: Portal session/permission/source lifecycle → PipeWire video/audio → совместимый H.264 encoder → WebView playback QA на GNOME/KDE. После основного Wayland path — X11 media fallback и его проверки.
-4. Signaling/deployment: bounded room/message/history lifecycle → TLS и room authentication/invite access → STUN/TURN deployment и short-lived credentials → реальные direct/relay и weak-network проверки.
-5. Release: platform bundle configuration/build → install/launch/capture/playback QA → signing/notarization и проверка распространения.
+## Implementation Order
 
-Не реализуй повторно полностью выполненные пункты. Если первый шаг требует недоступной OS, разрешения, второго устройства или сети, явно оставь его невыполненным, запиши ограничение и продолжи следующий независимый доступный шаг. Не выдавай synthetic probe за ручную QA.
+[TODO](todo.md#not-done) defines ordered milestones, feature IDs, dependencies, and acceptance gates. Follow its baseline QA prerequisites, then M1 through M7. Complete a vertical slice from input/capture through transport/UI and verification before opening the next dependent milestone.
 
-## Правила работы с документацией
+If the user requests a specific task, perform it and update its status. Otherwise, choose the first available incomplete task. Preserve completed work. If a step needs an unavailable OS, permission, device, or network, record the limitation, leave its QA open, and continue the next independent available task. Synthetic probes cannot replace manual QA.
 
-- После каждого законченного изменения просмотри затронутые документы, README и TODO. Исправь или удали ставшие неактуальными утверждения, инструкции и дубли. Если всё уже актуально, кратко зафиксируй проверку в итоговом отчёте.
-- README содержит краткий статус и точки входа; `docs/` — подробности своего раздела; TODO — состояние и оставшуюся работу. Не превращай их в повторяющуюся историю разработки.
-- В TODO `[x]` находится только в «ПОЛНОСТЬЮ СДЕЛАНО». Частичное выполнение описывай как незавершённое; отсутствующую реализацию и непройденную QA отмечай отдельно через `[ ]`.
-- Для реализации обновляй подходящее руководство; для тестов/QA — validation/checklist. Указывай выполненные команды, результат и ограничения; не записывай запланированные или пропущенные проверки как успешные.
-- Все примеры команд, UI labels, defaults и ограничения сверяй с кодом. Проверяй относительные ссылки/якоря и синтаксис shell-блоков.
+## Commits, Versions, and Git Tags
 
-## Обязательные проверки каждого законченного изменения
+- The current project baseline is **`0.1.0`**. Keep the major version at **`0`** while the planned MVP is incomplete. Advance to `1.0.0` only after the required TODO scope, release/distribution work, and full QA pass; later versions follow SemVer compatibility rules.
+- Use **annotated Git tags** named `vMAJOR.MINOR.PATCH`, such as `v0.2.0`. A tag identifies a verified release commit. Commit every completed coherent task after its checks; never accumulate five features into one large commit.
+- Increment the minor number for a completed feature milestone and reset patch to zero (`0.1.0` → `0.2.0`). During `0.x`, record breaking changes and compatibility/migration implications in the minor release. Increment patch for a fix-only release (`0.2.0` → `0.2.1`); fixes can ship before another feature milestone. Documentation-only changes and behavior-preserving refactors require ordinary commits and no version bump.
+- Prefer the independently testable functional blocks in TODO over arbitrary batches. Each block needs a clear outcome and acceptance gate; split oversized blocks before implementation. Run full-project QA at the end of each block, before every version tag, and **no later than every five newly completed features**. A milestone with fewer than five features still triggers full QA.
+- A feature counts once by its stable TODO ID when its behavior, acceptance tests, documentation, and required feature-specific verification are complete. Subtasks, commits, tests, documentation, refactors, and bug fixes do not increase the counter. The existing completed inventory belongs to the `0.1.0` baseline and is not counted again.
+- Maintain the current version, latest tag, completed feature IDs, and QA checkpoint state in [TODO's version checkpoint](todo.md#version-checkpoint). At five completed features, commit the last task and run the full checkpoint before extending the batch. Reset the counter only after a passing full QA checkpoint; record which IDs it covered. A completed block receives its version tag after the release gate passes.
+- Full-project QA means reviewing **every section** of [QA_CHECKLIST](docs/QA_CHECKLIST.md), running all automated checks and supported manual scenarios, and recording results. Required `FAIL`, `BLOCKED`, or `NOT RUN` checks block tagging. `N/A` needs a scope-based reason; lack of a device, OS, permission, or network means `BLOCKED`, not `N/A`.
+- Before tagging, synchronize all first-party package versions in `crates/*/Cargo.toml`, `apps/cli/Cargo.toml`, `apps/desktop/src-tauri/Cargo.toml`, both Cargo lockfiles, and `version`/`bundle.macOS.bundleVersion` in `apps/desktop/src-tauri/tauri.conf.json`. The root `Cargo.toml` is a workspace without a package version. Revalidate the final versioned tree, commit it with English release notes/QA evidence, then tag that exact commit with an English annotation listing the milestone, feature IDs, and QA record.
+- Existing tags are immutable. Push commits/tags or publish releases only when requested. The untagged `0.1.0` baseline is not evidence of release QA; this documentation change does not create a release tag.
 
-Запускай команды из корня репозитория после последней правки. `apps/desktop/src-tauri` — отдельный workspace; root-команды его не проверяют.
+References: [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [Git annotated tags](https://git-scm.com/docs/git-tag).
 
-Форматирование обоих workspace и строгий lint:
+## Documentation Maintenance
+
+- After each completed change, review the affected guides, README, and TODO. Correct or remove outdated statements, commands, and duplication. If the existing content remains accurate, record that review in the final report.
+- Keep README concise with status and entry points, `docs/` focused on each topic, and TODO focused on progress and remaining work. Avoid duplicating development history across them.
+- Use `[x]` in TODO only under **FULLY COMPLETED**. Describe partial work as incomplete; use `[ ]` for missing implementation and outstanding QA, keeping them distinct.
+- Update the appropriate implementation guide or validation/checklist. Record commands actually executed, results, and limitations; planned/skipped checks cannot be recorded as successful.
+- Verify command examples, UI labels, defaults, and constraints against the code. Check relative links/anchors and shell-block syntax.
+
+## Mandatory Checks for Every Completed Change
+
+Run these commands from the repository root after the final edits. `apps/desktop/src-tauri` is a separate workspace; root commands do not cover it.
+
+Format both workspaces and run strict lint:
 
 ```bash
 cargo fmt --all
@@ -72,7 +86,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
 ```
 
-Все Rust-тесты обоих workspace, включая doctests, и JS lifecycle tests:
+Run all Rust tests in both workspaces, including doctests, and JS lifecycle tests:
 
 ```bash
 cargo test --all --all-features
@@ -80,7 +94,7 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --all-features
 node --test apps/desktop/tests/viewer-player.test.mjs
 ```
 
-На macOS также запускай permission-free native extraction и все доступные browser playback/recovery probes:
+On macOS, also run permission-free native extraction and all available browser playback/recovery probes:
 
 ```bash
 sh scripts/test-macos-capture.sh
@@ -92,19 +106,19 @@ node scripts/test-viewer-playback.mjs --chrome
 node scripts/test-viewer-playback.mjs --chrome --keyframe-recovery
 ```
 
-Browser probes требуют macOS desktop session, Node 22+, локальных sockets и codec/WebKit services; Chrome-режим требует установленного Chrome. На Linux не запускай macOS-specific commands. Если среда не позволяет выполнить проверку, укажи точную команду/причину и оставь проверку открытой; не обходи permission/OS ограничения. Ручную QA выполняй по [checklist](docs/QA_CHECKLIST.md).
+Browser probes require a macOS desktop session, Node 22+, local sockets, and codec/WebKit services; Chrome mode requires installed Chrome. On Linux, skip macOS-specific commands with an explicit platform reason. If the environment prevents a check, record the exact command/reason and leave it open; respect permission/OS constraints. Perform manual QA at milestone/five-feature/version checkpoints according to the [checklist](docs/QA_CHECKLIST.md#full-project-qa-and-version-gate), and whenever needed to verify a particular change.
 
-Исправь найденные ошибки и повтори затронутые проверки. Перед завершением выполни `git diff --check`, проверь полный итоговый diff и не добавляй посторонние файлы в коммит. В итоговом отчёте укажи результат, тесты, документацию и оставшиеся ограничения.
+Fix failures and rerun affected checks. Before completing work, run `git diff --check`, review the entire final diff, and exclude unrelated files from the commit. Report the result, test evidence, documentation updates, and remaining limitations.
 
-## Очистка локальных артефактов
+## Local Artifact Cleanup
 
-После тестов, probes и работы с release bundle сохрани результаты и останови запущенные для проверки процессы. Затем очисти **оба** workspace:
+After tests, probes, and release-bundle work, save results and stop processes started for verification. Then clean **both** workspaces:
 
 ```bash
 cargo clean
 cargo clean --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
 
-Очистка обязательна в конце каждого законченного изменения. Не запускай её между compile/test/probe шагами или параллельно сборке. Если Cargo target-dir переопределён, проверь область очистки и не удаляй общий cache другого проекта. Нужный пользователю release bundle сохрани вне очищаемого target до очистки. Registry/download cache, исходники, lockfiles и пользовательские preferences не удаляй. После clean новые тесты/probes потребуют сборки.
+Cleanup is mandatory at the end of every completed change. Run it after all compile/test/probe steps and never alongside builds. If Cargo's target directory is overridden, check the cleanup scope and preserve shared caches used by other projects. Save any release bundle needed by the user outside the target directory before cleaning. Preserve registry/download caches, sources, lockfiles, and user preferences. Further tests/probes require rebuilding after clean. If cleanup fails due to ownership or permissions, report the exact failure and leave cleanup outstanding.
 
-Команда удаляет build artifacts: [Cargo clean](https://doc.rust-lang.org/cargo/commands/cargo-clean.html).
+See [Cargo clean](https://doc.rust-lang.org/cargo/commands/cargo-clean.html) for the artifacts removed.

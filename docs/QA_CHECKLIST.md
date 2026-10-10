@@ -4,6 +4,26 @@ This is a set of checks to perform, not a record that manual QA has passed. Real
 
 For each manual run, record commit/build, OS/WebView version, source type, monitor/audio setup, network/ICE servers, steps, result, and logs for any failure. Mark a scenario complete only after recording its result.
 
+## Full-Project QA and Version Gate
+
+Follow the [version/tag policy](../AGENTS.md#commits-versions-and-git-tags) and [ordered milestones](../todo.md#ordered-feature-milestones). Ordinary tasks receive separate commits. Run a full-project checkpoint at each completed functional block, before every annotated version tag, and no later than five newly completed feature IDs. Documentation, refactoring, and fixes do not advance the feature counter; a fix-only version still requires this gate.
+
+1. Identify the candidate commit/build, version, milestone, feature IDs, and supported scope. Synchronize package/bundle versions before final validation.
+2. Run every automated check and available native/browser probe, then review every manual section below. Exercise all implemented paths and regression scenarios on supported systems, including packaged apps where supported.
+3. Record each scenario as `PASS`, `FAIL`, `BLOCKED`, `NOT RUN`, or `N/A`, with evidence or a reason. Future capabilities outside the declared release scope may be `N/A`; missing hardware, OS, permissions, or network access for a required scenario is `BLOCKED`.
+4. Fix failures and rerun affected checks. Required `FAIL`, `BLOCKED`, or `NOT RUN` results keep the release gate open and prevent a version tag. Passing synthetic probes does not close actual capture/device/network QA.
+5. Save an English QA record under `docs/qa/` named for the candidate version and tested commit, such as `v0.2.0-<commit>.md`. Include the fields and scenario table below. Update TODO's checkpoint with the record, covered IDs, and gate result; reset the feature counter only after a passing full run.
+6. Commit the version metadata, release notes, and QA record. The record must identify the tested tree; any later code/config/version changes require revalidation. Create the annotated `vMAJOR.MINOR.PATCH` tag on the resulting release commit after the gate passes. Save evidence/bundles, stop test processes, and clean both workspaces.
+
+QA record fields: version/milestone, tested commit and any uncommitted version diff, build/bundle identifier, completed feature IDs, OS/WebView/browser versions, source/monitor/audio setup, network/ICE servers, exact commands and results, regression notes, known limitations, and release-gate decision. Record-only changes after testing must be distinguishable from changes to the tested code/configuration.
+
+| Checklist section/scenario | Environment/build | Result | Evidence or reason |
+| --- | --- | --- | --- |
+| Each automated command | Exact command and platform | PASS / FAIL / BLOCKED / NOT RUN | Output summary or failure |
+| Each manual scenario below | OS, source/audio/network setup | PASS / FAIL / BLOCKED / NOT RUN / N/A | Steps, observations, and logs or scope reason |
+
+There are currently no passing full-project release QA records. The `0.1.0` baseline remains untagged and required manual checks remain open.
+
 ## Automated Checks
 
 Run from the repository root with local sockets and macOS codec services available where required:

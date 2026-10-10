@@ -65,7 +65,9 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --all-features
 
 Local sockets and macOS codec services must be available for media integration tests. Root CI runs Rust and viewer lifecycle checks on Linux/macOS, plus native sample extraction tests on macOS. It does not build/package Tauri or run the GUI/browser probe.
 
-[AGENTS.md](AGENTS.md) defines the complete per-change gate, available native/browser probes, and final `cargo clean` for both workspaces after all checks.
+[AGENTS.md](AGENTS.md) defines the complete per-change gate, available native/browser probes, English-only project content, and final `cargo clean` for both workspaces after all checks.
+
+The current version is `0.1.0`, an untagged development baseline. [TODO](todo.md#ordered-feature-milestones) groups remaining features into verifiable milestones. Each completed task receives a commit; annotated `v0.x.y` tags require the [full-project QA gate](docs/QA_CHECKLIST.md#full-project-qa-and-version-gate). Run that gate at each milestone and at most every five completed features. Minor versions add features, patch versions deliver fixes, and the major stays zero until MVP/release readiness. See the [version policy](AGENTS.md#commits-versions-and-git-tags).
 
 ## Repository And Documentation
 

@@ -1,119 +1,166 @@
-# TODO — актуальный статус
+# TODO — Current Status and Milestones
 
-Статус сверен с кодом и проверками коммита `0c6273f`.
+The implementation inventory was verified against code and tests at `0c6273f`; the project guidelines were added at `f1cb06b`. The roadmap below reorganizes outstanding work without claiming new runtime features or manual QA results.
 
-Правила разработки, обязательные проверки и порядок реализации: [AGENTS.md](AGENTS.md).
+Development rules, English-only project content, mandatory checks, and version/tag policy: [AGENTS.md](AGENTS.md).
 
-- **ПОЛНОСТЬЮ СДЕЛАНО**: конкретный результат реализован в указанном объёме и подтверждён кодом, готовыми файлами или автоматическими проверками. Непройденная ручная QA перечислена отдельно; весь продукт ещё не готов к выпуску.
-- **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО**: часть результата существует, но остаются реализация или необходимые проверки.
-- **НЕ СДЕЛАНО**: указанный результат не реализован либо указанная проверка ещё не выполнена. Непроверенный сценарий не считается полностью завершённым.
+- **FULLY COMPLETED**: the stated result exists within its documented scope and is supported by code, completed artifacts, or automated checks. Outstanding manual QA is listed separately; the product is not ready for release.
+- **PARTIALLY COMPLETED — INCOMPLETE**: part of the result exists, but implementation or required verification remains.
+- **NOT DONE**: the implementation is absent or the stated check has not run. An unverified scenario is incomplete.
 
-`[x]` используется только в разделе полностью выполненных результатов. `[ ]` обозначает оставшуюся работу. Заготовка runtime, наличие счётчиков RTP и успешное синтетическое воспроизведение не заменяют проверку реального захвата и приложения.
+Use `[x]` only for fully completed results. `[ ]` marks outstanding work. Runtime scaffolding, RTP counters, and synthetic playback do not replace actual capture/application verification.
 
-## Сводка исходных итераций
+## Version Checkpoint
 
-| Итерация | Статус | Что осталось |
+| Field | Current state |
+| --- | --- |
+| Project version | `0.1.0` in all first-party manifests and Tauri bundle metadata |
+| Latest annotated release tag | None; the baseline is untagged |
+| Newly completed feature IDs since adopting this policy | None — `0/5`; the existing inventory is the baseline |
+| Last passing full-project QA checkpoint | None; automated checks alone do not satisfy manual QA |
+| Next feature milestone | M1; baseline macOS capture/playback QA is the first prerequisite |
+| Release gate | Open; required manual QA remains outstanding |
+
+Update this checkpoint as feature IDs are completed. Keep ordinary task commits separate. Run full QA at each milestone, before any version tag, and at five newly completed features at the latest. Record the covered IDs and reset the counter only after a passing full QA run. Documentation, refactoring, and fixes do not count as features. Tag only a verified release commit; a docs-only update keeps `0.1.0`.
+
+## FULLY COMPLETED
+
+### WebRTC and Signaling
+
+- [x] Real Rust `PeerConnection`: offer/answer, ICE, connection state, stats, and a bootstrap data channel.
+- [x] H.264/Opus host tracks and encoded publication; the diagnostic Rust viewer receives/counts RTP.
+- [x] TCP signaling client/server, SDP/ICE envelopes, relay, and replay for the second participant joining later.
+- [x] Local host/viewer SDP/ICE integration tests and late-join replay checks.
+- [x] WebRTC session flow in CLI and Tauri; legacy mock UDP is separate from the real media path.
+
+### macOS Capture and Codec Implementation
+
+- [x] Shared `capture-core` contracts for sources/permissions, BGRA/PCM, and runtime configuration/status/events.
+- [x] Native Objective-C/C ABI ScreenCaptureKit bridge: window/application/display catalog using native IDs, asynchronous start, timeout, and stop/drop.
+- [x] Passive Screen Recording preflight, explicit requests at startup, and distinct permission-required/denied states.
+- [x] Packed BGRA with timestamps, incomplete-frame filtering, and aspect-ratio preservation; macOS 13+ PCM conversion to interleaved float32, 48 kHz/stereo.
+- [x] Native bounded queues: latest video frame and up to 32 audio buffers; permission-free extraction/lifecycle tests.
+- [x] VideoToolbox H.264 Constrained Baseline, SPS/PPS/IDR, Annex B, resize/odd-dimension handling, and PTS/buffer validation; actual encoder tests with synthetic frames.
+- [x] Vendored Opus, 20 ms packet aggregation, timestamp/discontinuity handling, and actual encode/decode tests.
+- [x] Continuous capture/encode/publish worker independent of GUI refresh; source/audio validation, encoding only with a connected peer, and stop/join before replacing sources/sessions/runtimes.
+- [x] Synthetic capture → native H.264/Opus → local WebRTC/RTP tests, including stop/restart and audio opt-out.
+
+### Desktop Viewer and Recovery
+
+- [x] Receive-only WebView `PeerConnection`: video-element decoding/playback without media crossing Tauri IPC.
+- [x] Muted startup, Enable Sound/Mute Sound, playback/error states, and a separate viewer signaling pump.
+- [x] Generation guards and peer/track cleanup on stop/reset/reconnect/role change/failure; refresh or delayed callbacks cannot revive a stopped session.
+- [x] Rust bridge and Node lifecycle tests, including ICE ordering, autoplay, terminal failure, and transient disconnect/recovery.
+- [x] Synthetic WKWebView/Chromium playback probes: decoded dimensions/pixels, nonzero Opus PCM, and media cleanup after stop/refresh.
+- [x] Video-SSRC RTCP PLI/FIR, FIR duplicate detection, coalescing, and a 500 ms cooldown; successful keyframe publication or disconnect/close clears pending state.
+- [x] Host keyframe request/publication/pending diagnostics, SRTCP/publication-race tests, and capture stop/restart recovery.
+- [x] WKWebView/Chromium recovery probes that drop the first keyframe and verify browser-originated RTCP refresh.
+
+### UI, Preferences, and Tooling
+
+- [x] Host/viewer preparation, source picker, capture start/poll/stop, session stop/reset, and manual reconnect with recovery guidance.
+- [x] Transport/capture/playback diagnostics, selected ICE path, and available RTT/bitrate/bytes/loss metrics.
+- [x] Persisted room/signaling/ICE/source/audio selection and Auto Refresh preferences; polling preserves unsaved form edits.
+- [x] Custom STUN/TURN validation and configuration propagation to Rust/WebView peers through CLI/Tauri settings.
+- [x] State-only local GUI demo and separate non-playable debug bursts.
+- [x] Linux `wmctrl` metadata catalog, example fallback, and runtime contract scaffold within that scope; media capture is absent.
+- [x] macOS `.app`/`.dmg` bundle configuration, icons/metadata, and generation/build helper scripts.
+- [x] Root CI: Rust format/Clippy/tests and Node viewer tests on Linux/macOS; native extraction tests on macOS.
+- [x] Installation/user/networking/media/capture/playback guides and a manual QA checklist.
+- [x] Project `AGENTS.md`: Rust style, safe FFI, implementation order, tests, documentation maintenance, and build-artifact cleanup.
+- [x] English project guidelines/documentation, stable milestone feature IDs, and a version/checkpoint policy with annotated-tag gates.
+
+## PARTIALLY COMPLETED — INCOMPLETE
+
+| Outcome | Existing implementation | Required completion |
 | --- | --- | --- |
-| 1. Реальный WebRTC transport | **ПОЛНОСТЬЮ СДЕЛАНО** в объёме локального SDP/ICE и transport API | Проверки других сетей вынесены в итерации 6/8; mock UDP сохранён как отдельный тестовый инструмент |
-| 2. Захват macOS | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | Код захвата/публикации готов; реальное окно/аудио, разрешения и packaged app ещё не проверены |
-| 3. Захват Linux | **НЕ СДЕЛАНО** для реального захвата | Есть только X11-каталог и runtime scaffold; Portal/PipeWire/X11 media отсутствуют |
-| 4. Tauri workflow | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | Invite UX, Linux portal flow и проверки packaged app |
-| 5. Усиление A/V pipeline | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | Adaptive quality/pacing, A/V sync, Linux encoder и weak-network QA |
-| 6. NAT/deployment | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | STUN/TURN сервисы/credentials, защищённый signaling и реальные NAT/TURN проверки |
-| 7. Preferences/packaging | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | Release build/install QA, signing/notarization и Linux bundle configuration |
-| 8. Release readiness | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | Реальный capture-to-playback, packaged GUI, разные сети, latency/CPU/A/V измерения |
+| macOS end-to-end streaming | Native capture, codecs, worker, viewer, and synthetic playback | Actual window/audio verification in the desktop and packaged app |
+| Cross-platform capture/playback | Shared contracts, macOS backend, Linux metadata/scaffold | Linux media backend/encoder and WebView QA (M3/M4) |
+| Production GUI | Source/session/media controls and diagnostics | Media settings (M1), invite UX (M5), and platform QA |
+| Backpressure/weak-network handling | Bounded queues, latest-only diagnostics, write timeout, keyframe recovery | Network-aware pacing/drop policy and adaptive bitrate (M2) |
+| NAT traversal | Custom ICE configuration and direct/relay hints | Real STUN/TURN/NAT tests, services, and managed credentials (M6) |
+| Packaging/release | macOS bundle configuration, icons, and build scripts | Verified installation/startup, signing/notarization, and Linux bundles (M7) |
 
-## ПОЛНОСТЬЮ СДЕЛАНО
+## NOT DONE
 
-### WebRTC и signaling
+### Baseline QA Prerequisites
 
-- [x] Реальный Rust `PeerConnection`: offer/answer, ICE, состояние соединения, stats и bootstrap data channel.
-- [x] H.264/Opus host tracks и публикация encoded media; диагностический Rust viewer принимает/считает RTP.
-- [x] TCP signaling client/server, SDP/ICE envelopes, relay и replay для позднего подключения второго участника.
-- [x] Интеграционные проверки локального host/viewer SDP/ICE и late-join replay.
-- [x] WebRTC session flow в CLI и Tauri; legacy mock UDP отделён от реального media path.
+Run the [QA checklist](docs/QA_CHECKLIST.md) on real devices. These are verification tasks, not new feature IDs:
 
-### Реализация захвата macOS и кодеков
+- [ ] Actual macOS permission deny/grant/relaunch/retry in the app/CLI.
+- [ ] Actual window/application/display capture and audio filtering/routing, including multiple monitors and changing/closing a source.
+- [ ] Actual native capture → desktop viewer video/audio, autoplay/user gestures, and sound output devices.
+- [ ] Packaged Tauri build/install/startup, playback, and stop/reset/close/startup cleanup.
+- [ ] Regression coverage for existing desktop controls, preferences, recovery, mock demo, and diagnostic CLI paths; record all checklist sections with explicit results.
 
-- [x] Общие `capture-core` contracts для source/permission, BGRA/PCM и runtime config/status/events.
-- [x] Нативный Objective-C/C ABI ScreenCaptureKit bridge: каталог windows/applications/displays по native IDs, asynchronous start, timeout, stop/drop.
-- [x] Пассивный Screen Recording preflight, явный запрос при старте и отдельные permission-required/denied статусы.
-- [x] Packed BGRA с timestamps, фильтрацией неполных кадров и сохранением aspect ratio; macOS 13+ PCM → interleaved float32, 48 kHz/stereo.
-- [x] Нативные bounded queues: последний video frame и до 32 audio buffers; permission-free extraction/lifecycle tests.
-- [x] VideoToolbox H.264 Constrained Baseline, SPS/PPS/IDR, Annex B, resize/odd-dimension handling и валидация PTS/буферов; реальные synthetic encoder tests.
-- [x] Vendored Opus, 20 ms packet aggregation, timestamps/discontinuity handling и реальные encode/decode tests.
-- [x] Непрерывный capture/encode/publish worker независимо от GUI refresh; source/audio validation, encode только при connected peer, остановка/join перед сменой source/session/runtime.
-- [x] Synthetic capture → native H.264/Opus → локальный WebRTC/RTP с проверками stop/restart и audio opt-out.
+Resolve discovered defects before extending the affected path. Where hardware/permissions are unavailable, keep the checks blocked and work on the next independent task; required blocked QA prevents a release tag.
 
-### Desktop viewer и recovery
+### Ordered Feature Milestones
 
-- [x] Receive-only WebView `PeerConnection`: decoding/playback через video element без передачи media через Tauri IPC.
-- [x] Muted startup, Enable Sound/Mute Sound, playback/error states и отдельный viewer signaling pump.
-- [x] Generation guards и peer/track cleanup при stop/reset/reconnect/role change/failure; stopped session не оживает после refresh или delayed callbacks.
-- [x] Rust bridge и Node lifecycle tests, включая ICE ordering, autoplay, terminal failure и transient disconnect/recovery.
-- [x] Synthetic WKWebView/Chromium playback probes: decoded dimensions/pixels, nonzero Opus PCM и media cleanup после stop/refresh.
-- [x] RTCP PLI/FIR по video SSRC, FIR duplicate detection, coalescing и 500 ms cooldown; pending сбрасывается после успешного keyframe publish или disconnect/close.
-- [x] Host keyframe request/publication/pending diagnostics, SRTCP и publication-race tests, capture stop/restart recovery.
-- [x] WKWebView/Chromium recovery probe с пропуском первого keyframe и browser-originated RTCP refresh.
+Each milestone is an independently verifiable outcome made of small coherent task commits. Proposed versions assume this order; if an independent milestone ships earlier or a block is split, assign the next unused minor version and update the plan. Patch releases do not change the milestone order.
 
-### UI, настройки и инструменты
+| Order | Proposed tag | Functional block | New feature IDs | Depends on |
+| --- | --- | --- | --- | --- |
+| M1 | `v0.2.0` | Measurable macOS streaming and media controls | M1-F1–F3 (3) | Baseline QA for the affected media path |
+| M2 | `v0.3.0` | Streaming under congestion and packet loss | M2-F1–F2 (2) | M1 metrics and controls |
+| M3 | `v0.4.0` | Linux Wayland capture-to-playback | M3-F1–F4 (4) | Shared media contracts; Linux environment |
+| M4 | `v0.5.0` | Linux X11 capture fallback | M4-F1 (1) | M3 encoder and Linux playback validation |
+| M5 | `v0.6.0` | Bounded, protected signaling and invite access | M5-F1–F3 (3) | Existing signaling/session contracts |
+| M6 | `v0.7.0` | Deployed direct/relay connectivity | M6-F1–F2 (2) | M5 authentication and deployment |
+| M7 | `v0.8.0` | Installable distribution on supported platforms | M7-F1–F2 (2) | Required platform/network milestones |
 
-- [x] Host/viewer preparation, source picker, capture start/poll/stop, session stop/reset и ручной reconnect с recovery guidance.
-- [x] Transport/capture/playback diagnostics, selected ICE path и доступные RTT/bitrate/bytes/loss metrics.
-- [x] Сохранение room/signaling/ICE/source/audio selection и Auto Refresh preferences; несохранённые form edits не теряются при polling.
-- [x] Валидация custom STUN/TURN entries и передача в Rust/WebView peers через CLI/Tauri settings.
-- [x] State-only local GUI demo и отдельные non-playable debug bursts.
-- [x] Linux `wmctrl` metadata catalog, example fallback и runtime contract scaffold — только в этом объёме, без захвата media.
-- [x] macOS `.app`/`.dmg` bundle configuration, icons/metadata и helper scripts для их генерации/сборки.
-- [x] Root CI: Rust format/Clippy/tests и Node viewer tests на Linux/macOS; native extraction tests на macOS.
-- [x] Инструкции installation/user/networking/media/capture/playback и manual QA checklist.
-- [x] Проектный `AGENTS.md`: Rust style, safe FFI, порядок реализации по TODO, тесты, актуализация документации и очистка build artifacts.
+Every block ends with the [full-project QA/version gate](docs/QA_CHECKLIST.md#full-project-qa-and-version-gate), even below five features. Review all checklist sections; unsupported future capabilities may be `N/A` with an explicit scope reason. Already supported scenarios remain required regression checks.
 
-## ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО
+### M1 — Measurable macOS Streaming and Media Controls
 
-| Результат | Уже есть | Не хватает для завершения |
-| --- | --- | --- |
-| macOS end-to-end streaming | Native capture, codecs, worker, viewer и synthetic playback | Проверка реального окна/аудио в desktop и packaged app |
-| Cross-platform capture/playback | Общие contracts, macOS backend, Linux metadata/scaffold | Linux media backend/encoder и Linux WebView QA |
-| Production GUI | Source/session/media controls и diagnostics | Invite UX, quality/audio-routing settings и platform QA |
-| Backpressure/weak-network handling | Bounded queues, latest-only diagnostics, write timeout, keyframe recovery | Network-aware pacing/drop policy и adaptive bitrate |
-| NAT traversal | Custom ICE configuration и direct/relay hints | Реальные STUN/TURN/NAT проверки, сервисы и managed credentials |
-| Packaging/release | macOS bundle config, icons и build scripts | Проверенная установка/запуск, signing/notarization, Linux bundles |
+- [ ] **M1-F1:** A/V sync monitoring and capture-to-render latency instrumentation with explicit units, diagnostics, and measurements on actual media; browser playout already exists, skew measurement does not.
+- [ ] **M1-F2:** Quality/FPS/resolution/bitrate presets applied through UI and backend configuration, with validation and persisted settings; current defaults are fixed in the backend.
+- [ ] **M1-F3:** Audio-routing settings and supported-source behavior with clear platform limitations; preserve existing Include Audio behavior.
 
-## НЕ СДЕЛАНО
+Acceptance: baseline permission/source/playback/preference checks pass; record real latency, A/V skew, and CPU under a stated load. Test preset/audio changes and lifecycle cleanup. Full-project QA is required before `v0.2.0`.
 
-### Реализация
+### M2 — Congestion and Packet-Loss Handling
 
-- [ ] Linux Wayland Portal ScreenCast session lifecycle: user source selection, permission, PipeWire stream consumption и cleanup.
-- [ ] Linux audio capture и X11 fallback media capture; текущий `wmctrl` даёт только metadata.
-- [ ] Linux video encoder, совместимый с согласованным H.264 media path.
-- [ ] Bitrate presets и UI settings для quality/FPS/resolution/audio routing; текущие defaults фиксированы в backend.
-- [ ] Adaptive bitrate/quality, network-aware frame pacing и congestion/drop policy.
-- [ ] A/V sync monitoring и capture-to-render latency instrumentation; browser playout уже существует, измерения skew нет.
-- [ ] Room/invite code/link UX и authenticated room access.
-- [ ] TLS signaling; текущий TCP server не поддерживает HTTPS/WSS.
-- [ ] Production room TTL, replay/message-size bounds, rate limits и deployment observability.
-- [ ] Bundled/deployed STUN/TURN configuration и short-lived TURN credential issuance.
-- [ ] Signing/notarization workflow и Linux bundle targets/configuration.
+- [ ] **M2-F1:** Network-aware frame pacing and a bounded congestion/drop policy, with deterministic overload/loss tests and lifecycle validation.
+- [ ] **M2-F2:** Adaptive bitrate/quality driven by measured network feedback, with recovery, bounds, and user-setting behavior.
 
-### Проверки, которые ещё НЕ ВЫПОЛНЕНЫ
+Acceptance: sustained loss/congestion/outage tests show measured latency, CPU, A/V skew, and recovery on actual media. The initial-keyframe-drop probe alone is insufficient. Full-project QA is required before `v0.3.0`.
 
-- [ ] Реальный macOS permission deny/grant/relaunch/retry на app/CLI.
-- [ ] Реальный window/application/display capture и audio filtering/routing, включая несколько мониторов и смену/закрытие source.
-- [ ] Реальный native capture → desktop viewer video/audio, autoplay/user gestures и sound output devices.
-- [ ] Packaged Tauri build/install/launch, playback и cleanup при stop/reset/close/startup.
-- [ ] Linux capture на GNOME Wayland, KDE Wayland и X11 после реализации backend.
-- [ ] Linux WebView H.264/Opus playback и unsupported-codec behavior.
-- [ ] STUN direct и TURN relay между разными сетями/NAT; восстановление после смены/потери connectivity.
-- [ ] Sustained packet loss, congestion и weak-network recovery; initial-keyframe-drop probe этого не заменяет.
-- [ ] Измерения latency, CPU, A/V skew и packet-loss behavior на реальном media path.
+### M3 — Linux Wayland Capture-to-Playback
 
-## Следующие шаги
+- [ ] **M3-F1:** Portal ScreenCast session, user permission/source selection, cancellation, and resource cleanup.
+- [ ] **M3-F2:** PipeWire video consumption using shared raw-frame contracts, with format/lifetime/backpressure handling.
+- [ ] **M3-F3:** Linux audio capture/selection, timestamp handling, and opt-out behavior.
+- [ ] **M3-F4:** Linux H.264 encoder compatible with the negotiated media path, including unsupported-codec errors and encoder lifecycle tests.
 
-1. Пройти реальный macOS capture/playback и permission QA по [checklist](docs/QA_CHECKLIST.md) и сохранить результаты с OS/build/source/network условиями.
-2. Добавить A/V sync/latency monitoring, затем quality presets и adaptive pacing/bitrate.
-3. Реализовать Linux Portal/PipeWire и video encoder, затем platform playback QA.
-4. Завершить защищённый signaling/STUN/TURN deployment и cross-network QA.
-5. Собрать/проверить release bundles и signing/notarization.
+Acceptance: actual GNOME Wayland and KDE Wayland capture/video/audio reach the desktop WebView; H.264/Opus support, error handling, permissions, and stop/drop are verified. Full-project QA, including macOS regression checks, is required before `v0.4.0`.
 
-Детальные ограничения: [capture](docs/MACOS_CAPTURE.md), [media](docs/MEDIA_PIPELINE.md), [viewer](docs/VIEWER_PLAYBACK.md), [networking](docs/NETWORKING.md). Наличие manual checklist означает готовность инструкции, а не выполнение её проверок.
+### M4 — Linux X11 Media Fallback
+
+- [ ] **M4-F1:** Actual X11 fallback media capture with source/audio selection, lifecycle cleanup, and reuse of the Linux encoder/playback path; `wmctrl` currently provides metadata only.
+
+Acceptance: actual X11 capture-to-playback and unsupported-environment errors pass; rerun Wayland and macOS regressions. Full-project QA is required before `v0.5.0`.
+
+### M5 — Protected Signaling and Invite Access
+
+- [ ] **M5-F1:** Bounded production room/message/replay lifecycle, TTL, rate limits, and deployment observability, with abuse/cleanup tests.
+- [ ] **M5-F2:** TLS signaling and corresponding client/deployment configuration; the current TCP server provides no HTTPS/WSS.
+- [ ] **M5-F3:** Authenticated room access with invite code/link UX, expiry/rejection behavior, and documented access rules.
+
+Acceptance: valid peers connect securely, unauthorized/expired invites and oversized/rate-limited traffic fail predictably, and rooms/resources are reclaimed. Rerun desktop/CLI signaling and media regressions. Full-project QA is required before `v0.6.0`.
+
+### M6 — Deployed Direct and Relay Connectivity
+
+- [ ] **M6-F1:** Documented/deployed STUN/TURN services and client configuration, including deployment defaults and operational diagnostics.
+- [ ] **M6-F2:** Authenticated short-lived TURN credential issuance, expiry/refresh handling, and credential validation tests.
+
+Acceptance: demonstrate STUN direct and TURN relay paths across different networks/restrictive NAT, selected-candidate diagnostics, connectivity loss/change/reconnect, and sustained congestion. Full-project QA is required before `v0.7.0`.
+
+### M7 — Installable Distribution
+
+- [ ] **M7-F1:** Linux bundle targets/configuration and a reproducible build/install workflow for the supported platforms.
+- [ ] **M7-F2:** macOS signing/notarization and distribution/install validation.
+
+Acceptance: build/install/launch packaged applications, verify permissions, actual capture/playback/audio, preferences, and stop/close cleanup on supported systems. Full-project QA is required before `v0.8.0`. After the required MVP scope and distribution QA are complete, assess `1.0.0` with documented supported behavior/API compatibility.
+
+Detailed limitations: [capture](docs/MACOS_CAPTURE.md), [media](docs/MEDIA_PIPELINE.md), [viewer](docs/VIEWER_PLAYBACK.md), and [networking](docs/NETWORKING.md). A completed checklist document does not mean its checks have passed.
