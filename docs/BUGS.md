@@ -13,9 +13,14 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 
 ## Current Issues
 
-| Bug | Owning feature | Priority | Status | Kind | Impact |
+No unresolved issues are currently recorded. New observed failures must be registered before extending the affected feature.
+
+## Closed Issues
+
+| Bug | Owning feature | Priority | Status | Kind | Resolution |
 | --- | --- | --- | --- | --- | --- |
-| [BUG-001](#bug-001-intermittent-wkwebview-playback-probe-failure) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | INVESTIGATING | Test fixture lifecycle | Slow browser startup can outlive the synthetic host's old 40-second lifetime |
+| [BUG-001](#bug-001-intermittent-wkwebview-playback-probe-failure) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | CLOSED | Test fixture lifecycle | Connection-relative host lifetime; slow-start and all browser modes verified |
+| [BUG-002](#bug-002-tauri-artifact-cleanup-is-blocked-by-root-ownership) | [BASE-DEV-WORKFLOW](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Local environment | Both workspace cleanups succeeded; both target directories are absent |
 
 ### BUG-001: Intermittent WKWebView Playback Probe Failure
 
@@ -27,15 +32,10 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 - **Latest verification (2026-10-10):** the fixed delayed-start WKWebView probe passed while both Rust workspaces were compiling: `64x36`, eight decoded frames, and 12,000 audio samples. All four ordinary/recovery WKWebView/Chrome modes subsequently passed, including media cleanup and browser RTCP recovery. Both workspaces passed formatting, strict Clippy, and tests; four lifetime tests and eight JS lifecycle tests passed. See the [focused verification record](qa/BUG-001-startup-lifetime.md).
 - **Cause:** the synthetic host's old 40-second deadline began before the WKWebView runner was compiled/browser started. A long startup consumed the entire lifetime before viewer negotiation. The initial historical run lacked host-exit diagnostics, but the controlled delayed-start reproduction confirms this fixture defect and the same symptom. Actual screen capture is outside this finding.
 - **Implementation:** separate a bounded 90-second connection wait from 40 seconds of streaming beginning at the first connected state; reconnect does not extend the window. Four portable unit tests cover delayed startup, the startup failure boundary, late connection, and reconnect. Probe failures now print host exit state and returned diagnostics. CI explicitly runs the example tests.
-- **Next action:** record the verified implementation's commit and close the entry; the tested working-tree changes and results are recorded above.
+- **Fixing commit/version:** `4f733d0de7e8761ce2c4070b0699fd5a730de670` on the untagged `0.1.0` development baseline. No release tag or version bump was created.
+- **Resolution:** `CLOSED`; controlled before/after reproduction, portable regression tests, delayed startup under compilation load, and all four browser playback/recovery modes satisfy the closure criteria. Subsequent closure/evidence edits are documentation only.
 - **Closure criteria:** identify and address the cause; retain a regression check; verify ordinary/recovery modes in WKWebView and Chrome, including the previously observed concurrent-build conditions. Record the fixing commit/version and verification evidence.
 - **Deferral:** none; no planned feature currently establishes that it replaces the affected probe/media behavior.
-
-## Closed Issues
-
-| Bug | Owning feature | Priority | Status | Kind | Resolution |
-| --- | --- | --- | --- | --- | --- |
-| [BUG-002](#bug-002-tauri-artifact-cleanup-is-blocked-by-root-ownership) | [BASE-DEV-WORKFLOW](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Local environment | Both workspace cleanups succeeded; both target directories are absent |
 
 ### BUG-002: Tauri Artifact Cleanup Is Blocked by Root Ownership
 

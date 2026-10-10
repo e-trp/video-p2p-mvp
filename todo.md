@@ -1,6 +1,6 @@
 # TODO — Current Status and Milestones
 
-The implementation inventory was verified against code and tests at `0c6273f`; the project guidelines were added at `f1cb06b`. The roadmap below reorganizes outstanding work without claiming new runtime features or manual QA results.
+The baseline implementation inventory was verified against code and tests at `0c6273f`; the project guidelines were added at `f1cb06b`. Later completed fixes link to their verification records below. The roadmap does not claim unimplemented features or manual QA results.
 
 Development rules, English-only project content, mandatory checks, and version/tag policy: [AGENTS.md](AGENTS.md).
 
@@ -21,7 +21,7 @@ Use `[x]` only for fully completed results. `[ ]` marks outstanding work. Runtim
 | Newly completed feature IDs since adopting this policy | None — `0/5`; the existing inventory is the baseline |
 | Last passing full-project QA checkpoint | None; automated checks alone do not satisfy manual QA |
 | Next feature milestone | M1, after actionable bugs; baseline macOS capture/playback QA is the first feature prerequisite |
-| Release gate | Open; required manual QA and relevant unresolved bugs remain outstanding |
+| Release gate | Open; required manual QA remains outstanding |
 
 Update this checkpoint as feature IDs are completed. Keep ordinary task commits separate. Run full QA at each milestone, before any version tag, and at five newly completed features at the latest. Record the covered IDs and reset the counter only after a passing full QA run. Documentation, refactoring, and fixes do not count as features. Tag only a verified release commit; a docs-only update keeps `0.1.0`.
 

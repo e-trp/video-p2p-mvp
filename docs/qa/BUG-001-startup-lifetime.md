@@ -5,7 +5,7 @@ This is a focused bug-fix record, not a full-project release QA checkpoint. The 
 ## Tested Tree and Environment
 
 - Date: 2026-10-10.
-- Tested code/configuration: the implementation working tree based on `615cb2a`; the fixing commit will be recorded after committing this verified tree. Later closure/evidence edits are documentation only.
+- Tested code/configuration: the implementation tree committed as `4f733d0de7e8761ce2c4070b0699fd5a730de670`, based on `615cb2a`. Later closure/evidence edits are documentation only; the tested code/configuration is unchanged.
 - macOS `27.0` (`26A428`), system WebKit `22625`, Chrome `155.0.8059.40`.
 - Node `26.11.0`, Rust/Cargo `1.99.0`.
 - Synthetic `64x36` BGRA frames and stereo 48 kHz PCM; native VideoToolbox/Opus encoding, loopback TCP signaling and WebRTC, real viewer bridge/player module. No external STUN/TURN, screen-recording permissions, physical source, or packaged Tauri app. Audio analysis uses zero-gain output.
@@ -64,7 +64,7 @@ All commands ran locally. Rust checks completed before the four ordinary browser
 
 ## Scope and Remaining QA
 
-BUG-001's playback, recovery, slow-start-under-load, and regression criteria are satisfied. The fixing commit must be recorded before changing its registry status to `CLOSED`.
+BUG-001's playback, recovery, slow-start-under-load, regression, and fixing-commit criteria are satisfied; its registry status is `CLOSED`.
 
 Actual capture/permissions, physical audio output, packaged-app playback/install, Linux execution, cross-network behavior, and performance QA were **NOT RUN** in this focused check. The [full-project checklist](../QA_CHECKLIST.md) remains open; no release tag or version bump is justified by this record. The lifetime tests are portable and configured for Linux/macOS CI; this local run only verifies macOS.
 
