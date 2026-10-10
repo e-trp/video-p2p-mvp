@@ -8,6 +8,8 @@ pub mod protocol;
 pub mod session;
 pub mod session_flow;
 pub mod signaling;
+mod viewer;
+pub use viewer::{ViewerPlaybackReport, ViewerSignal, ViewerSignalingBatch};
 
 pub use app::{AppCommand, CliError, parse_cli_args, print_help};
 pub use capture_catalog::{

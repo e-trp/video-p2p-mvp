@@ -61,13 +61,13 @@ This repository's MVP is intentionally smaller than the final product. It provid
 - a live WebRTC negotiation path with attached host audio/video tracks
 - debug `capture-core` payload publishing for transport smoke tests
 - a session-facing capture publish path that validates the selected source and audio opt-in before transport publication
-- native macOS capture with a continuous worker encoding H.264/Opus into WebRTC and reporting received RTP counts
+- native macOS capture with continuous H.264/Opus WebRTC publication and desktop WebView video/audio playback
 - saved specification and documentation
 
 This MVP does **not** yet provide:
 
 - Linux screen/audio capture (macOS raw ScreenCaptureKit capture is implemented)
-- viewer decoding and playback of received media
+- real desktop/weak-network validation and A/V sync monitoring
 - bundled STUN/TURN deployment defaults
 - Linux video encoding and adaptive codec controls
 - authenticated/encrypted signaling (WebRTC media already uses DTLS-SRTP)
@@ -85,7 +85,7 @@ Networking and deployment assumptions are tracked in `docs/NETWORKING.md`.
 ## Functional Goals For The Next Iteration
 
 1. Replace mock UDP media with WebRTC tracks.
-2. Implement viewer H.264/Opus decoding and synchronized playback for the existing encoded macOS publication path.
+2. Validate the implemented desktop playback path with actual window/audio capture, then add timing and quality controls.
 3. Implement Linux Wayland capture using Portal + PipeWire.
 4. Add room lifecycle and authentication to signaling.
 5. Add bitrate controls and production network/deployment guidance.

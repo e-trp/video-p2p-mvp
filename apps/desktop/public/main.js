@@ -1,3 +1,5 @@
+import { ViewerPlayer } from "./viewer-player.mjs";
+
 const isTauri = Boolean(window.__TAURI__?.core?.invoke);
 const sessionFieldIds = ["room", "signaling", "ice-servers"];
 const defaultRefreshIntervalSeconds = 3;
@@ -9,6 +11,21 @@ let refreshTimerId = null;
 let refreshInFlight = null;
 let actionInFlight = false;
 let lastSession = null;
+const viewerPlayer = new ViewerPlayer({
+  video: document.getElementById("viewer-video"),
+  invoke: (command, args) => invokeWithTimeout(command, args, userActionTimeoutMs),
+  onStatus: (status) => {
+    const message = status.error ?? ({
+      idle: "Join a room to watch the host stream.", waiting: "Waiting for the host stream...",
+      playing: status.muted ? "Playing · sound muted" : "Playing · sound enabled", paused: "Playback paused",
+    }[status.state] ?? status.state);
+    setText("viewer-playback-status", `${message} · ${status.videoFrames} video frames decoded`);
+    const button = document.getElementById("viewer-sound-btn");
+    button.textContent = status.muted ? "Enable Sound" : "Mute Sound";
+    button.disabled = actionInFlight || !status.hasAudio;
+  },
+});
+window.addEventListener("pagehide", () => viewerPlayer.stop());
 
 const htmlEscapeMap = {
   "&": "&amp;",
@@ -123,6 +140,7 @@ function setActionBusy(isBusy, message = null) {
     syncPrototypeControls(lastSession);
     syncCaptureRuntimeControls(lastSession);
     syncReconnectControl(lastSession);
+    document.getElementById("viewer-sound-btn").disabled = Boolean(viewerPlayer.context?.closed) || !viewerPlayer.context?.stream?.getAudioTracks().length;
   }
 }
 
@@ -351,6 +369,9 @@ function setCaptureRuntime(session) {
     ["Encoded Opus", session.encoded_audio_packet_count ?? 0],
     ["Received Video RTP", session.received_video_packet_count ?? 0],
     ["Received Audio RTP", session.received_audio_packet_count ?? 0],
+    ["Decoded Video", session.decoded_video_frame_count ?? 0],
+    ["Received Audio Samples", session.received_audio_sample_count ?? 0],
+    ["Viewer Playback", session.viewer_playback_state ?? "not_started"],
     ["Native Video", session.last_native_video_summary ?? "waiting for frames"],
     ["Native Audio", session.last_native_audio_summary ?? "waiting for audio"],
   ]);
@@ -474,6 +495,8 @@ function setRecoveryStatus(session) {
 
 function setSession(session, { forceFormSync = false } = {}) {
   lastSession = session;
+  document.getElementById("viewer-playback").hidden = session.mode !== "viewer";
+  viewerPlayer.sync(session);
   const container = document.getElementById("session");
   container.innerHTML = detailRows([
     ["Mode", session.mode],
@@ -866,7 +889,7 @@ async function startHostPrototype() {
     const status = captureResult.session?.capture_runtime_status;
     setCommandResult(
       status === "starting" || status === "running"
-        ? "Host prepared. Capture will stream H.264/Opus when the peer connects; viewer playback is still pending."
+        ? "Host prepared. Capture will stream H.264/Opus when the viewer connects."
         : `Host prepared. Capture status: ${status ?? "unavailable"}. Check permissions and refresh the source list.`,
       status === "starting" || status === "running" ? "ok" : "warn",
     );
@@ -1037,6 +1060,10 @@ async function load() {
 
   document.getElementById("refresh-btn").addEventListener("click", refresh);
 }
+
+document.getElementById("viewer-sound-btn").addEventListener("click", () => {
+  void viewerPlayer.setMuted(!document.getElementById("viewer-video").muted);
+});
 
 load().catch((error) => {
   document.getElementById("spec").textContent = String(error);

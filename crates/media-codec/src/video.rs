@@ -275,6 +275,14 @@ mod tests {
             nal_types.contains(&7) && nal_types.contains(&8) && nal_types.contains(&5),
             "{nal_types:?}"
         );
+        let sps = encoded
+            .bytes
+            .windows(8)
+            .find(|bytes| bytes[..4] == [0, 0, 0, 1] && bytes[4] & 0x1f == 7)
+            .unwrap();
+        assert_eq!(sps[5], 66); // Baseline profile
+        assert_ne!(sps[6] & 0x40, 0); // constraint_set1: Constrained Baseline, matching WebRTC SDP
+        assert!(sps[7] <= 31); // AutoLevel fits the SDP ceiling under the enforced 720p/30fps limits.
         assert!(encoded.bytes.len() < 63 * 35 * 4);
         let next = encoder
             .encode(&frame(63, 35, 1_033_333), false)

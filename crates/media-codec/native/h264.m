@@ -93,7 +93,7 @@ void *vpp_h264_create(uint32_t width, uint32_t height, uint32_t fps, uint32_t bi
         NSDictionary *properties = @{
             (__bridge NSString *)kVTCompressionPropertyKey_RealTime: @YES,
             (__bridge NSString *)kVTCompressionPropertyKey_AllowFrameReordering: @NO,
-            (__bridge NSString *)kVTCompressionPropertyKey_ProfileLevel: (__bridge NSString *)kVTProfileLevel_H264_Baseline_3_1,
+            (__bridge NSString *)kVTCompressionPropertyKey_ProfileLevel: (__bridge NSString *)kVTProfileLevel_H264_ConstrainedBaseline_AutoLevel,
             (__bridge NSString *)kVTCompressionPropertyKey_ExpectedFrameRate: @(fps),
             (__bridge NSString *)kVTCompressionPropertyKey_AverageBitRate: @(bitrate),
             (__bridge NSString *)kVTCompressionPropertyKey_MaxKeyFrameInterval: @(fps * 2),

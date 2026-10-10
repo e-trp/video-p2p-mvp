@@ -24,7 +24,8 @@
 - Done in part: session-facing debug `capture-core` sample publishing now exists above the transport
 - Done in part: CLI host startup now relies on the same automatic first-offer path as the GUI and can optionally publish a debug capture burst after connect
 - Implemented: continuous macOS capture-to-H.264/Opus publication and viewer RTP reception counters
-- Still open: viewer decoding/playback and real desktop/network validation
+- Implemented: desktop WebView viewer decoding/playback; CLI viewer remains an RTP diagnostic receiver
+- Still open: real desktop/network validation and Linux WebView playback QA
 
 ## Iteration 2: macOS Capture Backend
 
@@ -39,7 +40,7 @@
 5. Capture available audio buffers and normalize them for transport.
    Current state: macOS 13+ PCM extraction implemented with 48 kHz stereo configuration and planar-to-interleaved float32 conversion.
 6. Feed captured samples into the WebRTC publishing pipeline.
-   Current state: a source/audio-validated background worker encodes native BGRA/PCM as H.264/Opus and publishes to codec-aware WebRTC tracks when connected. Viewer RTP counters are implemented; decoding/playback is pending.
+   Current state: native BGRA/PCM is encoded and published as H.264/Opus. The desktop viewer decodes/plays media in its WebView with received/decoded counters; the CLI viewer counts RTP only.
 
 ### Iteration 2 Progress
 
@@ -67,7 +68,8 @@
 - Added: macOS CI coverage and an opt-in `capture_probe` example; see `docs/MACOS_CAPTURE.md`
 - Implemented: continuous worker independent of GUI refresh; stop/join before source changes, reset, replacement, or transport-runtime drop
 - Verified: synthetic capture through actual H.264/Opus encoding and local WebRTC reception, stop halting publication, and audio opt-out after restart
-- Still open: manual permission/source/audio QA on real desktop sessions and viewer playback
+- Implemented: desktop H.264/Opus playback verified against a synthetic native host in WKWebView
+- Still open: manual permission/source/audio and packaged desktop playback QA
 
 ## Iteration 3: Linux Capture Backend
 
@@ -126,13 +128,16 @@
 - Done in part: the desktop GUI now exposes first-screen prototype readiness for room, source, native capture, signaling, and peer-link state
 - Implemented: macOS capture panel shows native video/audio counts and latest sample summaries; host startup no longer sends debug samples automatically
 - Implemented: encoded/received counters and continuous macOS publication independent of desktop polling
-- Still open: Wayland portal flow and viewer playback
+- Implemented: remote video panel, explicit sound enable/mute, playback/error states, and independent viewer signaling pump
+- Implemented: generation guards and media/peer cleanup on stop/reset/role change/reconnect
+- Hardened: diagnostic refresh preserves stopped sessions, terminal failures reject delayed signals/reports, and transient connection recovery preserves playback/autoplay state
+- Still open: Wayland portal flow, Linux WebView playback QA, and packaged app testing
 
 ## Iteration 5: Audio/Video Pipeline Hardening
 
 1. Choose and implement initial codec set:
    video `H.264` or `VP8`, audio `Opus`.
-   Current state: native macOS VideoToolbox H.264 and cross-platform vendored Opus encoding are integrated with continuous capture and codec-aware WebRTC SDP/publication. Viewer decoding/playback is next.
+   Current state: continuous native H.264/Opus publication and desktop WebView decoding/playback are implemented. SDP uses Constrained Baseline H.264 (`42e01f`) and max-bundle for WebKit interoperability.
 2. Add bitrate presets and adaptive quality controls.
 3. Add frame pacing and backpressure handling.
    Current state: initial bounded native queues, continuous draining, latest-only GUI diagnostics, and a 200 ms publication timeout are implemented. Network-aware pacing and adaptive dropping remain open.
@@ -141,17 +146,19 @@
 
 ### Iteration 5 Progress
 
-- Implemented: standalone VideoToolbox H.264 Baseline Level 3.1 encoder for packed BGRA up to 1280x720 at 1-30 fps
+- Implemented: standalone VideoToolbox H.264 Constrained Baseline AutoLevel encoder within a Level 3.1 SDP ceiling for packed BGRA up to 1280x720 at 1-30 fps
 - Implemented: realtime configuration without B-frame reordering, 2 Mbit/s default target, two-second keyframe interval, SPS/PPS on keyframes, and AVCC-to-Annex B conversion
 - Implemented: source resize recreates the encoder and forces an IDR; odd dimensions are edge-padded to even dimensions; invalid buffers and non-increasing PTS are rejected
 - Verified: actual native encoding of synthetic frames, parameter-set/IDR output, PTS durations, resize, and malformed input without recording the screen
 - Implemented: vendored libopus encoder for mono/stereo interleaved 48 kHz PCM, 64 kbit/s stereo default, and 20 ms packets with preserved timestamps
 - Implemented: arbitrary audio buffer aggregation, finite/sample-count validation, and partial-packet reset on capture discontinuities
 - Verified: Opus roundtrip decoding, packet duration/PTS, discontinuity handling, and malformed audio
-- Implemented: continuous capture/encode/publish worker, H.264 Baseline/Opus-only SDP registration, RTP receive counters, and RTCP draining for transport interceptors
+- Implemented: continuous capture/encode/publish worker, H.264 Constrained Baseline/Opus-only SDP registration, RTP receive counters, and RTCP draining for transport interceptors
 - Implemented: encode only with a connected peer, reset encoders/request first keyframe on connection epochs, and drop partial audio on worker restart
 - Verified: actual encoded video/audio delivery over local WebRTC with synthetic capture, no dependency on GUI polling, stop/restart, and audio opt-out
-- Still open: viewer decoding/playback, Linux H.264 encoding, adaptive bitrate/pacing, A/V sync, and feedback-driven keyframe recovery
+- Implemented: desktop viewer WebRTC depacketization, jitter buffering, decoding, and video/audio output without media IPC
+- Verified: real WKWebView decoded video pixels/dimensions, nonzero Opus audio PCM, backend decoded/received counters, and stop cleanup using synthetic media
+- Still open: Linux H.264 encoding/playback QA, adaptive bitrate/pacing, A/V sync monitoring, and feedback-driven keyframe recovery
 
 ## Iteration 6: NAT Traversal And Deployment
 
@@ -203,4 +210,6 @@
 - Done in part: `app-core` now has unit coverage for recovery diagnostics when signaling is unavailable, plus more stable isolated capture-selection tests
 - Done in part: manual QA coverage for current MVP behavior now lives in `docs/QA_CHECKLIST.md`
 - Added: continuous encoded-media WebRTC integration test and capture-worker lifecycle/permission/source checks; manual encoded/RTP counter checks are documented
-- Still open: real desktop capture-to-playback and cross-network/latency/CPU validation
+- Added: Rust viewer signaling/generation coverage, Node lifecycle/ICE-order/autoplay/stale-callback tests, and opt-in native WKWebView playback probe; see `docs/VIEWER_PLAYBACK.md`
+- Added: regressions for stop followed by refresh, failure followed by delayed reports, stop during buffered ICE, and transient disconnect/recovery; the native probe checks closed peers and ended tracks
+- Still open: actual desktop capture-to-playback, packaged GUI, Linux WebView, and cross-network/latency/CPU validation

@@ -11,7 +11,7 @@ mod audio;
 pub use audio::{AudioEncoderSettings, OpusEncoder};
 
 pub const H264_FMTP: &str =
-    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f";
+    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedVideoFrame {

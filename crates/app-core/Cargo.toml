@@ -13,4 +13,8 @@ media-codec = { path = "../media-codec" }
 capture-linux = { path = "../capture-linux" }
 capture-macos = { path = "../capture-macos" }
 cfg-if = "1.0.4"
+serde = { version = "1", features = ["derive"] }
 transport-webrtc = { path = "../transport-webrtc" }
+
+[dev-dependencies]
+serde_json = "1"

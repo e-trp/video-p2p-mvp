@@ -61,6 +61,8 @@ dependencies = [
  "capture-macos",
  "cfg-if",
  "media-codec",
+ "serde",
+ "serde_json",
  "transport-webrtc",
 ]
 

@@ -13,11 +13,12 @@ The current repository can already provide:
 - configurable STUN/TURN ICE server settings for CLI and desktop runs
 - debug `capture-core` media bursts for transport validation
 - native macOS ScreenCaptureKit capture, H.264/Opus encoding, and continuous WebRTC publication
+- desktop WebView decoding and video/audio playback with explicit sound controls
 
 It does **not** yet provide:
 
 - Linux OS screen/system audio capture
-- viewer decoding and playback
+- validated Linux WebView playback and precise A/V timing controls
 - STUN/TURN deployment defaults
 - production packaging/signing/notarization flow
 
@@ -30,6 +31,7 @@ You need:
 - platform prerequisites required by Tauri on your OS
 - on macOS: Xcode Command Line Tools and macOS 12.3+ (macOS 13+ for audio); see [macOS capture setup](MACOS_CAPTURE.md)
 - CMake and a C compiler to build the vendored Opus codec; no system libopus is required
+- Node 22+ if running the viewer lifecycle tests or optional native playback probe
 
 Quick checks:
 
@@ -193,7 +195,7 @@ For the intended production signaling/STUN/TURN topology, see `docs/NETWORKING.m
 
 ### The viewer receives media, but shows no picture or sound
 
-This is expected in the current MVP.
+Use the desktop viewer for playback; the CLI viewer only reports RTP diagnostics. The desktop player starts muted. Click Enable Sound or the video play control if the WebView requires a user gesture.
 
 Today the repo supports:
 
@@ -203,7 +205,7 @@ Today the repo supports:
 - debug `capture-core` payload publishing
 - a continuous native macOS capture/encode/publish worker
 
-On macOS, start native capture with a real source and connect a viewer. Host `Encoded H.264`/`Encoded Opus` and viewer `Received Video RTP`/`Received Audio RTP` should increase while media is active. Viewer decoding/rendering are pending. Raw diagnostic counts depend on GUI refresh; encoded publication continues independently. Debug bursts are non-playable packetization tests.
+On macOS, start native capture with a real source and connect a viewer. Host `Encoded H.264`/`Encoded Opus` and viewer `Received Video RTP`/`Received Audio RTP` should increase while media is active. The desktop player should show decoded frames; check its playback status/error and click Play if autoplay is blocked. Raw diagnostic counts depend on GUI refresh; encoded publication continues independently. Debug bursts are non-playable packetization tests.
 
 ### macOS source listing falls back or permission looks blocked
 
@@ -221,7 +223,7 @@ Important limitation:
 
 - native capture starts only on an explicit capture action with a real catalog source
 - permission changes may require relaunch, catalog refresh, and reselection before retry
-- viewer decoding/rendering remain pending; see [the media pipeline guide](MEDIA_PIPELINE.md)
+- playback requires WebRTC/H.264/Opus support in the installed WebView; Linux still needs manual validation; see [the viewer guide](VIEWER_PLAYBACK.md)
 
 ### Linux source listing is incomplete or unavailable
 

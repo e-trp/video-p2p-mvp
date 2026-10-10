@@ -9,6 +9,7 @@ use crate::protocol::{
     IceCandidate, PeerAnnouncement, Role, SdpType, SessionDescription, SignalingMessage,
 };
 use crate::signaling::{SignalingConnection, SignalingEvent};
+use crate::viewer::{BrowserViewer, ViewerPlaybackReport, ViewerSignalingBatch};
 use capture_core::{
     AudioBuffer, CapturePermissionState, CaptureSelection, CaptureStreamConfig, CaptureStreamEvent,
     CaptureStreamRuntime, CaptureStreamStatus, VideoFrame, VideoPixelFormat,
@@ -90,6 +91,11 @@ pub struct SessionSnapshot {
     pub encoded_audio_packet_count: usize,
     pub received_video_packet_count: usize,
     pub received_audio_packet_count: usize,
+    pub viewer_generation: Option<u64>,
+    pub viewer_playback_state: String,
+    pub viewer_playback_error: Option<String>,
+    pub decoded_video_frame_count: u64,
+    pub received_audio_sample_count: u64,
     pub last_video_sample_bytes: usize,
     pub last_audio_sample_bytes: usize,
     pub last_video_capture_summary: Option<String>,
@@ -138,6 +144,7 @@ struct SessionState {
     active_peer: Option<String>,
     logs: Vec<String>,
     webrtc: Option<TransportSession>,
+    browser_viewer: Option<BrowserViewer>,
     signaling: Option<SignalingConnection>,
     signaling_connected: bool,
     last_signaling_message: Option<String>,
@@ -177,6 +184,7 @@ impl Default for SessionState {
             active_peer: None,
             logs: vec![stamp("session manager initialized")],
             webrtc: None,
+            browser_viewer: None,
             signaling: None,
             signaling_connected: false,
             last_signaling_message: None,
@@ -232,6 +240,14 @@ impl SessionManager {
     }
 
     pub fn start_viewer(&mut self, intent: SessionIntent) -> SessionSnapshot {
+        self.start_viewer_impl(intent, false)
+    }
+
+    pub fn start_playback_viewer(&mut self, intent: SessionIntent) -> SessionSnapshot {
+        self.start_viewer_impl(intent, true)
+    }
+
+    fn start_viewer_impl(&mut self, intent: SessionIntent, playback: bool) -> SessionSnapshot {
         self.sync_capture_catalog();
         self.replace_state(
             SessionMode::Viewer,
@@ -244,7 +260,15 @@ impl SessionManager {
             intent.room, intent.signaling_addr
         ));
         self.log_ice_server_configuration();
-        self.initialize_transport("viewer");
+        if playback {
+            self.state.browser_viewer =
+                Some(BrowserViewer::new(intent.room, intent.signaling_addr));
+            self.push_log(
+                "viewer media uses the WebView WebRTC decoder and video/audio output".into(),
+            );
+        } else {
+            self.initialize_transport("viewer");
+        }
         self.connect_signaling();
         self.snapshot()
     }
@@ -275,6 +299,114 @@ impl SessionManager {
         );
         self.log_host_capture_readiness();
         self.snapshot()
+    }
+
+    fn transport_snapshot(&self) -> Option<transport_webrtc::TransportSnapshot> {
+        self.state
+            .webrtc
+            .as_ref()
+            .map(TransportSession::snapshot)
+            .or_else(|| {
+                self.state
+                    .browser_viewer
+                    .as_ref()
+                    .map(|viewer| viewer.transport.clone())
+            })
+    }
+
+    fn require_viewer_generation(&self, generation: u64) -> Result<(), String> {
+        if self
+            .state
+            .browser_viewer
+            .as_ref()
+            .is_none_or(|viewer| viewer.generation != generation)
+        {
+            return Err("stale or inactive viewer generation".into());
+        }
+        Ok(())
+    }
+
+    /// Poll signaling without catalog refresh or dependence on the diagnostics refresh cadence.
+    pub fn poll_viewer_signaling(
+        &mut self,
+        generation: u64,
+    ) -> Result<ViewerSignalingBatch, String> {
+        self.require_viewer_generation(generation)?;
+        let active = self.state.stage != SessionStage::Stopped;
+        if active {
+            self.process_signaling_events();
+        }
+        let viewer = self
+            .state
+            .browser_viewer
+            .as_mut()
+            .expect("viewer generation validated");
+        if active && !viewer.is_active() {
+            return Err(viewer.error.clone().unwrap_or_else(|| {
+                "viewer playback is stopped or failed; reconnect to retry".into()
+            }));
+        }
+        Ok(ViewerSignalingBatch {
+            generation,
+            active,
+            ice_servers: self.state.ice_servers.clone(),
+            signals: viewer.drain().into_iter().map(Into::into).collect(),
+        })
+    }
+
+    pub fn send_viewer_signal(
+        &mut self,
+        generation: u64,
+        signal: SignalingMessage,
+    ) -> Result<(), String> {
+        self.require_viewer_generation(generation)?;
+        if self.state.stage == SessionStage::Stopped {
+            return Err("viewer session is stopped".into());
+        }
+        if !self.state.browser_viewer.as_ref().unwrap().is_active() {
+            return Err("viewer playback is stopped or failed; reconnect to retry".into());
+        }
+        if let SignalingMessage::SessionDescription(description) = &signal {
+            if description.sdp_type != SdpType::Answer
+                || description.sdp.is_empty()
+                || description.sdp.len() > 256_000
+            {
+                return Err("viewer may send only a nonempty SDP answer".into());
+            }
+            if !self
+                .state
+                .browser_viewer
+                .as_ref()
+                .unwrap()
+                .transport
+                .remote_description_ready
+            {
+                return Err("viewer cannot answer before receiving a host offer".into());
+            }
+        }
+        self.state
+            .signaling
+            .as_mut()
+            .ok_or("viewer signaling is unavailable")?
+            .send(&signal)
+            .map_err(|error| error.to_string())?;
+        self.state.browser_viewer.as_mut().unwrap().sent(&signal);
+        self.state.last_signaling_message = Some("viewer WebRTC signal forwarded".into());
+        Ok(())
+    }
+
+    pub fn report_viewer_playback(
+        &mut self,
+        generation: u64,
+        report: ViewerPlaybackReport,
+    ) -> Result<(), String> {
+        self.require_viewer_generation(generation)?;
+        if self.state.stage == SessionStage::Stopped {
+            return Err("viewer session is stopped".into());
+        }
+        self.state.browser_viewer.as_mut().unwrap().report(report)?;
+        self.update_stage_from_transport();
+        Ok(())
     }
 
     pub fn mark_mock_streaming(&mut self, peer: String) -> SessionSnapshot {
@@ -734,6 +866,7 @@ impl SessionManager {
             })?;
         let source_label = self.state.source_label.clone();
         let ice_servers = self.state.ice_servers.clone();
+        let browser_playback = self.state.browser_viewer.is_some();
 
         self.disconnect_active_session();
 
@@ -755,12 +888,15 @@ impl SessionManager {
                     "reconnecting viewer session for room={} signaling={}",
                     room, signaling_addr
                 ));
-                self.start_viewer(SessionIntent {
-                    room,
-                    signaling_addr,
-                    source_label: None,
-                    ice_servers,
-                })
+                self.start_viewer_impl(
+                    SessionIntent {
+                        room,
+                        signaling_addr,
+                        source_label: None,
+                        ice_servers,
+                    },
+                    browser_playback,
+                )
             }
             SessionMode::Idle => unreachable!(),
         };
@@ -778,6 +914,9 @@ impl SessionManager {
         self.state.stage = SessionStage::Stopped;
         self.state.active_peer = None;
         self.state.last_signaling_message = None;
+        if let Some(viewer) = self.state.browser_viewer.as_mut() {
+            viewer.close();
+        }
         self.state.signaling = None;
         self.state.signaling_connected = false;
         self.push_log("session stopped".to_string());
@@ -799,7 +938,7 @@ impl SessionManager {
     }
 
     pub fn snapshot(&self) -> SessionSnapshot {
-        let transport_snapshot = self.state.webrtc.as_ref().map(|session| session.snapshot());
+        let transport_snapshot = self.transport_snapshot();
         let recovery = self.recovery_diagnostics(transport_snapshot.as_ref());
         let (local_description_kind, remote_description_kind) = transport_snapshot
             .as_ref()
@@ -903,6 +1042,31 @@ impl SessionManager {
             received_audio_packet_count: transport_snapshot
                 .as_ref()
                 .map_or(0, |snapshot| snapshot.received_audio_packet_count),
+            viewer_generation: self
+                .state
+                .browser_viewer
+                .as_ref()
+                .map(|viewer| viewer.generation),
+            viewer_playback_state: self
+                .state
+                .browser_viewer
+                .as_ref()
+                .map_or("not_started".into(), |viewer| viewer.playback_state.clone()),
+            viewer_playback_error: self
+                .state
+                .browser_viewer
+                .as_ref()
+                .and_then(|viewer| viewer.error.clone()),
+            decoded_video_frame_count: self
+                .state
+                .browser_viewer
+                .as_ref()
+                .map_or(0, |viewer| viewer.video_frames),
+            received_audio_sample_count: self
+                .state
+                .browser_viewer
+                .as_ref()
+                .map_or(0, |viewer| viewer.audio_samples),
             last_video_sample_bytes: transport_snapshot
                 .as_ref()
                 .map(|snapshot| snapshot.last_video_sample_bytes)
@@ -1014,6 +1178,7 @@ impl SessionManager {
         self.state.source_label = intent.source_label;
         self.state.active_peer = None;
         self.state.webrtc = None;
+        self.state.browser_viewer = None;
         self.state.signaling = None;
         self.state.signaling_connected = false;
         self.state.last_signaling_message = None;
@@ -1217,6 +1382,9 @@ impl SessionManager {
         {
             self.push_log(format!("failed to close WebRTC transport: {error}"));
         }
+        if let Some(viewer) = self.state.browser_viewer.as_mut() {
+            viewer.close();
+        }
         self.state.signaling = None;
         self.state.signaling_connected = false;
         self.state.active_peer = None;
@@ -1369,6 +1537,19 @@ impl SessionManager {
     }
 
     fn handle_signaling_message(&mut self, message: SignalingMessage) {
+        if let Some(viewer) = self.state.browser_viewer.as_mut() {
+            if !viewer.is_active() {
+                return;
+            }
+            if let Err(error) = viewer.enqueue(message) {
+                viewer.close();
+                viewer.transport.connection_state = "failed".into();
+                viewer.playback_state = "failed".into();
+                viewer.error = Some(error.clone());
+                self.push_log(format!("viewer signaling failed: {error}"));
+            }
+            return;
+        }
         match message {
             SignalingMessage::SessionDescription(description) => match description.sdp_type {
                 SdpType::Offer => {
@@ -1461,7 +1642,10 @@ impl SessionManager {
     }
 
     fn update_stage_from_transport(&mut self) {
-        let Some(snapshot) = self.state.webrtc.as_ref().map(|session| session.snapshot()) else {
+        if self.state.stage == SessionStage::Stopped {
+            return;
+        }
+        let Some(snapshot) = self.transport_snapshot() else {
             return;
         };
 
@@ -1640,7 +1824,7 @@ impl SessionManager {
     }
 
     fn next_action(&self) -> &'static str {
-        let transport_snapshot = self.state.webrtc.as_ref().map(|session| session.snapshot());
+        let transport_snapshot = self.transport_snapshot();
         let connected = transport_snapshot
             .as_ref()
             .map(|snapshot| snapshot.connection_state == "connected")
@@ -1661,7 +1845,7 @@ impl SessionManager {
             }
             (_, SessionStage::Stopped, _) => "reconnect, restart, or reset session",
             (_, SessionStage::LiveWebRtc, SessionTransport::LiveWebRtc) if connected => {
-                "peer connection is live; encoded media counters show delivery, while viewer playback is still pending"
+                "peer connection is live; start host capture and use the desktop viewer player"
             }
             (SessionMode::Host, _, SessionTransport::LiveWebRtc)
                 if self.state.capture_catalog.permission_state
@@ -1885,6 +2069,125 @@ mod tests {
         status: CaptureStreamStatus,
         events: Vec<CaptureStreamEvent>,
         stops: Arc<AtomicUsize>,
+    }
+
+    #[test]
+    fn playback_viewer_relays_signals_and_rejects_stale_or_stopped_callbacks() {
+        use crate::{SdpType, SessionDescription, SignalingMessage, ViewerPlaybackReport};
+        let (mut manager, config_dir) = new_test_manager("playback-viewer");
+        let intent = SessionIntent {
+            room: "playback".into(),
+            signaling_addr: "127.0.0.1:0".into(),
+            source_label: None,
+            ice_servers: Vec::new(),
+        };
+        let initial = manager.start_playback_viewer(intent);
+        let generation = initial.viewer_generation.unwrap();
+        assert!(manager.state.webrtc.is_none()); // one peer owned by the WebView
+        let (client, mut server) = UnixStream::pair().unwrap();
+        manager.state.signaling = Some(
+            SignalingConnection::from_unix_stream_for_tests(client, "playback", Role::Receiver, 0)
+                .unwrap(),
+        );
+        manager.state.signaling_connected = true;
+        let mut reader = BufReader::new(server.try_clone().unwrap());
+        let mut line = String::new();
+        reader.read_line(&mut line).unwrap();
+        assert_eq!(line, "JOIN playback receiver 0\n");
+        let offer = SignalingMessage::SessionDescription(SessionDescription {
+            sdp_type: SdpType::Offer,
+            sdp: "v=0\r\n".into(),
+        });
+        server
+            .write_all(crate::encode_signaling_message(&offer).as_bytes())
+            .unwrap();
+        let batch = manager.poll_viewer_signaling(generation).unwrap();
+        assert!(batch.active);
+        assert!(matches!(
+            batch.signals.as_slice(),
+            [crate::ViewerSignal::Offer { .. }]
+        ));
+        let answer = SignalingMessage::SessionDescription(SessionDescription {
+            sdp_type: SdpType::Answer,
+            sdp: "v=0\r\na=recvonly\r\n".into(),
+        });
+        manager
+            .send_viewer_signal(generation, answer.clone())
+            .unwrap();
+        line.clear();
+        reader.read_line(&mut line).unwrap();
+        assert_eq!(crate::decode_signaling_message(&line).unwrap(), answer);
+        manager
+            .report_viewer_playback(
+                generation,
+                ViewerPlaybackReport {
+                    connection_state: "connected".into(),
+                    playback_state: "playing".into(),
+                    ice_path_kind: "direct".into(),
+                    video_frames: 7,
+                    audio_samples: 960,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let live = manager.snapshot();
+        assert_eq!(live.stage, SessionStage::LiveWebRtc);
+        assert_eq!(live.decoded_video_frame_count, 7);
+        assert_eq!(live.received_audio_sample_count, 960);
+        assert_eq!(live.recovery_state, "healthy");
+        manager.stop();
+        assert_eq!(manager.refresh().stage, SessionStage::Stopped);
+        assert!(!manager.poll_viewer_signaling(generation).unwrap().active);
+        assert!(
+            manager
+                .send_viewer_signal(generation, answer.clone())
+                .is_err()
+        );
+        assert!(
+            manager
+                .report_viewer_playback(generation, ViewerPlaybackReport::default())
+                .is_err()
+        );
+        let reconnected = manager.reconnect().unwrap();
+        assert_ne!(reconnected.viewer_generation, Some(generation));
+        assert!(manager.poll_viewer_signaling(generation).is_err());
+        assert!(manager.send_viewer_signal(generation, answer).is_err());
+        assert_eq!(reconnected.decoded_video_frame_count, 0);
+        assert!(manager.state.webrtc.is_none());
+        let generation = reconnected.viewer_generation.unwrap();
+        manager
+            .report_viewer_playback(
+                generation,
+                ViewerPlaybackReport {
+                    connection_state: "failed".into(),
+                    playback_state: "failed".into(),
+                    ice_path_kind: "unknown".into(),
+                    error: Some("Peer connection failed".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert!(
+            manager
+                .send_viewer_signal(
+                    generation,
+                    SignalingMessage::IceCandidate(crate::IceCandidate {
+                        candidate: "candidate:1".into(),
+                        sdp_mid: Some("0".into()),
+                        sdp_mline_index: Some(0),
+                    }),
+                )
+                .unwrap_err()
+                .contains("stopped or failed")
+        );
+        manager.handle_signaling_message(offer);
+        assert_eq!(
+            manager.poll_viewer_signaling(generation).unwrap_err(),
+            "Peer connection failed"
+        );
+        manager.reset();
+        assert!(manager.snapshot().viewer_generation.is_none());
+        fs::remove_dir_all(config_dir).ok();
     }
 
     impl CaptureStreamRuntime for TestCaptureRuntime {

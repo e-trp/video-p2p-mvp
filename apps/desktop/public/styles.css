@@ -103,6 +103,11 @@ h1 {
   box-shadow: var(--shadow);
 }
 
+.viewer-playback { margin: 0 0 16px; }
+.viewer-playback[hidden] { display: none; }
+.player-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.viewer-playback video { display: block; width: 100%; max-height: 60vh; min-height: 160px; background: #111820; border-radius: 6px; object-fit: contain; }
+
 .form {
   display: grid;
   gap: 14px;

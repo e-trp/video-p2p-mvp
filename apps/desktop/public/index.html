@@ -51,6 +51,15 @@
         </article>
       </section>
 
+      <section id="viewer-playback" class="card viewer-playback" aria-label="Remote stream" hidden>
+        <div class="player-heading">
+          <div><p class="eyebrow">Live stream</p><h2>Remote Window</h2></div>
+          <button type="button" id="viewer-sound-btn" class="secondary" disabled>Enable Sound</button>
+        </div>
+        <video id="viewer-video" autoplay muted playsinline controls aria-label="Remote video and audio"></video>
+        <p id="viewer-playback-status" class="hint" role="status" aria-live="polite">Waiting for the host stream...</p>
+      </section>
+
       <section class="readiness-strip" aria-label="Prototype readiness">
         <div>
           <span>Room</span>

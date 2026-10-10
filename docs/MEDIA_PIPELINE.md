@@ -4,11 +4,11 @@
 
 `media-codec` separates raw capture payloads from encoded media. On macOS, `H264Encoder` uses VideoToolbox to produce `EncodedVideoFrame` access units in H.264 Annex B format. No FFmpeg binary is required. Linux currently reports an explicit unsupported-video-encoder error.
 
-The initial encoder targets H.264 Baseline Level 3.1: up to 1280x720 at 1-30 fps. The default is 30 fps and 2 Mbit/s. Frame reordering is disabled, realtime mode is enabled, and a keyframe is requested at least every two seconds. Odd dimensions are padded by copying their final row/column. Source size changes recreate the session and force a keyframe.
+The initial encoder uses VideoToolbox's `ConstrainedBaseline_AutoLevel` profile within a Level 3.1 SDP ceiling: up to 1280x720 at 1-30 fps. The default is 30 fps and 2 Mbit/s. Frame reordering is disabled, realtime mode is enabled, and a keyframe is requested at least every two seconds. Odd dimensions are padded by copying their final row/column. Source size changes recreate the session and force a keyframe.
 
 Input must be packed BGRA with exact byte counts and strictly increasing CoreMedia presentation timestamps. Encoded frames preserve PTS and expose sample duration, padded dimensions, and keyframe status. VideoToolbox AVCC output is converted to Annex B; SPS/PPS are prepended to each keyframe for RTP delivery and late recovery. Native callbacks retain no Rust pointers; encode completes callbacks before returning and encoder drop invalidates/releases the session.
 
-The macOS host uses this encoder in the continuous capture worker. Viewer decoding/playback is still pending.
+The macOS host uses this encoder in the continuous capture worker. Native encoder tests check SPS for Baseline profile, constraint_set1, and a level at or below 3.1; SDP advertises `42e01f` for interoperability with WebKit and Chromium.
 
 ## Opus Encoder
 
@@ -20,13 +20,13 @@ Native capture buffers can have arbitrary frame counts. The encoder accumulates 
 
 `app-core` wraps the selected platform runtime in a capture/encode/publish worker. The worker starts capture asynchronously relative to the GUI, drains native events roughly every 5 ms, validates the selected source and audio opt-in, and encodes only while the peer is connected. Native queues retain the newest video frame and at most 32 audio buffers. GUI diagnostics retain only the latest raw frame/buffer; changing desktop refresh cadence does not pace media publication after negotiation.
 
-`transport-webrtc` registers H.264 Baseline Level 3.1 at 90 kHz with packetization mode 1 and Opus at 48 kHz/stereo. `TransportPublisher` accepts encoded access units/packets and writes them to the matching tracks with a 200 ms timeout. Raw native buffers are never used as codec output. The explicit debug burst remains a non-playable packetization test; it does not increment encoded counters.
+`transport-webrtc` registers H.264 Constrained Baseline Level 3.1 at 90 kHz with packetization mode 1 and Opus at 48 kHz/stereo. `TransportPublisher` accepts encoded access units/packets and writes them to the matching tracks with a 200 ms timeout. Raw native buffers are never used as codec output. The explicit debug burst remains a non-playable packetization test; it does not increment encoded counters.
 
 Every observed connection epoch resets codec state and requests an initial video keyframe. Stop, source/audio changes, reset, session replacement, and manager drop stop and join the worker before closing/dropping its WebRTC runtime. Permission-blocked/failed capture exits the worker while preserving its diagnostic status. Codec/transport failures stop publication and report a capture error; reconnect/start can rebuild the pipeline.
 
-Host snapshots expose `encoded_video_frame_count` and `encoded_audio_packet_count`. Viewer track readers count received RTP packets separately and currently discard their payloads. Video fragmentation means RTP packet counts differ from encoded frame counts. RTCP is drained on host senders so transport interceptors continue processing feedback. Received RTP is evidence of media delivery, not decoded playback.
+Host snapshots expose `encoded_video_frame_count` and `encoded_audio_packet_count`. CLI viewer track readers count received RTP packets and discard payloads. The desktop viewer uses WebView WebRTC for decoding/playback and reports received packets, decoded video frames, and received audio samples through a signaling/diagnostics bridge. Video fragmentation means RTP packet counts differ from encoded frame counts. RTCP is drained on host senders so transport interceptors continue processing feedback. Received RTP is evidence of media delivery, not decoded playback.
 
-Remaining work: viewer depacketization/decoding/rendering and audio output, shared A/V timing, adaptive bitrate and pacing, feedback-driven keyframe requests, and a Linux video encoder. Current fixed defaults and bounded queues are initial backpressure measures. ScreenCaptureKit permission and actual source/audio behavior still require manual desktop QA.
+Remaining work: measured A/V timing and latency, adaptive bitrate/pacing, feedback-driven keyframe requests, Linux video encoding, and Linux WebView playback QA. See [the viewer guide](VIEWER_PLAYBACK.md) for playback and interoperability tests. Current fixed defaults and bounded queues are initial backpressure measures. ScreenCaptureKit permission and actual source/audio behavior still require manual desktop QA.
 
 ## Validation
 
@@ -42,6 +42,6 @@ Opus tests perform real encode/decode roundtrips and verify output frame counts,
 
 The macOS continuous-worker test uses synthetic capture, actual H.264/Opus encoders, local SDP/ICE negotiation, and real RTP reception on a viewer. It verifies publication without GUI polling, stop/join, restart, and audio opt-out. Local UDP sockets and macOS codec services must be allowed by the test environment. It opens no screen capture and contacts no signaling/STUN/TURN service. Unit tests also cover stale source rejection, permission status preservation, and malformed/disconnected encoded publication.
 
-References: [Apple VideoToolbox](https://developer.apple.com/documentation/videotoolbox), [realtime compression](https://developer.apple.com/documentation/videotoolbox/kvtcompressionpropertykey_realtime), and [frame reordering](https://developer.apple.com/documentation/videotoolbox/kvtcompressionpropertykey_allowframereordering).
+References: [Apple VideoToolbox](https://developer.apple.com/documentation/videotoolbox), [Constrained Baseline AutoLevel](https://developer.apple.com/documentation/videotoolbox/kvtprofilelevel_h264_constrainedbaseline_autolevel), [realtime compression](https://developer.apple.com/documentation/videotoolbox/kvtcompressionpropertykey_realtime), and [frame reordering](https://developer.apple.com/documentation/videotoolbox/kvtcompressionpropertykey_allowframereordering).
 
 Opus reference: [encoder API](https://www.opus-codec.org/docs/opus_api-1.6/group__opus__encoder.html).

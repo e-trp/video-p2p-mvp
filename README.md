@@ -1,11 +1,11 @@
 # video-p2p-mvp
 
-Rust desktop prototype for peer-to-peer window and audio streaming on macOS and Linux. macOS capture and H.264/Opus publication work; viewer playback and Linux capture are still pending.
+Rust desktop prototype for peer-to-peer window and audio streaming on macOS and Linux. macOS capture, H.264/Opus publication, and desktop viewer playback work; Linux capture is still pending.
 
 The repository now has two layers:
 
 - a working backend MVP with signaling and direct UDP mock media flow
-- a Tauri desktop shell with live WebRTC negotiation and continuous macOS capture-to-H.264/Opus publication
+- a Tauri desktop shell with live WebRTC negotiation and continuous macOS capture-to-H.264/Opus publication and WebView video/audio playback
 
 ## Workspace Layout
 
@@ -13,7 +13,8 @@ The repository now has two layers:
 - `crates/capture-core`: shared capture types for sources, permissions, video frames, and audio buffers
 - `crates/capture-macos`: native ScreenCaptureKit window/application/display capture and PCM audio
 - `crates/media-codec`: encoded media contracts, native macOS H.264, and vendored Opus encoding
-- `docs/MEDIA_PIPELINE.md`: codec implementation, continuous publication, and remaining playback work
+- `docs/MEDIA_PIPELINE.md`: codec implementation, continuous publication, and desktop playback
+- `docs/VIEWER_PLAYBACK.md`: player setup, WebView signaling, lifecycle, and playback verification
 - `docs/MACOS_CAPTURE.md`: native capture setup, limitations, and verification
 - `crates/signaling-server`: standalone signaling binary
 - `apps/cli`: sender/receiver CLI for backend testing
@@ -101,7 +102,8 @@ It now exposes commands for:
 - auto-creating and sending the first local SDP offer from the host once signaling is connected
 - publishing debug `capture-core` audio/video payloads into the attached host tracks for smoke testing
 - starting, polling, and stopping the current platform capture stream runtime from the session manager and desktop GUI
-- polling signaling with a persisted auto-refresh cadence and auto-applying remote offer/answer/ICE state
+- polling host signaling with the persisted auto-refresh cadence and viewer signaling through an independent player loop
+- playing remote H.264/Opus video/audio in the WebView with muted startup, sound controls, and decoded-media diagnostics
 - reconnecting the current host/viewer session with the active room, signaling, and ICE settings after a stop or signaling failure
 - surfacing explicit recovery-state diagnostics in the desktop UI so reconnect guidance is visible without digging through logs
 - surfacing live transport diagnostics from the `PeerConnection` snapshot, including ICE path, RTT, bitrate, byte counters, and packet-loss metrics when available
@@ -116,10 +118,10 @@ The Tauri shell is still not included in the default workspace build yet.
 
 ## What Is Still Missing
 
-macOS now has native ScreenCaptureKit capture, VideoToolbox H.264 and Opus encoders, and continuous encoded WebRTC publication. The desktop shows raw diagnostic samples, encoded publication counts, and received RTP counts separately. Viewer decoding and rendering remain pending. Missing components include:
+macOS now has native ScreenCaptureKit capture, VideoToolbox H.264 and Opus encoders, and continuous encoded WebRTC publication. The desktop shows raw diagnostic samples, encoded publication counts, and received RTP counts separately. The desktop viewer receives and decodes media directly in the WebView and renders it through a video element; the CLI viewer remains an RTP diagnostic receiver. Missing components include:
 
 - Linux Portal/PipeWire integration
-- viewer H.264/Opus decoding, rendering, and A/V synchronization
+- end-to-end A/V sync monitoring, latency/CPU measurements, and real desktop QA
 - a Linux video encoder and adaptive bitrate/backpressure controls
 - bundled STUN/TURN deployment defaults
 - production GUI workflow
@@ -175,7 +177,7 @@ What changed relative to the earlier scaffold:
 
 ## Recommended Next Build Steps
 
-1. Add viewer H.264/Opus decoding, video rendering, and audio playback.
-2. Add A/V sync, adaptive bitrate, and feedback-driven keyframe recovery, then verify real end-to-end playback.
+1. Validate real window/audio playback and permission flows on macOS using [the viewer guide](docs/VIEWER_PLAYBACK.md).
+2. Add A/V sync monitoring, adaptive bitrate, and feedback-driven keyframe recovery.
 3. Manually validate macOS Screen Recording permission, application/window capture, and audio routing using [the native capture guide](docs/MACOS_CAPTURE.md).
 4. Add Linux Wayland capture via Portal + PipeWire on top of `capture-core`.

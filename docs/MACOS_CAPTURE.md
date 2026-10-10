@@ -34,7 +34,7 @@ Start returns `starting` while native content lookup and SCStream startup run as
 
 The desktop capture panel exposes `Captured Video`, `Captured Audio`, `Native Video`, and `Native Audio`. Counts reflect events drained into the session manager, so they depend on polling and queue backpressure. Samples update source-validated diagnostics without retaining raw media in the snapshot.
 
-Native BGRA/PCM is encoded by VideoToolbox H.264 and vendored Opus before publication to codec-aware WebRTC tracks. Publication starts only with a connected peer. `Encoded H.264`/`Encoded Opus` count published access units/packets; viewer `Received Video RTP`/`Received Audio RTP` count received RTP packets, which may differ due to fragmentation. Viewer decoding/rendering remain pending. `Push Debug Capture Burst` is a separate non-playable packetization smoke test. See [the media pipeline guide](MEDIA_PIPELINE.md).
+Native BGRA/PCM is encoded by VideoToolbox H.264 and vendored Opus before publication to codec-aware WebRTC tracks. Publication starts only with a connected peer. `Encoded H.264`/`Encoded Opus` count published access units/packets; viewer `Received Video RTP`/`Received Audio RTP` count received RTP packets, which may differ due to fragmentation. The desktop viewer decodes and displays the stream in its WebView; sound starts muted and can be enabled explicitly. `Push Debug Capture Burst` is a separate non-playable packetization smoke test. See [the media pipeline guide](MEDIA_PIPELINE.md).
 
 ## Verification
 

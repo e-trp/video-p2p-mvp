@@ -107,7 +107,19 @@ Verify:
 6. Disable audio and restart capture; video continues while encoded audio counts stay unchanged.
 7. Stop/reset/replace/close the host session while running; check capture indicators disappear and no publication continues from the old worker.
 
-Viewer picture/sound are not implemented yet. These checks verify capture, encoding, and packet delivery only. Do not run debug bursts during this check because they inject non-playable payloads into the same tracks. For permission-free automated coverage, run `cargo test -p app-core continuous_encoded_media` with local sockets and macOS codec services available.
+The desktop viewer should display the selected window. Click Enable Sound and verify the selected audio; the CLI viewer verifies packet delivery only. Do not run debug bursts during this check because they inject non-playable payloads into the same tracks. For permission-free automated coverage, run `cargo test -p app-core continuous_encoded_media` with local sockets and macOS codec services available.
+
+## Desktop Viewer Playback Lifecycle
+
+1. Join a live macOS host from a second desktop instance; verify moving video and increasing decoded frame counts.
+2. Verify muted startup, Enable Sound/Mute Sound, and the native play/pause controls. If autoplay is blocked, click Play and confirm playback recovers.
+3. Disable viewer Auto Refresh before joining; negotiation and playback should still proceed.
+4. Interrupt and restore the network briefly; the interruption message should clear after the peer reconnects, preserving any autoplay guidance.
+5. Stop the viewer, then refresh diagnostics repeatedly; the session must stay stopped, the video element must clear, and sound must stop.
+6. Reconnect, reset, and switch to host mode while negotiation is in progress; old callbacks must not restore media or overwrite the new session's diagnostics.
+7. Force a peer failure; verify an error is visible and playback remains closed until reconnect.
+
+Run `node --test apps/desktop/tests/viewer-player.test.mjs` and `cargo test -p app-core viewer` for automated lifecycle checks. See [the viewer guide](VIEWER_PLAYBACK.md) for the optional synthetic WKWebView playback test.
 
 ## Debug Capture Publishing
 
@@ -167,7 +179,7 @@ For local tests, an empty ICE server list is acceptable. For cross-network tests
 Current limitation:
 
 - the repository does not ship a TURN service or auth flow
-- macOS native samples are encoded and delivered over WebRTC; viewer decoding/rendering are still pending
+- macOS native samples are encoded and played in the desktop viewer; real permission/source/audio behavior and Linux playback need manual validation
 
 Use `docs/NETWORKING.md` as the reference for expected production signaling/STUN/TURN topology and security assumptions.
 
@@ -190,6 +202,6 @@ Verify:
 
 - macOS capture requires manual permission/window/application/audio validation using `docs/MACOS_CAPTURE.md`
 - no Linux Portal + PipeWire media stream yet
-- no viewer decoding/playback, Linux video encoder, or adaptive bitrate control yet
+- no Linux video encoder, adaptive bitrate control, or measured end-to-end A/V sync yet
 - no production invite/auth flow yet
 - no bundled TURN deployment defaults yet

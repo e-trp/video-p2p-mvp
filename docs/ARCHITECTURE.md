@@ -2,19 +2,19 @@
 
 ## Current MVP
 
-The repository is now a workspace-based scaffold with a future desktop GUI target.
+The repository is a Rust workspace with a separate Tauri desktop application and native macOS capture/playback support.
 
 Components:
 
 - `crates/app-core`: shared protocol, signaling, session orchestration, debug capture bridging, and a continuous capture/encode/publish worker
 - `crates/capture-core`: shared capture-domain types for source selection, permissions, capture stream events, audio buffers, and video frames
 - `crates/media-codec`: encoded media contracts, macOS VideoToolbox H.264, and vendored Opus encoders
-- `crates/transport-webrtc`: real `RTCPeerConnection` with H.264/Opus SDP/tracks, encoded publication, received RTP counters, and a control data channel
+- `crates/transport-webrtc`: real `RTCPeerConnection` with Constrained Baseline H.264/Opus SDP/tracks, encoded publication, received RTP counters, and a control data channel
 - `crates/capture-macos`: native ScreenCaptureKit catalog and raw video/audio runtime
 - `crates/capture-linux`: planned Linux capture backend blueprint crate
 - `crates/signaling-server`: TCP room coordination between exactly two peers
 - `apps/cli`: sender/receiver CLI for testing the direct peer flow
-- `apps/desktop`: Tauri desktop shell scaffold
+- `apps/desktop`: Tauri shell with a WebView H.264/Opus player and explicit sound controls
 
 ## Current Data Flow
 
@@ -23,12 +23,12 @@ Components:
    On macOS, that catalog now attempts SCShareableContent window/application/display enumeration before falling back to blueprint data.
    On Linux, it now attempts `wmctrl`-based runtime window enumeration before falling back to blueprint data.
 3. A host/viewer session joins a room through `app-core::SignalingConnection`.
-4. `transport-webrtc` creates a real `PeerConnection`, attaches H.264/Opus host audio/video tracks, and keeps a bootstrap data channel for control flow.
+4. `transport-webrtc` creates the host/CLI `PeerConnection`, attaches H.264/Opus host audio/video tracks, and keeps a bootstrap data channel for control flow. The desktop viewer creates its receive-only peer in the WebView.
 5. Local SDP/ICE is encoded through shared protocol messages and sent through `signaling-server`.
-6. The peer receives signaling messages, and the GUI session refresh path auto-applies remote answer/ICE through the same signaling channel.
+6. The host session refresh path applies remote answer/ICE. The desktop viewer independently polls the generation-validated signaling bridge, applies host offer/ICE in the WebView, and sends its answer/local ICE through Rust.
 7. The session manager exposes source-validated video/audio publish APIs above `transport-webrtc`.
    The debug smoke path synthesizes non-playable `capture-core` payloads through that route. A dedicated worker drains ScreenCaptureKit, validates source/audio selection, encodes BGRA/PCM into H.264/Opus, and publishes only while the peer is connected. GUI refresh receives only the newest raw samples for diagnostics.
-8. The session manager owns the worker lifecycle. Stop, source/audio changes, reset, replacement, and drop join it before closing/dropping the peer runtime. Viewer track readers count received RTP; decoding and rendering remain pending.
+8. The session manager owns the worker lifecycle. Stop, source/audio changes, reset, replacement, and drop join it before closing/dropping the peer runtime. The CLI viewer counts received RTP. The desktop viewer uses a receive-only WebView PeerConnection for decoding/playback and a generation-validated Rust signaling bridge; media bytes never cross IPC.
 9. Mock UDP sender/receiver flow still exists separately for the old media scaffold.
 
 The current signaling server also accepts future WebRTC signaling envelopes after pairing:

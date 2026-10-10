@@ -29,6 +29,14 @@ jobs:
       - name: Run tests
         run: cargo test --all --all-features
 
+      - name: Install Node for viewer tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test viewer signaling and playback lifecycle
+        run: node --test apps/desktop/tests/viewer-player.test.mjs
+
       - name: Test native macOS sample extraction
         if: runner.os == 'macOS'
         run: sh scripts/test-macos-capture.sh

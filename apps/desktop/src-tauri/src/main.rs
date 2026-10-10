@@ -2,7 +2,8 @@
 
 use app_core::{
     CaptureCatalogSnapshot, SessionIntent, SessionManager, SessionMode, SessionSnapshot,
-    SessionStage, SessionTransport, parse_ice_server_entries,
+    SessionStage, SessionTransport, ViewerPlaybackReport, ViewerSignal, ViewerSignalingBatch,
+    parse_ice_server_entries,
 };
 use serde::Serialize;
 use std::sync::Mutex;
@@ -55,6 +56,11 @@ struct SessionView {
     encoded_audio_packet_count: usize,
     received_video_packet_count: usize,
     received_audio_packet_count: usize,
+    viewer_generation: Option<u64>,
+    viewer_playback_state: String,
+    viewer_playback_error: Option<String>,
+    decoded_video_frame_count: u64,
+    received_audio_sample_count: u64,
     last_video_sample_bytes: usize,
     last_audio_sample_bytes: usize,
     last_video_capture_summary: Option<String>,
@@ -119,7 +125,7 @@ fn project_status(state: tauri::State<'_, Mutex<SessionManager>>) -> ProjectStat
         stage: format_session_stage(snapshot.stage).to_string(),
         gui: "tauri shell wired",
         transport: format_session_transport(snapshot.transport).to_string(),
-        capture_macos: "ScreenCaptureKit capture with H264/Opus WebRTC publication; viewer playback pending",
+        capture_macos: "ScreenCaptureKit capture with H264/Opus WebRTC publication and WebView playback",
         capture_linux: "capture-core contracts ready; Portal + PipeWire bridge still pending",
     }
 }
@@ -148,7 +154,7 @@ fn start_host(
 ) -> CommandResult {
     let parsed_ice_servers = match parse_ice_servers_for_command(&state, ice_servers) {
         Ok(value) => value,
-        Err(result) => return result,
+        Err(result) => return *result,
     };
     let snapshot = state
         .lock()
@@ -181,12 +187,12 @@ fn join_room(
 ) -> CommandResult {
     let parsed_ice_servers = match parse_ice_servers_for_command(&state, ice_servers) {
         Ok(value) => value,
-        Err(result) => return result,
+        Err(result) => return *result,
     };
     let snapshot = state
         .lock()
         .expect("session state poisoned")
-        .start_viewer(SessionIntent {
+        .start_playback_viewer(SessionIntent {
             room: room.clone(),
             signaling_addr: signaling_addr.clone(),
             source_label: None,
@@ -198,6 +204,41 @@ fn join_room(
         message: format!("viewer session prepared for room={room}"),
         session: map_snapshot(snapshot),
     }
+}
+
+#[tauri::command]
+fn viewer_poll_signals(
+    generation: u64,
+    state: tauri::State<'_, Mutex<SessionManager>>,
+) -> Result<ViewerSignalingBatch, String> {
+    state
+        .lock()
+        .expect("session state poisoned")
+        .poll_viewer_signaling(generation)
+}
+
+#[tauri::command]
+fn viewer_send_signal(
+    generation: u64,
+    signal: ViewerSignal,
+    state: tauri::State<'_, Mutex<SessionManager>>,
+) -> Result<(), String> {
+    state
+        .lock()
+        .expect("session state poisoned")
+        .send_viewer_signal(generation, signal.into())
+}
+
+#[tauri::command]
+fn viewer_report_playback(
+    generation: u64,
+    report: ViewerPlaybackReport,
+    state: tauri::State<'_, Mutex<SessionManager>>,
+) -> Result<(), String> {
+    state
+        .lock()
+        .expect("session state poisoned")
+        .report_viewer_playback(generation, report)
 }
 
 #[tauri::command]
@@ -224,7 +265,7 @@ fn update_session_config(
 ) -> CommandResult {
     let parsed_ice_servers = match parse_ice_servers_for_command(&state, ice_servers) {
         Ok(value) => value,
-        Err(result) => return result,
+        Err(result) => return *result,
     };
     let snapshot = state.lock().expect("session state poisoned").update_config(
         room,
@@ -411,6 +452,9 @@ fn main() {
             capture_catalog,
             start_host,
             join_room,
+            viewer_poll_signals,
+            viewer_send_signal,
+            viewer_report_playback,
             start_local_demo,
             update_session_config,
             select_capture_source,
@@ -468,6 +512,11 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
         encoded_audio_packet_count: snapshot.encoded_audio_packet_count,
         received_video_packet_count: snapshot.received_video_packet_count,
         received_audio_packet_count: snapshot.received_audio_packet_count,
+        viewer_generation: snapshot.viewer_generation,
+        viewer_playback_state: snapshot.viewer_playback_state,
+        viewer_playback_error: snapshot.viewer_playback_error,
+        decoded_video_frame_count: snapshot.decoded_video_frame_count,
+        received_audio_sample_count: snapshot.received_audio_sample_count,
         last_video_sample_bytes: snapshot.last_video_sample_bytes,
         last_audio_sample_bytes: snapshot.last_audio_sample_bytes,
         last_video_capture_summary: snapshot.last_video_capture_summary,
@@ -502,14 +551,14 @@ fn map_snapshot(snapshot: SessionSnapshot) -> SessionView {
 fn parse_ice_servers_for_command(
     state: &tauri::State<'_, Mutex<SessionManager>>,
     ice_servers: Option<String>,
-) -> Result<Vec<app_core::IceServerEntry>, CommandResult> {
+) -> Result<Vec<app_core::IceServerEntry>, Box<CommandResult>> {
     parse_ice_server_entries(ice_servers.as_deref().unwrap_or_default()).map_err(|error| {
         let snapshot = state.lock().expect("session state poisoned").snapshot();
-        CommandResult {
+        Box::new(CommandResult {
             ok: false,
             message: format!("invalid ICE server configuration: {error}"),
             session: map_snapshot(snapshot),
-        }
+        })
     })
 }
 

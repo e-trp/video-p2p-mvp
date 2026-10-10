@@ -11,9 +11,10 @@ This repository is still an MVP. Today it can already provide:
 - codec-aware H.264/Opus host audio/video tracks
 - debug `capture-core` media payload publishing for transport smoke testing
 - native macOS ScreenCaptureKit capture and continuous H.264/Opus WebRTC publication with separate raw/encoded/received counters
+- desktop viewer video/audio playback with muted startup and decoded-media diagnostics
 - a source picker fed by current platform capture metadata, with runtime enumeration when available and blueprint fallback otherwise
 
-macOS capture, encoding, and publication are implemented; Linux capture/video encoding, viewer playback, bundled STUN/TURN deployment defaults, and production invite/auth flows remain pending. See [macOS capture](MACOS_CAPTURE.md) for setup and validation.
+macOS capture, encoding, and publication are implemented; Linux capture/video encoding, Linux WebView playback validation, bundled STUN/TURN deployment defaults, and production invite/auth flows remain pending. See [macOS capture](MACOS_CAPTURE.md) for setup and validation.
 
 For setup, release build notes, and troubleshooting, see `docs/INSTALLATION.md`.
 For manual validation before a release candidate, see `docs/QA_CHECKLIST.md`.
@@ -92,7 +93,7 @@ If those fields have unsaved edits when you click `Reconnect`, the GUI first sav
 
 ### Capture Source
 
-- `Available Source`: current platform blueprint source list
+- `Available Source`: current platform capture catalog, with blueprint fallback when runtime enumeration is unavailable
 - `Include Audio`: selects whether native capture includes audio when the source supports it
 - changing the picker or audio toggle applies the host-side capture selection immediately
 - the most recent room, signaling address, source selection, and auto-refresh preferences are restored automatically on the next desktop launch or session-manager reset
@@ -104,12 +105,12 @@ Today this picker is backed by:
 - macOS: SCShareableContent windows, applications, and displays with native IDs; blueprint fallback when permission or enumeration is unavailable
 - Linux: runtime X11 window enumeration through `wmctrl` when available, with a fallback to `Portal + PipeWire`-shaped blueprint sources
 
-On macOS, starting capture validates Screen Recording permission and creates a native SCStream for the selected source. Video arrives as packed BGRA, and audio on macOS 13+ arrives as 48 kHz interleaved float PCM. A worker encodes video as H.264 and audio as Opus and publishes after WebRTC connects. The capture panel shows raw diagnostics, encoded packet counts, and received RTP counts. Viewer decoding/playback is still pending. Disabling GUI refresh does not pause capture or publication after negotiation.
+On macOS, starting capture validates Screen Recording permission and creates a native SCStream for the selected source. Video arrives as packed BGRA, and audio on macOS 13+ arrives as 48 kHz interleaved float PCM. A worker encodes video as H.264 and audio as Opus and publishes after WebRTC connects. The capture panel shows raw diagnostics, encoded packet counts, and received RTP counts. The desktop viewer decodes and plays the stream in its WebView; enable sound explicitly. Disabling GUI refresh does not pause capture or publication after negotiation.
 Changing the source or audio toggle stops the current stream; click `Start Capture` to capture the new selection. Blueprint sources support the local demo/debug flow but cannot start native capture. Linux still uses metadata discovery and a planned runtime.
 
 ### Transport Diagnostics
 
-The GUI now surfaces transport-side diagnostics from the Rust `PeerConnection` wrapper:
+The GUI surfaces transport diagnostics from the Rust host/CLI peer and the WebView desktop viewer; fields depend on the stats available from each peer:
 
 - current transport stage
 - current ICE path summary, including direct-vs-relay hints when a candidate pair is selected
@@ -232,12 +233,18 @@ Viewer:
 cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
 ```
 
+## Watching The Remote Stream
+
+Prepare a host with a real macOS source and start native capture, then join the same room in a second desktop instance. The Remote Window panel receives video automatically and starts muted. Click Enable Sound to hear source audio, or use the video controls for playback/volume/fullscreen. If autoplay is blocked, click Play. Stop/reset/switching role releases the viewer peer and clears the panel.
+
+Viewer signaling and media playback continue independently of Auto Refresh. Diagnostics show decoded video frames, received audio samples, and player errors; RTP counters alone do not prove successful decoding. CLI `webrtc-viewer` does not display video. See [the viewer playback guide](VIEWER_PLAYBACK.md) for setup, native verification, and platform limits.
+
 ## Current Limits
 
 - Linux runtime enumeration currently depends on X11-style `wmctrl` metadata and does not cover the real Wayland portal flow yet
 - macOS native capture needs Screen Recording access; audio needs macOS 13+; real permission/source/audio behavior still needs manual QA
 - debug `capture-core` payload bursts are synthetic transport smoke tests; native sample counters are separate
-- encoded media reaches the viewer, but remote picture/sound still require viewer decoding and rendering
+- the desktop viewer plays received media; the CLI viewer remains a negotiation/RTP diagnostic tool
 - the GUI still falls back to blueprint/example capture sources when runtime enumeration is unavailable
 - ICE server configuration is manual; there is still no bundled TURN service or auth flow
 - the signaling service is still a minimal two-peer MVP

@@ -1,6 +1,6 @@
 use transport_webrtc::IceServer;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize)]
 pub struct IceServerEntry {
     pub urls: Vec<String>,
     pub username: Option<String>,
