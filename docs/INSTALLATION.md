@@ -137,4 +137,4 @@ Source/audio changes and catalog rebinding stop the old capture. Reconnect rebui
 
 ### Release bundling fails
 
-Check Tauri platform dependencies, Python 3, CMake, and the release helper's terminal output. The current config targets macOS bundles. Signing/notarization and install/playback validation are not automated or verified in this repository. Record failures in the [QA checklist](QA_CHECKLIST.md).
+Check Tauri platform dependencies, Python 3, CMake, and the release helper's terminal output. The current config targets macOS bundles. Signing/notarization and install/playback validation are not automated or verified in this repository. Record observed failures in the [bug register](BUGS.md) with feature ownership and link them from the [QA checklist](QA_CHECKLIST.md) evidence. For the known local artifact-cleanup ownership issue, see BUG-002 in the register.

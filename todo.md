@@ -4,6 +4,8 @@ The implementation inventory was verified against code and tests at `0c6273f`; t
 
 Development rules, English-only project content, mandatory checks, and version/tag policy: [AGENTS.md](AGENTS.md).
 
+Current defects and their feature ownership: [bug register](docs/BUGS.md). Actionable bugs take priority over new features; defer only for a documented replacement/substantial redesign of their affected implementation.
+
 - **FULLY COMPLETED**: the stated result exists within its documented scope and is supported by code, completed artifacts, or automated checks. Outstanding manual QA is listed separately; the product is not ready for release.
 - **PARTIALLY COMPLETED — INCOMPLETE**: part of the result exists, but implementation or required verification remains.
 - **NOT DONE**: the implementation is absent or the stated check has not run. An unverified scenario is incomplete.
@@ -18,8 +20,8 @@ Use `[x]` only for fully completed results. `[ ]` marks outstanding work. Runtim
 | Latest annotated release tag | None; the baseline is untagged |
 | Newly completed feature IDs since adopting this policy | None — `0/5`; the existing inventory is the baseline |
 | Last passing full-project QA checkpoint | None; automated checks alone do not satisfy manual QA |
-| Next feature milestone | M1; baseline macOS capture/playback QA is the first prerequisite |
-| Release gate | Open; required manual QA remains outstanding |
+| Next feature milestone | M1, after actionable bugs; baseline macOS capture/playback QA is the first feature prerequisite |
+| Release gate | Open; required manual QA and relevant unresolved bugs remain outstanding |
 
 Update this checkpoint as feature IDs are completed. Keep ordinary task commits separate. Run full QA at each milestone, before any version tag, and at five newly completed features at the latest. Record the covered IDs and reset the counter only after a passing full QA run. Documentation, refactoring, and fixes do not count as features. Tag only a verified release commit; a docs-only update keeps `0.1.0`.
 
@@ -51,7 +53,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 - [x] Muted startup, Enable Sound/Mute Sound, playback/error states, and a separate viewer signaling pump.
 - [x] Generation guards and peer/track cleanup on stop/reset/reconnect/role change/failure; refresh or delayed callbacks cannot revive a stopped session.
 - [x] Rust bridge and Node lifecycle tests, including ICE ordering, autoplay, terminal failure, and transient disconnect/recovery.
-- [x] Synthetic WKWebView/Chromium playback probes: decoded dimensions/pixels, nonzero Opus PCM, and media cleanup after stop/refresh.
+- [x] **BASE-VIEWER-PROBES:** Synthetic WKWebView/Chromium playback probes: decoded dimensions/pixels, nonzero Opus PCM, and media cleanup after stop/refresh. An intermittent failure remains tracked separately in the bug register.
 - [x] Video-SSRC RTCP PLI/FIR, FIR duplicate detection, coalescing, and a 500 ms cooldown; successful keyframe publication or disconnect/close clears pending state.
 - [x] Host keyframe request/publication/pending diagnostics, SRTCP/publication-race tests, and capture stop/restart recovery.
 - [x] WKWebView/Chromium recovery probes that drop the first keyframe and verify browser-originated RTCP refresh.
@@ -67,8 +69,9 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 - [x] macOS `.app`/`.dmg` bundle configuration, icons/metadata, and generation/build helper scripts.
 - [x] Root CI: Rust format/Clippy/tests and Node viewer tests on Linux/macOS; native extraction tests on macOS.
 - [x] Installation/user/networking/media/capture/playback guides and a manual QA checklist.
-- [x] Project `AGENTS.md`: Rust style, safe FFI, implementation order, tests, documentation maintenance, and build-artifact cleanup.
+- [x] **BASE-DEV-WORKFLOW:** Project `AGENTS.md`: Rust style, safe FFI, implementation order, tests, documentation maintenance, and build-artifact cleanup rules. This records the instructions artifact; local cleanup results are tracked separately.
 - [x] English project guidelines/documentation, stable milestone feature IDs, and a version/checkpoint policy with annotated-tag gates.
+- [x] Dedicated bug register with stable bug/feature IDs, evidence, priorities, lifecycle/closure rules, and a documented module-replacement exception.
 
 ## PARTIALLY COMPLETED — INCOMPLETE
 
@@ -82,6 +85,10 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 | Packaging/release | macOS bundle configuration, icons, and build scripts | Verified installation/startup, signing/notarization, and Linux bundles (M7) |
 
 ## NOT DONE
+
+### Current Bug Priority
+
+Consult [current issues](docs/BUGS.md#current-issues) before feature work. Investigate the actionable **BUG-001** first. **BUG-002** remains blocked on local administrator authentication; preserve that blocker and proceed with actionable work. Bug status and closure evidence live only in the register. The baseline `BASE-*` references identify existing behavior/tooling and do not count as new milestone features.
 
 ### Baseline QA Prerequisites
 

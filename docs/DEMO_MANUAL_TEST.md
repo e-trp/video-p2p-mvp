@@ -39,3 +39,5 @@ See [user guide](USER_GUIDE.md), [capture setup](MACOS_CAPTURE.md), and [viewer 
 ## Report A Failure
 
 Record commit/build, OS, exact action/status/error, runtime badge, session/capture/transport diagnostics, and relevant Tauri terminal/log lines. If a loading state persists, record which field and whether the local demo action is available.
+
+Create or update an entry in the [bug register](BUGS.md), link its owning feature ID, and attach the reproduction steps and diagnostics. Preserve failed attempts even when a retry succeeds.

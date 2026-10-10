@@ -85,6 +85,7 @@ The current version is `0.1.0`, an untagged development baseline. [TODO](todo.md
 
 - [Agent instructions](AGENTS.md): Rust style, safe FFI, feature order, tests, documentation, and artifact cleanup.
 - [TODO](todo.md): fully completed work, incomplete work, and next steps.
+- [Bug register](docs/BUGS.md): observed failures, feature ownership, priorities, and closure evidence; actionable bugs precede new features.
 - [Specification](docs/SPECIFICATION.md): product requirements and current scope.
 - [Architecture](docs/ARCHITECTURE.md): components and data flow.
 - [Desktop UI](docs/GUI_TAURI.md): current shell and backend responsibilities.

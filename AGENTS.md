@@ -4,8 +4,10 @@ These instructions apply to the entire repository. More specific instructions in
 
 ## General Rules
 
-- Before starting, read [README](README.md), [TODO](todo.md), [architecture](docs/ARCHITECTURE.md), [QA checklist](docs/QA_CHECKLIST.md), and the guides in `docs/` relevant to the change. Check `git status` and the current diff; preserve existing user changes.
-- Complete one coherent TODO task at a time: implementation, test evidence, and current documentation. Keep unrelated refactoring separate.
+- Before starting, read [README](README.md), [TODO](todo.md), the [bug register](docs/BUGS.md), [architecture](docs/ARCHITECTURE.md), [QA checklist](docs/QA_CHECKLIST.md), and the guides in `docs/` relevant to the change. Check `git status` and the current diff; preserve existing user changes.
+- Prioritize current bugs over new features. Work on the highest-priority actionable bug first. A feature may take precedence only when its concrete implementation replaces or substantially redesigns the affected module/path so that an isolated fix would be discarded or the faulty behavior would change.
+- Record that exception in the bug register before feature work: replacement feature ID, affected module/path, why an immediate fix would be superseded, target milestone, and the regression/acceptance check for the replacement. Keep the bug unresolved until verification establishes that the replacement removes it; unrelated enhancements and vague future refactoring do not justify deferral.
+- Complete one coherent bug or TODO task at a time: implementation, test evidence, and current documentation. Keep unrelated refactoring separate. Maintain stable bug IDs linked to feature IDs, and update the register whenever a bug is discovered, investigated, deferred, fixed, or verified.
 - Verify every behavior change with tests: add a regression scenario for a fix, and cover the normal path, errors, and meaningful boundaries for a feature. Updating an existing test is acceptable when it verifies the new behavior. Assert outcomes rather than duplicating the implementation.
 - Document every completed change in the relevant guide and TODO. For documentation-only changes, verify links, anchors, commands, and consistency with the code; application tests created solely for Markdown are unnecessary. The automated checks below still apply.
 - Track implementation, automated verification, and manual QA separately. Keep unverified scenarios open; scaffolding, mock/demo behavior, and RTP counters do not establish actual playback.
@@ -45,9 +47,17 @@ See [Unsafe Rust](https://doc.rust-lang.org/book/ch20-01-unsafe-rust.html). An e
 
 ## Implementation Order
 
-[TODO](todo.md#not-done) defines ordered milestones, feature IDs, dependencies, and acceptance gates. Follow its baseline QA prerequisites, then M1 through M7. Complete a vertical slice from input/capture through transport/UI and verification before opening the next dependent milestone.
+[Current bugs](docs/BUGS.md#current-issues) take priority under the general rules above. [TODO](todo.md#not-done) defines ordered milestones, feature IDs, dependencies, and acceptance gates for feature work. After actionable bugs, follow its baseline QA prerequisites, then M1 through M7. Complete a vertical slice from input/capture through transport/UI and verification before opening the next dependent milestone.
 
 If the user requests a specific task, perform it and update its status. Otherwise, choose the first available incomplete task. Preserve completed work. If a step needs an unavailable OS, permission, device, or network, record the limitation, leave its QA open, and continue the next independent available task. Synthetic probes cannot replace manual QA.
+
+## Bug Tracking and Closure
+
+- Use [docs/BUGS.md](docs/BUGS.md) as the source of truth for defects; TODO links to it rather than maintaining a second status list. Assign permanent `BUG-NNN` IDs and link each entry to a stable TODO feature ID. Use `BASE-*` IDs for existing baseline behavior/tooling; these IDs do not advance the new-feature counter.
+- Record priority, status, issue kind, affected version/component, evidence, reproduction steps and reliability, expected/actual behavior, cause or explicit uncertainty, and closure criteria. Keep product defects, test failures, environment problems, missing features, and unperformed QA distinct.
+- A blocked bug remains unresolved with its exact blocker and next action recorded. Work on the next actionable bug; blocked execution alone does not justify the module-replacement exception. Revisit deferred bugs whenever their replacement feature changes scope or reaches acceptance.
+- For code defects, `FIXED` means an implementation exists with a fixing commit and regression evidence; `CLOSED` additionally requires the stated verification. For environment issues, record repair commands and verification rather than inventing a code fix/version. A passing retry, planned rewrite, workaround, or unreproduced failure alone does not close a bug. Preserve closed entries with their fixing version/commit where applicable and verification evidence.
+- Bugs affecting required release scenarios block the version gate while unresolved, including deferred bugs. After replacement work, rerun the original scenario or a documented equivalent for the new implementation before closing the entry.
 
 ## Commits, Versions, and Git Tags
 
@@ -65,7 +75,7 @@ References: [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [Git 
 
 ## Documentation Maintenance
 
-- After each completed change, review the affected guides, README, and TODO. Correct or remove outdated statements, commands, and duplication. If the existing content remains accurate, record that review in the final report.
+- After each completed change, review the affected guides, README, TODO, and relevant bug entries. Correct or remove outdated statements, commands, and duplication. If the existing content remains accurate, record that review in the final report.
 - Keep README concise with status and entry points, `docs/` focused on each topic, and TODO focused on progress and remaining work. Avoid duplicating development history across them.
 - Use `[x]` in TODO only under **FULLY COMPLETED**. Describe partial work as incomplete; use `[ ]` for missing implementation and outstanding QA, keeping them distinct.
 - Update the appropriate implementation guide or validation/checklist. Record commands actually executed, results, and limitations; planned/skipped checks cannot be recorded as successful.
