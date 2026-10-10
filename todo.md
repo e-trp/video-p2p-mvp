@@ -1,221 +1,116 @@
-# TODO
+# TODO — актуальный статус
 
-## Iteration 1: Real WebRTC Transport
+Статус сверен с кодом и проверками коммита `0c6273f`.
 
-1. Replace the current in-memory WebRTC state skeleton with a real `PeerConnection`.
-   Current state: done for bootstrap negotiation; a real `PeerConnection` and data channel are created in `transport-webrtc`.
-2. Map session-facing APIs onto actual transport actions:
-   `create_offer`, `accept_answer`, `add_ice_candidate`, `connection_state`, `stats`.
-   Current state: done for offer/answer/ICE, connection-state snapshots, and debug `capture-core` sample publishing into attached host audio/video tracks.
-3. Replace mock UDP and placeholder WebRTC transitions with real transport state transitions.
-   Current state: session manager, CLI, and Tauri now use live signaling and transport negotiation; mock UDP still exists as a separate legacy media scaffold.
-4. Wire the signaling server to exchange SDP/ICE instead of only room pairing.
-   Current state: room relay and signaling replay are implemented, and end-to-end use now exists for CLI and Tauri session flow.
-5. Add integration tests for host/viewer negotiation state and signaling replay.
+- **ПОЛНОСТЬЮ СДЕЛАНО**: конкретный результат реализован в указанном объёме и подтверждён кодом, готовыми файлами или автоматическими проверками. Непройденная ручная QA перечислена отдельно; весь продукт ещё не готов к выпуску.
+- **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО**: часть результата существует, но остаются реализация или необходимые проверки.
+- **НЕ СДЕЛАНО**: указанный результат не реализован либо указанная проверка ещё не выполнена. Непроверенный сценарий не считается полностью завершённым.
 
-### Iteration 1 Progress
+`[x]` используется только в разделе полностью выполненных результатов. `[ ]` обозначает оставшуюся работу. Заготовка runtime, наличие счётчиков RTP и успешное синтетическое воспроизведение не заменяют проверку реального захвата и приложения.
 
-- Done in part: protocol envelopes for SDP/ICE in `app-core`
-- Done in part: signaling relay and replay in `signaling-server`
-- Done in part: real WebRTC peer transport instead of lifecycle stubs
-- Done in part: CLI and Tauri integration with the live signaling path
-- Done in part: integration-style coverage for late-join signaling replay and host/viewer WebRTC negotiation in `app-core`
-- Implemented: codec-aware H.264/Opus host tracks are attached to the `PeerConnection`
-- Done in part: session-facing debug `capture-core` sample publishing now exists above the transport
-- Done in part: CLI host startup now relies on the same automatic first-offer path as the GUI and can optionally publish a debug capture burst after connect
-- Implemented: continuous macOS capture-to-H.264/Opus publication and viewer RTP reception counters
-- Implemented: desktop WebView viewer decoding/playback; CLI viewer remains an RTP diagnostic receiver
-- Still open: real desktop/network validation and Linux WebView playback QA
+## Сводка исходных итераций
 
-## Iteration 2: macOS Capture Backend
+| Итерация | Статус | Что осталось |
+| --- | --- | --- |
+| 1. Реальный WebRTC transport | **ПОЛНОСТЬЮ СДЕЛАНО** в объёме локального SDP/ICE и transport API | Проверки других сетей вынесены в итерации 6/8; mock UDP сохранён как отдельный тестовый инструмент |
+| 2. Захват macOS | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | Код захвата/публикации готов; реальное окно/аудио, разрешения и packaged app ещё не проверены |
+| 3. Захват Linux | **НЕ СДЕЛАНО** для реального захвата | Есть только X11-каталог и runtime scaffold; Portal/PipeWire/X11 media отсутствуют |
+| 4. Tauri workflow | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | Invite UX, Linux portal flow и проверки packaged app |
+| 5. Усиление A/V pipeline | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | Adaptive quality/pacing, A/V sync, Linux encoder и weak-network QA |
+| 6. NAT/deployment | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | STUN/TURN сервисы/credentials, защищённый signaling и реальные NAT/TURN проверки |
+| 7. Preferences/packaging | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | Release build/install QA, signing/notarization и Linux bundle configuration |
+| 8. Release readiness | **ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО** | Реальный capture-to-playback, packaged GUI, разные сети, latency/CPU/A/V измерения |
 
-1. Add a native bridge for `ScreenCaptureKit`.
-   Current state: implemented via Objective-C/C ABI; asynchronous SCStream start, bounded sample queue, stop/drop cleanup, and startup timeout.
-2. Enumerate shareable windows and applications.
-   Current state: implemented via SCShareableContent, including displays; sources use native window/process/display IDs.
-3. Request and validate Screen Recording permission.
-   Current state: passive preflight and explicit start-time request implemented; real user permission/relaunch flow still needs manual QA.
-4. Capture video frames from the selected window.
-   Current state: raw BGRA extraction implemented with packed rows, PTS timestamps, aspect-preserving sizing, and incomplete-frame filtering.
-5. Capture available audio buffers and normalize them for transport.
-   Current state: macOS 13+ PCM extraction implemented with 48 kHz stereo configuration and planar-to-interleaved float32 conversion.
-6. Feed captured samples into the WebRTC publishing pipeline.
-   Current state: native BGRA/PCM is encoded and published as H.264/Opus. The desktop viewer decodes/plays media in its WebView with received/decoded counters; the CLI viewer counts RTP only.
+## ПОЛНОСТЬЮ СДЕЛАНО
 
-### Iteration 2 Progress
+### WebRTC и signaling
 
-- Done in part: `capture-core` now exists for shared source, permission, video-frame, and audio-buffer types
-- Done in part: `capture-core` now also defines live capture stream config/status/event contracts for native backends to emit video/audio samples without using the debug burst path
-- Done in part: `capture-core` now exposes a common capture stream runtime trait, and macOS provides native ScreenCaptureKit events and Linux provides a planned runtime scaffold
-- Done in part: `capture-macos` now enumerates windows, applications, and displays through SCShareableContent with blueprint fallback
-- Done in part: runtime probing on macOS now maps catalog results into live permission-state diagnostics
-- Done in part: Tauri/app-core now surface the current platform capture catalog and selected source metadata
-- Done in part: session manager and `transport-webrtc` now accept debug `capture-core` video/audio payloads, including source-audio opt-out during smoke tests
-- Done in part: `app-core::SessionManager` exposes source-validated debug publish APIs; the continuous worker separately validates source/audio selection before encoding
-- Done in part: `app-core::SessionManager` ingests live `capture-core` stream events with source/audio validation; native samples update separate diagnostics while the debug path remains available
-- Done in part: `app-core::SessionManager` now owns a platform capture runtime lifecycle, with start/poll/stop APIs that drain runtime events into the same capture ingestion path
-- Done in part: `capture-macos` now preflights macOS Screen Recording permission through CoreGraphics, validates the selected runtime source before stream start, and reports permission-vs-bridge-unavailable states separately
-- Done in part: `capture-macos` now requests Screen Recording access during native stream start when preflight reports permission is still required
-- Done in part: `capture-macos` now has a native ScreenCaptureKit bridge lifecycle boundary that owns start/poll/stop events separately from catalog and permission validation
-- Done in part: `capture-macos` now normalizes selected source, audio opt-in, target FPS, and max frame dimensions before handing stream startup to the native bridge boundary
-- Done in part: `capture-macos` now passes catalog-backed source kind, display name, app name, and audio capability into native bridge settings so future ScreenCaptureKit target matching does not depend on UI labels
-- Done in part: `capture-macos` now has injected bridge-boundary tests for normalized settings, poll-event status updates, and native bridge startup failures
-- Done in part: macOS and Linux stream start planning now preserve denied capture permission as a distinct runtime status for GUI diagnostics
-- Implemented: native ScreenCaptureKit catalog and raw video/audio delivery into the existing runtime event contract
-- Implemented: separate raw diagnostics, encoded H.264/Opus publication counts, and received RTP counts in snapshots/Tauri; raw samples are encoded before automatic publication
-- Implemented: stop active capture before source/audio changes or catalog rebinding, and release native capture on runtime drop
-- Verified: native CoreVideo/CoreMedia buffer extraction, timestamps, planar/interleaved audio, bounded queues, and stop behavior without screen-recording access
-- Added: macOS CI coverage and an opt-in `capture_probe` example; see `docs/MACOS_CAPTURE.md`
-- Implemented: continuous worker independent of GUI refresh; stop/join before source changes, reset, replacement, or transport-runtime drop
-- Verified: synthetic capture through actual H.264/Opus encoding and local WebRTC reception, stop halting publication, and audio opt-out after restart
-- Implemented: desktop H.264/Opus playback verified against a synthetic native host in WKWebView
-- Still open: manual permission/source/audio and packaged desktop playback QA
+- [x] Реальный Rust `PeerConnection`: offer/answer, ICE, состояние соединения, stats и bootstrap data channel.
+- [x] H.264/Opus host tracks и публикация encoded media; диагностический Rust viewer принимает/считает RTP.
+- [x] TCP signaling client/server, SDP/ICE envelopes, relay и replay для позднего подключения второго участника.
+- [x] Интеграционные проверки локального host/viewer SDP/ICE и late-join replay.
+- [x] WebRTC session flow в CLI и Tauri; legacy mock UDP отделён от реального media path.
 
-## Iteration 3: Linux Capture Backend
+### Реализация захвата macOS и кодеков
 
-1. Add Wayland path via `XDG Desktop Portal ScreenCast`.
-2. Integrate PipeWire stream consumption for frames and audio.
-3. Model permission and source selection flow in the session manager.
-4. Add X11 fallback for unsupported environments.
-5. Test on at least GNOME Wayland and KDE Wayland.
+- [x] Общие `capture-core` contracts для source/permission, BGRA/PCM и runtime config/status/events.
+- [x] Нативный Objective-C/C ABI ScreenCaptureKit bridge: каталог windows/applications/displays по native IDs, asynchronous start, timeout, stop/drop.
+- [x] Пассивный Screen Recording preflight, явный запрос при старте и отдельные permission-required/denied статусы.
+- [x] Packed BGRA с timestamps, фильтрацией неполных кадров и сохранением aspect ratio; macOS 13+ PCM → interleaved float32, 48 kHz/stereo.
+- [x] Нативные bounded queues: последний video frame и до 32 audio buffers; permission-free extraction/lifecycle tests.
+- [x] VideoToolbox H.264 Constrained Baseline, SPS/PPS/IDR, Annex B, resize/odd-dimension handling и валидация PTS/буферов; реальные synthetic encoder tests.
+- [x] Vendored Opus, 20 ms packet aggregation, timestamps/discontinuity handling и реальные encode/decode tests.
+- [x] Непрерывный capture/encode/publish worker независимо от GUI refresh; source/audio validation, encode только при connected peer, остановка/join перед сменой source/session/runtime.
+- [x] Synthetic capture → native H.264/Opus → локальный WebRTC/RTP с проверками stop/restart и audio opt-out.
 
-### Iteration 3 Progress
+### Desktop viewer и recovery
 
-- Done in part: `capture-linux` now exposes a best-effort `wmctrl`-based runtime window catalog with blueprint fallback
-- Done in part: runtime probing on Linux now maps catalog results into live permission-state diagnostics
-- Done in part: `capture-linux` now has a planned Portal/PipeWire runtime scaffold implementing the shared capture stream runtime contract
-- Done in part: `capture-linux` now validates selected sources against the current catalog and routes startup through a planned Portal/PipeWire bridge boundary with normalized stream settings
-- Done in part: Linux stream start planning now preserves denied portal/capture permission separately from required permission
-- Still open: real portal session lifecycle, PipeWire media consumption, and robust Wayland coverage
+- [x] Receive-only WebView `PeerConnection`: decoding/playback через video element без передачи media через Tauri IPC.
+- [x] Muted startup, Enable Sound/Mute Sound, playback/error states и отдельный viewer signaling pump.
+- [x] Generation guards и peer/track cleanup при stop/reset/reconnect/role change/failure; stopped session не оживает после refresh или delayed callbacks.
+- [x] Rust bridge и Node lifecycle tests, включая ICE ordering, autoplay, terminal failure и transient disconnect/recovery.
+- [x] Synthetic WKWebView/Chromium playback probes: decoded dimensions/pixels, nonzero Opus PCM и media cleanup после stop/refresh.
+- [x] RTCP PLI/FIR по video SSRC, FIR duplicate detection, coalescing и 500 ms cooldown; pending сбрасывается после успешного keyframe publish или disconnect/close.
+- [x] Host keyframe request/publication/pending diagnostics, SRTCP и publication-race tests, capture stop/restart recovery.
+- [x] WKWebView/Chromium recovery probe с пропуском первого keyframe и browser-originated RTCP refresh.
 
-## Iteration 4: Tauri Production Flow
+### UI, настройки и инструменты
 
-1. Replace mock session actions in the GUI with real backend session orchestration.
-2. Add source picker UI backed by macOS/Linux capture enumeration.
-3. Add room creation and invite code UX.
-4. Add connection diagnostics:
-   transport state, RTT, bitrate, packet loss, ICE path.
-5. Add start, stop, reconnect and recovery states in the GUI.
+- [x] Host/viewer preparation, source picker, capture start/poll/stop, session stop/reset и ручной reconnect с recovery guidance.
+- [x] Transport/capture/playback diagnostics, selected ICE path и доступные RTT/bitrate/bytes/loss metrics.
+- [x] Сохранение room/signaling/ICE/source/audio selection и Auto Refresh preferences; несохранённые form edits не теряются при polling.
+- [x] Валидация custom STUN/TURN entries и передача в Rust/WebView peers через CLI/Tauri settings.
+- [x] State-only local GUI demo и отдельные non-playable debug bursts.
+- [x] Linux `wmctrl` metadata catalog, example fallback и runtime contract scaffold — только в этом объёме, без захвата media.
+- [x] macOS `.app`/`.dmg` bundle configuration, icons/metadata и helper scripts для их генерации/сборки.
+- [x] Root CI: Rust format/Clippy/tests и Node viewer tests на Linux/macOS; native extraction tests на macOS.
+- [x] Инструкции installation/user/networking/media/capture/playback и manual QA checklist.
 
-### Iteration 4 Progress
+## ЧАСТИЧНО СДЕЛАНО — НЕ ЗАВЕРШЕНО
 
-- Done in part: GUI session actions already drive real signaling, negotiation, and debug capture media publishing
-- Done in part: GUI transport smoke test now drives a debug `capture-core` media bridge instead of hardcoded anonymous sample bytes
-- Done in part: debug and native capture paths share source/audio validation while keeping raw-capture and transport-publication counters separate
-- Done in part: session orchestration now has a production-facing live capture event ingestion API, so native backend events can enter the pipeline without going through GUI debug publishing
-- Done in part: GUI session actions can now start, poll, and stop the platform capture runtime scaffold instead of only pushing synthetic debug samples
-- Done in part: session snapshots and the desktop GUI now expose native capture runtime status directly instead of requiring log inspection
-- Done in part: source picker UI now exists, backed by the current platform capture catalog blueprint data
-- Done in part: GUI now surfaces transport-stage, data-channel, and transport-note diagnostics from the live WebRTC layer
-- Done in part: GUI now surfaces capture-catalog origin and backend notes for runtime-vs-fallback diagnostics
-- Done in part: desktop GUI now prioritizes a live workflow overview and a dedicated capture runtime panel before raw diagnostic snapshots
-- Done in part: session refresh now re-synchronizes capture-catalog permission/origin state instead of freezing it at startup
-- Done in part: host session guidance now reacts to capture permission readiness before falling back to signaling-only hints
-- Done in part: host source selection now auto-rebinds when runtime catalog refresh invalidates the previous source
-- Done in part: host session flow now auto-creates and sends its first local offer once signaling is connected
-- Done in part: host session flow now defaults to the first available capture source when none was selected explicitly
-- Done in part: capture-source picker changes now apply immediately without a separate confirmation button
-- Done in part: the main GUI path no longer exposes manual answer/ICE or legacy mock/WebRTC staging controls
-- Done in part: macOS GUI source selection now uses runtime enumeration when available
-- Done in part: Linux GUI source selection now uses `wmctrl`-based runtime enumeration when available
-- Done in part: background GUI polling no longer overwrites in-progress room/signaling/ICE draft edits, and the desktop shell now exposes persisted auto-refresh controls for tuning that polling loop
-- Done in part: the desktop shell now supports an explicit reconnect action that rebuilds the current host/viewer session with the active room, signaling, and ICE configuration
-- Done in part: the desktop GUI now surfaces explicit recovery-state diagnostics so stopped, disconnected, failed, and healthy session states are visible alongside reconnect guidance
-- Done in part: the desktop GUI now surfaces candidate-pair RTT, available bitrate, byte counters, and packet-loss diagnostics alongside the existing ICE path summary
-- Done in part: the desktop GUI now leads with prototype-first host/viewer workflow panels, including a host path that prepares signaling and attempts native capture; debug publishing is an explicit action
-- Done in part: the desktop GUI now exposes a local no-network demo path so the user-facing prototype can be exercised without a signaling server or second peer
-- Done in part: the desktop GUI now guards user actions with a single busy state, and signaling startup has a bounded TCP connect timeout to reduce visible hangs in the prototype flow
-- Done in part: the desktop GUI now exposes first-screen prototype readiness for room, source, native capture, signaling, and peer-link state
-- Implemented: macOS capture panel shows native video/audio counts and latest sample summaries; host startup no longer sends debug samples automatically
-- Implemented: encoded/received counters and continuous macOS publication independent of desktop polling
-- Implemented: remote video panel, explicit sound enable/mute, playback/error states, and independent viewer signaling pump
-- Implemented: generation guards and media/peer cleanup on stop/reset/role change/reconnect
-- Hardened: diagnostic refresh preserves stopped sessions, terminal failures reject delayed signals/reports, and transient connection recovery preserves playback/autoplay state
-- Still open: Wayland portal flow, Linux WebView playback QA, and packaged app testing
+| Результат | Уже есть | Не хватает для завершения |
+| --- | --- | --- |
+| macOS end-to-end streaming | Native capture, codecs, worker, viewer и synthetic playback | Проверка реального окна/аудио в desktop и packaged app |
+| Cross-platform capture/playback | Общие contracts, macOS backend, Linux metadata/scaffold | Linux media backend/encoder и Linux WebView QA |
+| Production GUI | Source/session/media controls и diagnostics | Invite UX, quality/audio-routing settings и platform QA |
+| Backpressure/weak-network handling | Bounded queues, latest-only diagnostics, write timeout, keyframe recovery | Network-aware pacing/drop policy и adaptive bitrate |
+| NAT traversal | Custom ICE configuration и direct/relay hints | Реальные STUN/TURN/NAT проверки, сервисы и managed credentials |
+| Packaging/release | macOS bundle config, icons и build scripts | Проверенная установка/запуск, signing/notarization, Linux bundles |
 
-## Iteration 5: Audio/Video Pipeline Hardening
+## НЕ СДЕЛАНО
 
-1. Choose and implement initial codec set:
-   video `H.264` or `VP8`, audio `Opus`.
-   Current state: continuous native H.264/Opus publication and desktop WebView decoding/playback are implemented. SDP uses Constrained Baseline H.264 (`42e01f`) and max-bundle for WebKit interoperability.
-2. Add bitrate presets and adaptive quality controls.
-3. Add frame pacing and backpressure handling.
-   Current state: initial bounded native queues, continuous draining, latest-only GUI diagnostics, and a 200 ms publication timeout are implemented. Network-aware pacing and adaptive dropping remain open.
-4. Add A/V sync monitoring.
-5. Add graceful degradation for weak networks.
-   Current state: decoder refresh via RTCP PLI/FIR is implemented; repeated feedback is coalesced with a 500 ms minimum interval between feedback-driven keyframes. Adaptive quality and sustained congestion handling remain open.
+### Реализация
 
-### Iteration 5 Progress
+- [ ] Linux Wayland Portal ScreenCast session lifecycle: user source selection, permission, PipeWire stream consumption и cleanup.
+- [ ] Linux audio capture и X11 fallback media capture; текущий `wmctrl` даёт только metadata.
+- [ ] Linux video encoder, совместимый с согласованным H.264 media path.
+- [ ] Bitrate presets и UI settings для quality/FPS/resolution/audio routing; текущие defaults фиксированы в backend.
+- [ ] Adaptive bitrate/quality, network-aware frame pacing и congestion/drop policy.
+- [ ] A/V sync monitoring и capture-to-render latency instrumentation; browser playout уже существует, измерения skew нет.
+- [ ] Room/invite code/link UX и authenticated room access.
+- [ ] TLS signaling; текущий TCP server не поддерживает HTTPS/WSS.
+- [ ] Production room TTL, replay/message-size bounds, rate limits и deployment observability.
+- [ ] Bundled/deployed STUN/TURN configuration и short-lived TURN credential issuance.
+- [ ] Signing/notarization workflow и Linux bundle targets/configuration.
 
-- Implemented: standalone VideoToolbox H.264 Constrained Baseline AutoLevel encoder within a Level 3.1 SDP ceiling for packed BGRA up to 1280x720 at 1-30 fps
-- Implemented: realtime configuration without B-frame reordering, 2 Mbit/s default target, two-second keyframe interval, SPS/PPS on keyframes, and AVCC-to-Annex B conversion
-- Implemented: source resize recreates the encoder and forces an IDR; odd dimensions are edge-padded to even dimensions; invalid buffers and non-increasing PTS are rejected
-- Verified: actual native encoding of synthetic frames, parameter-set/IDR output, PTS durations, resize, and malformed input without recording the screen
-- Implemented: vendored libopus encoder for mono/stereo interleaved 48 kHz PCM, 64 kbit/s stereo default, and 20 ms packets with preserved timestamps
-- Implemented: arbitrary audio buffer aggregation, finite/sample-count validation, and partial-packet reset on capture discontinuities
-- Verified: Opus roundtrip decoding, packet duration/PTS, discontinuity handling, and malformed audio
-- Implemented: continuous capture/encode/publish worker, H.264 Constrained Baseline/Opus-only SDP registration, RTP receive counters, and RTCP draining for transport interceptors
-- Implemented: encode only with a connected peer, reset encoders/request first keyframe on connection epochs, and drop partial audio on worker restart
-- Verified: actual encoded video/audio delivery over local WebRTC with synthetic capture, no dependency on GUI polling, stop/restart, and audio opt-out
-- Implemented: desktop viewer WebRTC depacketization, jitter buffering, decoding, and video/audio output without media IPC
-- Verified: real WKWebView decoded video pixels/dimensions, nonzero Opus audio PCM, backend decoded/received counters, and stop cleanup using synthetic media
-- Implemented: video RTCP PLI/FIR handling, video-SSRC filtering, FIR duplicate detection, bounded keyframe request state, and capture-worker refresh frames with SPS/PPS/IDR
-- Implemented: host keyframe request/publication/pending counters, a 500 ms feedback cooldown, and pending-state cleanup across disconnection/close
-- Verified: real SRTCP PLI/FIR delivery, native requested SPS/PPS/IDR output, capture-worker recovery before the periodic keyframe interval, and pending feedback surviving capture stop/restart
-- Verified: WKWebView and Chromium request refresh through RTCP after the initial keyframe is dropped, decode the recovered video and Opus audio, and release media on stop
-- Still open: Linux H.264 encoding/playback QA, adaptive bitrate/pacing, A/V sync monitoring, and weak-network validation
+### Проверки, которые ещё НЕ ВЫПОЛНЕНЫ
 
-## Iteration 6: NAT Traversal And Deployment
+- [ ] Реальный macOS permission deny/grant/relaunch/retry на app/CLI.
+- [ ] Реальный window/application/display capture и audio filtering/routing, включая несколько мониторов и смену/закрытие source.
+- [ ] Реальный native capture → desktop viewer video/audio, autoplay/user gestures и sound output devices.
+- [ ] Packaged Tauri build/install/launch, playback и cleanup при stop/reset/close/startup.
+- [ ] Linux capture на GNOME Wayland, KDE Wayland и X11 после реализации backend.
+- [ ] Linux WebView H.264/Opus playback и unsupported-codec behavior.
+- [ ] STUN direct и TURN relay между разными сетями/NAT; восстановление после смены/потери connectivity.
+- [ ] Sustained packet loss, congestion и weak-network recovery; initial-keyframe-drop probe этого не заменяет.
+- [ ] Измерения latency, CPU, A/V skew и packet-loss behavior на реальном media path.
 
-1. Add STUN configuration to transport settings.
-2. Add TURN fallback support for restrictive NAT environments.
-3. Expose relay/direct path state in the GUI.
-4. Separate signaling deployment config from desktop runtime config.
-5. Document production deployment topology and security assumptions.
+## Следующие шаги
 
-### Iteration 6 Progress
+1. Пройти реальный macOS capture/playback и permission QA по [checklist](docs/QA_CHECKLIST.md) и сохранить результаты с OS/build/source/network условиями.
+2. Добавить A/V sync/latency monitoring, затем quality presets и adaptive pacing/bitrate.
+3. Реализовать Linux Portal/PipeWire и video encoder, затем platform playback QA.
+4. Завершить защищённый signaling/STUN/TURN deployment и cross-network QA.
+5. Собрать/проверить release bundles и signing/notarization.
 
-- Done in part: `transport-webrtc` already accepted ICE server entries, and `app-core`, CLI, Tauri, and persisted desktop session config now expose custom STUN/TURN server configuration end to end
-- Done in part: transport snapshots and the desktop GUI now surface a best-effort ICE candidate-pair summary with direct-vs-relay hints
-- Done in part: ICE server configuration is validated before it reaches CLI/Tauri session startup, including scheme checks for STUN/TURN URLs
-- Done in part: production networking topology and security assumptions now live in `docs/NETWORKING.md`
-- Still open: bundled TURN deployment/auth flow and deeper relay/direct metrics
-
-## Iteration 7: Persistence And App Packaging
-
-1. Persist last-used signaling settings and UI preferences.
-2. Persist selected source metadata where safe.
-3. Add Tauri bundling configuration for macOS.
-4. Add desktop icons, metadata and release build scripts.
-5. Write installation and troubleshooting documentation.
-
-### Iteration 7 Progress
-
-- Done in part: `app-core::SessionManager` now persists last-used room, signaling address, source label, and selected capture-source metadata to a lightweight local preferences file
-- Done in part: the desktop preferences store now also persists auto-refresh enablement and polling interval for the Tauri GUI
-- Done in part: session-manager reset now restores persisted preferences after clearing the active live session
-- Done in part: `apps/desktop/src-tauri/tauri.conf.json` now enables macOS `.app` and `.dmg` bundle targets with a project-specific bundle identifier and baseline bundle metadata
-- Done in part: desktop release packaging now has generated icon assets, crate/bundle metadata, and helper scripts for icon generation plus `cargo tauri build`
-- Done in part: installation, release-build, saved-preferences, and troubleshooting guidance now live in `docs/INSTALLATION.md`
-- Still open: additional desktop UI preference persistence beyond polling controls, plus notarization/signing details
-
-## Iteration 8: Testing And Release Readiness
-
-1. Add unit tests for signaling protocol parsing and session transitions.
-2. Add integration tests for end-to-end host/viewer flow.
-3. Add manual QA checklist for macOS and Linux.
-4. Test real streaming across different networks.
-5. Measure latency, CPU usage and packet loss behavior.
-
-### Iteration 8 Progress
-
-- Done in part: `app-core` now has broader unit coverage for signaling parser edge cases plus viewer/debug-capture session transition behavior
-- Done in part: `app-core/tests/host_viewer_flow.rs` now exercises host/viewer negotiation and late-join offer replay over a real local TCP signaling path, isolated from any user-local desktop preferences
-- Done in part: `app-core` now has unit coverage for reconnecting stopped host/viewer sessions and rejecting reconnect attempts from idle state
-- Done in part: `app-core` now has unit coverage for recovery diagnostics when signaling is unavailable, plus more stable isolated capture-selection tests
-- Done in part: manual QA coverage for current MVP behavior now lives in `docs/QA_CHECKLIST.md`
-- Added: continuous encoded-media WebRTC integration test and capture-worker lifecycle/permission/source checks; manual encoded/RTP counter checks are documented
-- Added: Rust viewer signaling/generation coverage, Node lifecycle/ICE-order/autoplay/stale-callback tests, and opt-in native WKWebView playback probe; see `docs/VIEWER_PLAYBACK.md`
-- Added: regressions for stop followed by refresh, failure followed by delayed reports, stop during buffered ICE, and transient disconnect/recovery; the native probe checks closed peers and ended tracks
-- Added: keyframe feedback filtering/coalescing/cooldown and publication-race checks, SRTCP integration coverage, and an optional browser recovery probe that drops the initial keyframe
-- Still open: actual desktop capture-to-playback, packaged GUI, Linux WebView, and cross-network/latency/CPU validation
+Детальные ограничения: [capture](docs/MACOS_CAPTURE.md), [media](docs/MEDIA_PIPELINE.md), [viewer](docs/VIEWER_PLAYBACK.md), [networking](docs/NETWORKING.md). Наличие manual checklist означает готовность инструкции, а не выполнение её проверок.

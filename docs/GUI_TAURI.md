@@ -1,124 +1,48 @@
-# Tauri GUI Plan
+# Tauri Desktop UI
 
-## Why Tauri
+## Runtime And Build
 
-Tauri is a reasonable fit for this project because:
+The desktop app uses static HTML/CSS/JavaScript in `apps/desktop/public` and a Rust Tauri shell in `apps/desktop/src-tauri`. It is a separate Cargo workspace and is not included in root workspace builds or CI checks.
 
-- Rust remains the primary application language
-- the desktop shell can stay lightweight
-- the UI can evolve independently from the media backend
-- platform-specific capture code can still live in Rust/native layers
+```bash
+cd apps/desktop/src-tauri
+cargo tauri dev
+```
 
-## Current State
+Opening the HTML outside Tauri shows a static preview without Rust session commands. See [installation](INSTALLATION.md) for prerequisites and release scripts.
 
-The repository now includes a desktop scaffold in `apps/desktop`:
+## Implemented UI
 
-- static frontend in `apps/desktop/public`
-- Tauri Rust shell in `apps/desktop/src-tauri`
-- baseline macOS Tauri bundle configuration for `.app` and `.dmg` packaging
-- generated desktop icon assets plus helper scripts for icon refresh and release bundle builds
-- initial commands for reading project status and the saved specification
-- session manager hooks for `host`, `join`, `stop`, `status`, and `logs`
-- UI controls for config save, host/viewer prep, transport smoke testing, reset, refresh, and log clearing
-- manual QA coverage is now tracked in `docs/QA_CHECKLIST.md`
+| Area | Behavior |
+| --- | --- |
+| Host | Start Host Prototype prepares signaling and starts selected native capture; Prepare Host prepares signaling only |
+| Viewer | Join Viewer / Prepare Viewer create the WebView playback session |
+| Remote Window | Received video, muted startup, Enable Sound/Mute Sound, native playback controls, errors |
+| Session | Room and TCP address, custom ICE entries, save, stop, reset, manual reconnect |
+| Capture | Runtime/fallback catalog, immediate source/audio selection, native start/poll/stop, raw/encoded/received diagnostics |
+| Diagnostics | Capture status, SDP/ICE state, selected path/RTT/bytes/loss when available, keyframe counters, recovery guidance, logs |
+| Preferences | Persisted room/signaling/ICE/source and Auto Refresh interval; draft form edits survive background refresh |
+| Local demo | Simulated session/readiness state without capture, WebRTC, or media delivery |
+| Debug | Send Test Frame / Push Debug Capture Burst inject non-playable transport smoke payloads |
 
-The backend around the GUI has moved one step forward:
+Actions use a shared busy state. Backend-provided labels are escaped when rendered as detail rows. Stop/reset/role changes close the viewer player; generation checks reject callbacks from replaced sessions.
 
-- `signaling-server` can now relay validated SDP/ICE envelopes between peers
-- stored signaling messages are replayed to a late joiner in the same room
-- the host GUI refreshes live signaling while the WebView viewer uses an independent signaling loop
-- host-side H.264/Opus audio/video tracks are attached before offer creation and shown in the session snapshot
-- host preparation now auto-creates and sends the first local SDP offer once signaling is connected
-- a debug command can now push synthetic `capture-core` audio/video payloads into those attached tracks
-- the session manager can now ingest backend `capture-core` stream events for native capture implementations without routing them through the GUI debug command
-- the viewer panel plays the received H.264/Opus stream, starts muted, and offers Enable Sound plus native video controls
-- viewer signaling and playback continue independently of diagnostic auto-refresh; stale callbacks are rejected after stop/reconnect
-- the GUI now shows a platform capture catalog and allows selecting a source in-session
-- the capture panel shows raw samples, encoded/received counters, decoded video frames, received audio samples, and viewer playback status
-- the macOS source picker now uses SCShareableContent window/application/display enumeration before falling back to blueprint data
-- the Linux source picker now attempts `wmctrl`-based runtime window enumeration before falling back to blueprint data
-- capture catalog diagnostics now show whether the GUI is using runtime data or blueprint fallback, plus backend notes
-- capture permission state now follows the latest runtime probe instead of a fixed scaffold default
-- host session logs and next-action hints now react to capture readiness, not only signaling progress
-- host source selection now auto-rebinds when a refreshed runtime catalog drops the previously selected source
-- host startup now defaults to the first available capture source when the user has not selected one explicitly
-- capture picker and audio-toggle changes now apply immediately without a separate confirmation button
-- desktop polling is now user-configurable from the GUI, and its enabled/disabled state plus interval persist through the shared session-preferences store
-- room/signaling/ICE draft edits now survive background refresh polling until a successful session action re-syncs them
-- the first viewport now prioritizes a live Tauri workflow overview for role, signaling, capture runtime, transport, and next action
-- live overview values now use semantic state tokens, and backend-provided window labels, notes, and session values are escaped before rendering into HTML
-- the first viewport now also has prototype-first host/viewer panels, with diagnostics collapsed below the main workflow
-- the host workflow now includes a no-network local demo action for validating the GUI without a signaling server or peer
-- frontend actions now run through a single busy state so button presses pause background refresh work instead of piling up competing session commands
-- the first viewport now shows a prototype readiness strip for room, source, native capture, signaling, and peer-link state
-- transport diagnostics now surface `PeerConnection` stage, data-channel readiness, and transport notes
-- session config now includes editable ICE server entries that persist through the desktop preferences store
-- transport diagnostics now include an ICE path summary derived from candidate-pair stats so the GUI can hint whether the current route looks direct or relay-backed
-- the desktop shell now exposes a reconnect action that reuses the active backend session configuration instead of requiring a full reset/re-prepare cycle
-- the desktop shell now also surfaces explicit recovery-state diagnostics derived from signaling reachability, stopped state, and peer-connection status
-- transport diagnostics now also expose candidate-pair RTT, available bitrate, byte counters, and packet-loss estimates from the live stats report
+Source/audio changes stop active capture; Start Native Capture starts the new selection. Reconnect rebuilds the current role but does not restart host capture automatically. Host signaling uses the refresh path during negotiation; viewer signaling and established media run independently of diagnostic refresh.
 
-## Intended GUI Responsibilities
+## Backend Responsibilities
 
-1. Window/source selection
-2. Room create/join flow
-3. Start and stop streaming
-4. Stream status and diagnostics
-5. Settings for bitrate, fps, and audio routing
+- Tauri commands wrap `SessionManager`; snapshots are serialized as UI diagnostics.
+- `app-core` owns session/capture lifecycle and the background encode/publish worker.
+- `transport-webrtc` owns the Rust host and CLI diagnostic peers.
+- `viewer-player.mjs` owns the desktop viewer peer and decoding; Rust only bridges signaling/diagnostics.
+- `capture-macos` supplies native media. `capture-linux` supplies metadata and a scaffold only.
 
-## Backend Split
+## Not Yet Completed
 
-- `app-core`: shared protocol, session state, signaling orchestration, and continuous capture/encode/publish processing
-- `transport-webrtc`: Rust host transport with H.264/Opus tracks; the desktop viewer owns its PeerConnection in the WebView
-- `capture-macos`: native ScreenCaptureKit raw video/audio bridge
-- `capture-linux`: planned Portal + PipeWire integration
-- `desktop-app`: Tauri shell and user-facing commands
+- Invite-code/link generation and authenticated room access; current pairing uses a manually entered room string.
+- Bitrate, FPS, resolution, and audio-routing settings in the UI; current capture/codec defaults are fixed by the backend.
+- Actual macOS permission/source/audio and packaged playback QA.
+- Linux portal source-selection/capture flow and Linux WebView playback QA.
+- Signed/notarized release validation and Linux bundle targets.
 
-## Session Management Layer
-
-The current GUI iteration is backed by an in-memory session manager in `app-core`.
-
-It already models:
-
-- idle / host / viewer roles
-- configured / awaiting peer / negotiating WebRTC / live WebRTC / mock streaming / stopped stages
-- room and signaling metadata
-- a rolling in-memory event log
-
-The shell controls capture through a stable API; media processing runs on a worker independently of GUI refresh. Host signaling uses refresh to complete negotiation. The desktop viewer has its own signaling pump independent of diagnostics refresh.
-
-## Current User Interface
-
-The current Tauri UI is wired to the session manager and supports:
-
-- editing room, signaling, and ICE server fields
-- scanning the live overview for current role, signaling reachability, capture runtime state, transport state, and next action
-- starting a host prototype path that prepares signaling, applies the selected source, starts native capture and publishes H.264/Opus after connection; debug publication remains a separate action
-- running a local desktop demo that marks a host/source/peer workflow active without external signaling
-- joining as a viewer from the first-viewport workflow without opening the diagnostics panels
-- reading command feedback as success, warning, or error state after each Tauri action
-- seeing an in-progress command state while long-running host/viewer/capture actions are executing
-- scanning room/source/capture/signaling/peer readiness before using the deeper diagnostics panels
-- tuning persisted auto-refresh polling behavior for the desktop shell
-- selecting a platform source and audio preference
-- applying capture-source changes immediately from the picker state
-- saving session configuration
-- preparing host or viewer session states with a live signaling connection
-- auto-creating and sending the first local offer from the host path
-- reconnecting the current host/viewer session after a stop or signaling failure
-- surfacing recovery state, recovery reason, and reconnect availability directly in the GUI
-- surfacing RTT, bitrate, byte counters, packet loss, and ICE-path diagnostics directly in the GUI
-- publishing synthetic `capture-core` audio/video payloads into the attached host tracks
-- polling host signaling through snapshot refresh and viewer signaling independently of diagnostic refresh
-- automatically applying remote offer/answer/ICE in the corresponding Rust or WebView peer
-- stopping or resetting a session
-- viewing current session status and next action
-- using a dedicated capture runtime panel for native start/poll/stop and debug capture publishing controls
-- viewing the configured ICE server count and summary in the session snapshot
-- viewing transport connection state, transport stage, ICE path summary, bootstrap data-channel readiness, transport notes, local audio/video track attachment, sample counters, last payload summaries, local/remote description kind, and ICE counters
-- viewing and clearing the rolling session log
-
-## Important Note
-
-The Tauri shell is scaffolded but not included in the default workspace build yet. This avoids making the entire repo dependent on downloading Tauri crates and installing platform prerequisites before the core architecture is in place.
-It is now configured so `apps/desktop/src-tauri` can also be checked standalone without adding it to the root workspace default build.
+The existing macOS `.app`/`.dmg` configuration, icons, and build helper do not establish release readiness. See [TODO](../todo.md) and [manual QA](QA_CHECKLIST.md).

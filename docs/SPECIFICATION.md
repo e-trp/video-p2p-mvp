@@ -1,91 +1,52 @@
 # Product Specification
 
-## User Request Snapshot
+## Product Goal
 
-The target product is a Rust application for peer-to-peer streaming of a captured application window over the network. A user should be able to stream a video player window, including picture and audio, to another user. Media should flow directly between peers rather than through a central media relay. Users may have dynamic IP addresses.
+Build a Rust desktop application that streams a chosen application window, including its picture and available audio, to another user. Target platforms are macOS and Linux. Users may have dynamic IP addresses.
 
-The operating systems in scope are:
+This document separates product requirements from the implemented prototype. [TODO](../todo.md) records completion status; [manual QA](QA_CHECKLIST.md) records validation still required. The CLI `spec` command and desktop specification panel display this file.
 
-- macOS
-- Linux
+## Requirements
 
-## Constraints
+- Let the host select a window/source and whether to include audio.
+- Let a viewer join the host's session and play its video/audio.
+- Send media directly over WebRTC when the network permits it.
+- Use signaling for SDP/ICE exchange and STUN for address discovery when configured.
+- Allow TURN fallback for restrictive networks; TURN relays media only when a direct path cannot be established.
+- Support start, stop, reconnect, and useful connection/capture diagnostics.
+- Respect platform capture permissions.
 
-- Media transport should be peer-to-peer.
-- Dynamic IP addresses must be supported.
-- The product should capture a chosen application window.
-- Audio should travel alongside video.
-- No central media server should relay the stream.
-
-## Clarified Engineering Position
-
-Pure peer-to-peer media is realistic, but a production system still typically needs:
-
-- signaling for offer/answer and ICE candidate exchange
-- STUN for public address discovery
-- TURN as a fallback for restrictive NAT environments
-
-That means "no intermediate server" should be interpreted as:
-
-- no central media relay in the normal path
-- a lightweight signaling service is acceptable
-- TURN may still be required for difficult networks
+The normal path does not require a central media server. Signaling and optional TURN remain part of the intended architecture; direct connectivity on every network is not guaranteed.
 
 ## Platform Strategy
 
-### macOS
+| Platform | Intended capture path | Current implementation |
+| --- | --- | --- |
+| macOS | ScreenCaptureKit video and available system/application audio | Native catalog/SCStream bridge, BGRA/PCM extraction, H.264/Opus publication |
+| Linux Wayland | XDG Desktop Portal ScreenCast and PipeWire | Runtime scaffold only; no portal session or media delivery |
+| Linux X11 | Compatibility window/audio capture fallback | `wmctrl` window metadata only; no media capture |
 
-- capture via `ScreenCaptureKit`
-- bridge captured video/audio samples into Rust
-- send via WebRTC
+macOS video requires 12.3+ and audio requires 13+. Exact source/audio behavior, protected content, permissions, and relaunch requirements still need manual app testing.
 
-### Linux Wayland
+## Implemented Prototype
 
-- capture via `XDG Desktop Portal` and `PipeWire`
-- user selects the target window through the system portal
-- send via WebRTC
+- TCP signaling with two roles per room, SDP/ICE relay, and late-join replay.
+- Real Rust host WebRTC and a WebView-owned desktop viewer peer.
+- macOS capture/encode/publish worker using H.264 and Opus; video defaults to 30 fps, up to 1280x720, and 2 Mbit/s.
+- Desktop video/audio playback, muted startup, explicit sound controls, and stale-callback/stop cleanup.
+- Feedback-driven H.264 refresh through RTCP PLI/FIR.
+- Source selection, manual reconnect/recovery guidance, custom ICE configuration, and local preferences.
+- Automated synthetic native media and WKWebView/Chromium playback verification.
 
-### Linux X11
+The repository also retains a local state-only GUI demo, non-playable debug bursts, and legacy mock UDP CLI commands. These are test tools outside the real capture/playback path. CLI WebRTC smoke commands exit after negotiation and do not provide continuous native streaming or playback.
 
-- compatibility fallback
-- window capture via X11 or `ximagesrc`
-- audio via PulseAudio/PipeWire monitor source
+## Outstanding Product Work
 
-## MVP Direction
+- Validate actual macOS capture-to-desktop playback, audio routing, permissions, and packaged behavior.
+- Implement Linux Portal/PipeWire capture, X11 fallback capture, video encoding, and playback validation.
+- Add bitrate presets, adaptive quality, network-aware pacing/backpressure, and A/V sync/latency monitoring.
+- Add invite UX, authenticated/encrypted signaling, bounded room lifecycle, and managed STUN/TURN deployment.
+- Validate cross-network and weak-network behavior and measure latency/CPU.
+- Complete platform release packaging, signing/notarization, and installation QA.
 
-This repository's MVP is intentionally smaller than the final product. It provides:
-
-- a TCP signaling server
-- sender and receiver CLI roles
-- direct UDP transfer of mock media packets between peers
-- a live WebRTC negotiation path with attached host audio/video tracks
-- debug `capture-core` payload publishing for transport smoke tests
-- a session-facing capture publish path that validates the selected source and audio opt-in before transport publication
-- native macOS capture with continuous H.264/Opus WebRTC publication and desktop WebView video/audio playback
-- saved specification and documentation
-
-This MVP does **not** yet provide:
-
-- Linux screen/audio capture (macOS raw ScreenCaptureKit capture is implemented)
-- real desktop/weak-network validation and A/V sync monitoring
-- bundled STUN/TURN deployment defaults
-- Linux video encoding and adaptive codec controls
-- authenticated/encrypted signaling (WebRTC media already uses DTLS-SRTP)
-
-## Target Production Architecture
-
-1. Rust application core
-2. signaling service
-3. WebRTC transport
-4. platform capture backends
-5. UI for source selection and connection lifecycle
-
-Networking and deployment assumptions are tracked in `docs/NETWORKING.md`.
-
-## Functional Goals For The Next Iteration
-
-1. Replace mock UDP media with WebRTC tracks.
-2. Validate the implemented desktop playback path with actual window/audio capture, then add timing and quality controls.
-3. Implement Linux Wayland capture using Portal + PipeWire.
-4. Add room lifecycle and authentication to signaling.
-5. Add bitrate controls and production network/deployment guidance.
+Implementation details live in [architecture](ARCHITECTURE.md), [media pipeline](MEDIA_PIPELINE.md), and [networking](NETWORKING.md).

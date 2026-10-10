@@ -1,139 +1,61 @@
 # Networking And Deployment
 
-This project is designed for peer-to-peer media transport. The production goal is direct media between users whenever the network allows it, with signaling and NAT traversal services used only to establish or recover that path.
-
-## Current MVP Topology
+## Implemented Topology
 
 ```text
-host desktop/CLI <---- TCP signaling ----> signaling-server <---- TCP signaling ----> viewer desktop/CLI
-       |                                                                            |
-       +------------------------- WebRTC peer connection ---------------------------+
+Rust host <---- TCP SDP/ICE ----> signaling-server <---- TCP SDP/ICE ----> Rust viewer bridge
+    |                                                                            |
+    +-------------------- WebRTC media ---------------------------- WebView viewer
 ```
 
-Implemented today:
+The normal media path is peer-to-peer. The desktop viewer owns its peer in the WebView; a CLI diagnostic viewer uses a Rust peer. Custom ICE servers may provide STUN discovery or TURN relay when needed. No services/default ICE entries are bundled.
 
-- TCP signaling server for room join, peer announcement, SDP relay, ICE relay, and late-join signaling replay
-- Rust host WebRTC with H.264/Opus tracks and continuous macOS publication; desktop viewer WebView WebRTC decoding/playback
-- optional user-provided ICE servers in CLI and desktop UI
-- ICE path diagnostics when WebRTC stats expose a selected candidate pair
-- direct UDP mock media flow retained as a legacy scaffold
+The separate legacy CLI `sender`/`receiver` flow uses mock UDP packets, not WebRTC or captured media.
 
-Not implemented today:
+## Current Signaling Behavior
 
-- bundled STUN or TURN service
-- production authentication for signaling rooms
-- HTTPS/WSS signaling deployment
-- Linux OS-captured media delivery and Linux WebView playback validation
-- production TURN credential issuance
+- Plain TCP, configured as `host:port`; default listen address is `127.0.0.1:7000`.
+- One sender/host and one receiver/viewer per room, identified by a manually entered room string.
+- Validated `SIG|SDP|...` and `SIG|ICE|...` envelopes are relayed and stored for late-join replay.
+- Disconnect clears that role's stored signals; a room is removed when both slots are empty.
+- Server listen address comes from its command argument. Client address and ICE settings are independent desktop/CLI configuration.
 
-## Production Topology
+There is no TLS/HTTPS/WSS signaling, authentication, invite authorization, room TTL, rate limit, or bounded server replay/message history. Protocol parsing and two-slot cleanup are not a production room-management implementation. If one side replaces an established peer, rebuild both peers when necessary to avoid stale SDP/DTLS state.
 
-```text
-                         +----------------------+
-                         | signaling service    |
-                         | auth + room control  |
-                         +----------+-----------+
-                                    |
-                  offer/answer/ICE | metadata only
-                                    |
-+------------------+          +----+-----+          +------------------+
-| host desktop app |<-------->| STUN/TURN|<-------->| viewer desktop app|
-+------------------+  ICE     +----------+   ICE    +------------------+
-        |                                                       |
-        +---------------- direct WebRTC media when possible ----+
-        +--------------- TURN-relayed media only if required ---+
+Start a server for local testing:
+
+```bash
+cargo run -p signaling-server -- 127.0.0.1:7000
 ```
 
-Expected service responsibilities:
+For different machines, use an address reachable by both clients and configure network access to the chosen TCP port. Loopback addresses only work on the server's own machine. Real cross-network streaming remains unvalidated.
 
-- `signaling service`: authenticate users, authorize room access, exchange SDP/ICE, expire rooms, and expose deployment-specific signaling addresses
-- `STUN`: help peers discover public reflexive candidates
-- `TURN`: relay encrypted WebRTC media only when direct connectivity fails
-- `desktop app`: capture selected source, publish encoded media into WebRTC, render diagnostics and recovery controls
+## ICE Configuration And Diagnostics
 
-The normal media path should be direct between peers. TURN is a fallback, not the preferred media route.
-
-## Signaling Deployment
-
-The current signaling server is intentionally minimal. A production signaling deployment should add:
-
-- TLS transport, preferably WebSocket over HTTPS for desktop compatibility
-- authenticated room creation and join authorization
-- short-lived room identifiers or invite tokens
-- room expiry and replay-history limits
-- rate limits per user/IP
-- bounded SDP/ICE message sizes
-- structured logs and metrics without recording SDP bodies by default
-- separate environment config for listen address, public URL, allowed origins, token keys, and room TTL
-
-The desktop runtime should not hard-code deployment defaults. It should receive a signaling URL from persisted user settings, an app config file, or a release-channel-specific installer setting.
-
-## STUN And TURN Deployment
-
-Recommended production behavior:
-
-- ship with one or more configured STUN URLs for basic NAT traversal
-- provide TURN URLs only for authenticated users or trusted deployments
-- issue short-lived TURN credentials through the signaling/auth service
-- prefer `turns:` or TURN over TLS/TCP for restrictive networks when available
-- show direct-vs-relay path state in the desktop diagnostics
-
-Current accepted ICE URL schemes:
-
-- `stun:`
-- `stuns:`
-- `turn:`
-- `turns:`
-
-Current entry format:
+Both Rust and WebView peers accept configured STUN/TURN entries. Supported schemes are `stun:`, `stuns:`, `turn:`, and `turns:`. Use one entry per desktop text line or repeat CLI `--ice-server` flags:
 
 ```text
 stun:stun.example.com:3478
 turn:turn.example.com:3478?transport=udp|username|credential
 ```
 
-Multiple URLs can be placed on one entry with commas when they share the same credentials.
+These are syntax examples; replace them with deployed servers. Multiple URLs may share one entry when comma-separated and using the same credentials.
 
-## Security Assumptions
+Snapshots show configured server count/summary and a best-effort selected candidate-pair direct/relay hint. RTT, available bitrate, bytes, and packet loss depend on stats exposed by the Rust/WebView peer; missing values do not prove a failed connection. Current diagnostics do not measure capture-to-render latency or A/V skew.
 
-WebRTC provides DTLS/SRTP encryption for media once the peer connection is established. The application should still treat signaling as security-sensitive because signaling controls which peer receives SDP and ICE metadata.
+Configuration support does not establish TURN/NAT interoperability. Direct and relay paths still need real-network QA. A signaling address is not an ICE server URL, and adding STUN does not guarantee a direct connection through every NAT.
 
-Production assumptions:
+## Security And Persistence
 
-- signaling must authenticate users before room access
-- signaling must authorize both peers for the same room
-- TURN credentials must be scoped and short-lived
-- persisted desktop config must not store long-lived shared TURN secrets when avoidable
-- logs should avoid storing credentials, SDP bodies, and full ICE candidate details unless explicitly enabled for diagnostics
-- capture permission state and selected source metadata are local app state, not proof that real capture is active
+WebRTC media uses DTLS-SRTP. Current TCP signaling and legacy mock UDP are plaintext. Room names do not authenticate or authorize peers. `session.conf` stores user-supplied TURN credentials in plaintext along with the session settings.
 
-## Operational Diagnostics
+## Outstanding Deployment Work
 
-The desktop UI should continue exposing:
+| Area | Work required |
+| --- | --- |
+| Signaling | TLS transport, authentication/room authorization, invite tokens, bounded messages/history, TTL/rate limits |
+| STUN/TURN | Deployment defaults, reachable relay services, short-lived credential issuance, restrictive-network testing |
+| Operations | Deployment configuration, logs/metrics policy, setup/reconnect success metrics and room/relay monitoring |
+| Media QA | Direct/relay tests across NATs, loss/congestion recovery, latency/CPU/A/V measurements |
 
-- signaling reachability
-- recovery state and reconnect recommendation
-- configured ICE server count and summary
-- selected ICE path summary
-- direct-vs-relay hint when stats identify a candidate pair
-- RTT, bitrate, byte counters, and packet loss when available
-
-Future production metrics should add:
-
-- signaling join success/failure counts
-- room expiry and reconnect rates
-- TURN allocation success/failure counts
-- relay usage percentage
-- connection setup duration
-- capture-to-render latency and A/V skew for the implemented player
-
-## Current Gaps
-
-The current MVP is ready for local and controlled-network smoke testing. It is not yet ready for open internet deployment because it still lacks:
-
-- authenticated signaling
-- TLS/WSS signaling transport
-- bundled STUN defaults
-- TURN deployment and short-lived credential flow
-- production room lifecycle
-- Linux capture/video encoding, Linux playback QA, and adaptive media controls
+The intended production path uses authenticated signaling and configured STUN, with TURN carrying encrypted media only when direct connectivity fails. Linux capture/encoding and platform playback QA remain separate prerequisites. See [TODO](../todo.md) and [manual QA](QA_CHECKLIST.md).

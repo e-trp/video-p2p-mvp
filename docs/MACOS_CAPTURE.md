@@ -1,6 +1,6 @@
 # Native macOS Capture
 
-`capture-macos` now builds an Objective-C ScreenCaptureKit bridge on macOS and exposes native `CaptureStreamEvent` samples to Rust. Linux builds do not compile or link Apple frameworks.
+`capture-macos` builds an Objective-C ScreenCaptureKit bridge on macOS and exposes native `CaptureStreamEvent` samples to Rust. Linux builds do not compile or link Apple frameworks. Native extraction/lifecycle checks use synthetic buffers; actual permission/source/audio behavior remains unvalidated in the app.
 
 ## Requirements
 
@@ -8,7 +8,7 @@
 - Xcode Command Line Tools (`xcrun`, `clang`, macOS SDK)
 - Screen Recording access for the desktop app or the terminal running the CLI probe
 
-Passive catalog refresh checks `CGPreflightScreenCaptureAccess` and does not request permission. An explicit capture start can call `CGRequestScreenCaptureAccess`. If macOS requires relaunch after granting permission, restart the app/terminal, refresh the catalog, select a native source, and retry capture. Accessibility/Apple Events permission is no longer needed for macOS enumeration.
+Passive catalog refresh checks `CGPreflightScreenCaptureAccess` and does not request permission. An explicit capture start can call `CGRequestScreenCaptureAccess`. If macOS requires relaunch after granting permission, restart the app/terminal, refresh the catalog, select a native source, and retry capture. Enumeration uses ScreenCaptureKit, not Accessibility/Apple Events.
 
 ## Native Sources
 
@@ -22,7 +22,7 @@ Window titles are labels; matching uses native IDs. These IDs can change after a
 
 ## Samples And Lifecycle
 
-Video is packed BGRA8; the bridge removes pixel-buffer row padding and ignores non-complete frames. Dimensions preserve source aspect ratio within the configured bounds. Runtime defaults are 30 fps and 1280×720, with FPS clamped to 1–120 and dimensions clamped to 1–4096.
+Video is packed BGRA8; the bridge removes pixel-buffer row padding and ignores non-complete frames. Dimensions preserve source aspect ratio within the configured bounds. The bridge can normalize settings to 1–120 fps and dimensions 1–4096, but the desktop worker uses 30 fps and 1280×720 bounds to fit the current H.264 encoder's 720p/30fps limits. The GUI has no quality/FPS controls yet.
 
 Audio is configured for 48 kHz stereo on macOS 13+. Both planar and interleaved float32 CoreMedia buffers are normalized to interleaved `AudioBuffer.samples`. The stream excludes the capturing process's audio. Actual audio availability and application filtering need manual testing; protected content may not be capturable. No microphone capture is performed.
 
@@ -32,9 +32,9 @@ Start returns `starting` while native content lookup and SCStream startup run as
 
 ## Capture Diagnostics And WebRTC
 
-The desktop capture panel exposes `Captured Video`, `Captured Audio`, `Native Video`, and `Native Audio`. Counts reflect events drained into the session manager, so they depend on polling and queue backpressure. Samples update source-validated diagnostics without retaining raw media in the snapshot.
+The desktop capture panel exposes `Captured Video`/`Captured Audio` counts and `Native Video`/`Native Audio` summaries of the latest samples. Counts reflect events drained into the session manager, so they depend on polling and latest-only diagnostic buffering. Samples update source-validated diagnostics without retaining raw media in the snapshot.
 
-Native BGRA/PCM is encoded by VideoToolbox H.264 and vendored Opus before publication to codec-aware WebRTC tracks. Publication starts only with a connected peer. `Encoded H.264`/`Encoded Opus` count published access units/packets; viewer `Received Video RTP`/`Received Audio RTP` count received RTP packets, which may differ due to fragmentation. The desktop viewer decodes and displays the stream in its WebView; sound starts muted and can be enabled explicitly. `Push Debug Capture Burst` is a separate non-playable packetization smoke test. See [the media pipeline guide](MEDIA_PIPELINE.md).
+Native BGRA/PCM is encoded by VideoToolbox H.264 and vendored Opus before publication to codec-aware WebRTC tracks. Publication starts only with a connected peer. `Encoded H.264`/`Encoded Opus` count published access units/packets; viewer RTP counts may differ due to fragmentation. The desktop viewer decodes/displays media and starts muted. `Push Debug Capture Burst` is a separate non-playable packetization test. See [media pipeline](MEDIA_PIPELINE.md) and [viewer playback](VIEWER_PLAYBACK.md).
 
 ## Verification
 
@@ -56,13 +56,6 @@ cargo run -p capture-macos --example capture_probe -- macos-window-WINDOW_ID --i
 
 Replace `WINDOW_ID` with an ID from the native catalog. The probe captures for ten seconds, reports first-sample metadata and counts, and stops. It saves no frames and opens no network connection. On an unchanged static window, frames may be sparse; change the window content during the check.
 
-Manual QA still required:
-
-1. Test permission denied, permission grant, relaunch, and retry on the packaged app and CLI.
-2. Verify window, application-per-display, and display selection on single/multiple monitors.
-3. Play changing video/audio in the selected app; confirm raw samples and timestamps, then connect a viewer and verify encoded publication and received RTP counters.
-4. Disable audio and restart capture; confirm no audio samples arrive.
-5. Change/close the selected window; verify the previous capture stops and source availability updates.
-6. Stop/reset/close the desktop while starting and while running; verify macOS recording indicators disappear.
+Manual permission/relaunch, window/application/display, multiple-monitor, actual audio filtering, capture-to-playback, and packaged stop/close checks remain outstanding. Their steps are maintained in the [QA checklist](QA_CHECKLIST.md#macos-actual-capture-and-publication--manual).
 
 API reference: [Apple ScreenCaptureKit](https://developer.apple.com/documentation/screencapturekit) and [SCStreamOutput](https://developer.apple.com/documentation/screencapturekit/scstreamoutput).

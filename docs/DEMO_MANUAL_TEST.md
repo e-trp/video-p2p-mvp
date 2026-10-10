@@ -1,119 +1,41 @@
-# Demo Manual Test
+# Local Demo Manual Check
 
-Use this checklist to verify the current desktop prototype from a clean user flow.
+The local demo exercises UI/session state only. It starts no ScreenCaptureKit stream, codec pipeline, WebRTC peer, or media delivery. A placeholder peer and active readiness indicator do not prove real streaming. Use [QA](QA_CHECKLIST.md) for actual capture/playback.
 
-## 1. Start The Desktop App
-
-Run:
+## Start The App
 
 ```bash
 cd apps/desktop/src-tauri
 cargo tauri dev
 ```
 
-Expected:
+Verify the runtime badge shows **Tauri runtime connected**, host/viewer/readiness/overview controls render, and loading text resolves. Static browser preview does not execute these commands.
 
-- the app window opens
-- the runtime badge says `Tauri runtime connected`
-- the first screen renders Host, Viewer, Prototype readiness, and Live overview blocks
-- the UI should not stay forever on `loading...`
+## Simulated Workflow
 
-## 2. Run The No-Network Demo
+1. Click **Run Local Demo**.
+2. Verify room `local-demo`, a selected source, placeholder peer `local viewer demo`, and `host / mock_streaming` overview.
+3. Check the log says the local GUI demo started without external signaling/peer setup.
+4. Click **Stop**; confirm stopped/reconnect guidance.
+5. Click **Reset**; confirm idle, no reconnectable role, and saved preferences restored.
+6. Start the demo again and change **Available Source**; selection and host/readiness labels should update.
 
-Click `Run Local Demo`.
+No server, second peer, STUN/TURN, or screen-recording access is needed. Runtime metadata or example fallback sources may be shown; notes should explain the origin. Manual results must be recorded before treating these UI checks as passed.
 
-Expected:
+## Optional Real Session Check
 
-- command result says `local desktop demo started without signaling server setup`
-- Host panel shows a selected source
-- Host panel shows peer as `local viewer demo`
-- readiness shows room as `local-demo`
-- readiness shows source as `selected`
-- readiness shows peer link as `active`
-- live overview shows `host / mock_streaming`
-- session log contains `local GUI demo started without external signaling or peer setup`
-
-This path does not require a signaling server, a second app instance, STUN/TURN, or real screen-capture permission.
-
-## 3. Check Basic Controls
-
-Click `Stop`.
-
-Expected:
-
-- command result says `session stopped`
-- live overview shows stopped state
-- recovery panel says reconnect is recommended
-
-Click `Reset`.
-
-Expected:
-
-- command result says `session reset to idle state`
-- live overview returns to idle/configure state
-- reconnect becomes unavailable
-
-Click `Run Local Demo` again.
-
-Expected:
-
-- the local demo starts again without restarting the app
-
-## 4. Check Source Selection
-
-Open `Capture Source`.
-
-Expected:
-
-- at least one source is listed
-- if runtime source enumeration is unavailable, blueprint fallback sources are listed
-- catalog notes explain whether runtime or fallback enumeration was used
-
-Change `Available Source`.
-
-Expected:
-
-- command result says `capture source selected`
-- Host panel source updates
-- readiness source remains `selected`
-
-## 5. Optional Real Signaling Smoke Test
-
-Start signaling in a separate terminal:
+Start signaling from the repository root:
 
 ```bash
 cargo run -p signaling-server -- 127.0.0.1:7000
 ```
 
-In the desktop app, leave room as `demo` and signaling as `127.0.0.1:7000`, then click `Start Host Prototype`.
+Reset the demo, explicitly set room `demo` and signaling `127.0.0.1:7000`, refresh/select a native macOS source, and click **Start Host Prototype**. The action prepares signaling and attempts capture; inspect runtime status and permission/source errors.
 
-Expected:
+Join the same room from a second desktop instance. Confirm connected transport, increasing encoded/decoded counts, moving video, and audio after **Enable Sound**. A CLI `webrtc-viewer` can check negotiation but exits after connection and cannot validate continuous playback.
 
-- the UI shows an in-progress command state and then returns control
-- command result says host session was prepared
-- live overview shows host mode
-- signaling readiness shows `connected`
-- session log says local SDP offer was created and sent automatically, or gives a concrete warning if capture permission/source selection prevents native startup
-- on macOS with native capture active, the capture panel shows raw samples; after a viewer connects it also shows encoded H.264/Opus publication and received RTP counts
-- the desktop viewer displays the remote window after joining; click Enable Sound to hear selected audio; starting the host does not send synthetic debug samples automatically
+See [user guide](USER_GUIDE.md), [capture setup](MACOS_CAPTURE.md), and [viewer guide](VIEWER_PLAYBACK.md) for requirements. Starting the host does not inject debug samples automatically. **Send Test Frame** / **Push Debug Capture Burst** are non-playable diagnostics and should not be used in this playback check.
 
-To test a viewer, open a second app instance or use the CLI viewer:
+## Report A Failure
 
-```bash
-cargo run -p p2p-cli -- webrtc-viewer --room demo --signal 127.0.0.1:7000
-```
-
-Expected:
-
-- host/viewer signaling messages appear in the session log
-- transport diagnostics move beyond initial/not-initialized state
-
-## 6. Failure Notes To Report
-
-If the app still appears stuck, capture these details:
-
-- the exact text still showing `loading...`
-- whether `Run Local Demo` is clickable
-- the last terminal lines from `cargo tauri dev`
-- the OS and desktop environment
-- whether the app asked for Accessibility or Screen Recording permission
+Record commit/build, OS, exact action/status/error, runtime badge, session/capture/transport diagnostics, and relevant Tauri terminal/log lines. If a loading state persists, record which field and whether the local demo action is available.

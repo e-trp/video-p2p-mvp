@@ -1,84 +1,60 @@
 # Installation And Troubleshooting
 
-## Scope
+## Scope And Dependencies
 
-This project is still an MVP.
+This is a development prototype, not a validated signed release. macOS capture/encoding and desktop viewer playback are implemented; actual capture/packaged behavior still need QA. Linux capture/video encoding are absent and Linux WebView playback is unvalidated.
 
-The current repository can already provide:
+Required for development:
 
-- a TCP signaling server
-- CLI smoke-test flows
-- a Tauri desktop shell for host/viewer session control
-- live WebRTC negotiation between host and viewer
-- configurable STUN/TURN ICE server settings for CLI and desktop runs
-- debug `capture-core` media bursts for transport validation
-- native macOS ScreenCaptureKit capture, H.264/Opus encoding, and continuous WebRTC publication
-- desktop WebView decoding and video/audio playback with explicit sound controls
+- Rust with `cargo` (the desktop crate uses edition 2024).
+- CMake and a C compiler for vendored Opus; no system libopus or FFmpeg binary is required.
+- For Tauri: `cargo tauri` and platform development prerequisites, including the platform WebView.
+- On macOS: Xcode Command Line Tools/macOS SDK, macOS 12.3+ for capture, 13+ for audio, and Screen Recording access for actual capture.
+- Node 22+ for viewer lifecycle tests and the optional browser probe.
+- Python 3 for icon regeneration; the release helper regenerates icons before building.
 
-It does **not** yet provide:
-
-- Linux OS screen/system audio capture
-- validated Linux WebView playback and precise A/V timing controls
-- STUN/TURN deployment defaults
-- production packaging/signing/notarization flow
-
-## Prerequisites
-
-You need:
-
-- a Rust toolchain with `cargo`
-- Tauri CLI available as `cargo tauri`
-- platform prerequisites required by Tauri on your OS
-- on macOS: Xcode Command Line Tools and macOS 12.3+ (macOS 13+ for audio); see [macOS capture setup](MACOS_CAPTURE.md)
-- CMake and a C compiler to build the vendored Opus codec; no system libopus is required
-- Node 22+ if running the viewer lifecycle tests or optional native playback probe
-
-Quick checks:
+The repository does not install these dependencies. Check your tools before building:
 
 ```bash
 cargo --version
 cargo tauri --help
+cmake --version
 ```
 
-If `cargo tauri` is missing, install the Tauri CLI before trying to run the desktop shell.
-
-## Repository Setup
-
-Clone the repository and enter it:
+## Setup And Core Checks
 
 ```bash
 git clone https://github.com/e-trp/video-p2p-mvp.git
 cd video-p2p-mvp
+cargo check --workspace --all-targets --all-features
 ```
 
-Optional backend sanity check:
+The Tauri app is a separate workspace. A root check does not build it:
 
 ```bash
-cargo check
+cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --all-features
 ```
 
-## Run The Signaling Server
+Full checks and native/browser test requirements are in [QA](QA_CHECKLIST.md), [macOS capture](MACOS_CAPTURE.md), and [viewer playback](VIEWER_PLAYBACK.md).
 
-Open one terminal in the repository root:
+## Development Run
+
+Start signaling from the repository root:
 
 ```bash
 cargo run -p signaling-server -- 127.0.0.1:7000
 ```
 
-Leave it running while you test the CLI or desktop shell.
-
-## Run The Desktop Shell
-
-Open another terminal:
+In another terminal:
 
 ```bash
 cd apps/desktop/src-tauri
 cargo tauri dev
 ```
 
-This is the supported dev path for the desktop shell in the current repo.
+For actual playback use a host desktop and a viewer desktop with the same room and server address. See [user guide](USER_GUIDE.md). CLI WebRTC commands exit after negotiation and are not persistent streaming peers.
 
-## Build A Release Bundle
+## Release Build Helper
 
 From the repository root:
 
@@ -86,172 +62,79 @@ From the repository root:
 ./scripts/build-desktop-release.sh
 ```
 
-This currently:
+The helper runs Python-based icon generation and `cargo tauri icon`, then runs `cargo tauri build` from `apps/desktop/src-tauri`. Standalone icon regeneration is available through:
 
-- regenerates desktop icon assets
-- changes into `apps/desktop/src-tauri`
-- runs `cargo tauri build`
+```bash
+./scripts/generate-desktop-icons.sh
+```
 
-## Saved Session Preferences
+Current bundle configuration targets macOS `.app` and `.dmg`, uses identifier `dev.videop2p.desktop`, and declares minimum macOS 12.3. Linux release bundle targets are not configured. Signing/notarization automation, build/install validation, and packaged playback QA remain outstanding; the existence of a helper is not evidence of a tested release bundle.
 
-The desktop shell persists room, signaling address, configured ICE servers, selected source metadata, and desktop auto-refresh preferences into a local preferences file.
+## Saved Preferences
 
-Default locations:
+The app stores room, signaling address, ICE entries, source selection (including audio), and Auto Refresh settings in `session.conf`. Default paths:
 
-- macOS: `~/Library/Application Support/video-p2p-mvp/session.conf`
-- Linux with `XDG_CONFIG_HOME`: `$XDG_CONFIG_HOME/video-p2p-mvp/session.conf`
-- Linux fallback: `~/.config/video-p2p-mvp/session.conf`
+| Platform | Path |
+| --- | --- |
+| macOS | `~/Library/Application Support/video-p2p-mvp/session.conf` |
+| Linux with XDG_CONFIG_HOME | `$XDG_CONFIG_HOME/video-p2p-mvp/session.conf` |
+| Linux fallback | `~/.config/video-p2p-mvp/session.conf` |
 
-Override location for testing:
+For isolated tests:
 
 ```bash
 export VIDEO_P2P_MVP_CONFIG_DIR=/tmp/video-p2p-mvp-config
 ```
 
-The app writes `session.conf` inside that directory.
+`session.conf` is written inside that directory. This shared core store is also used by CLI session flows. **Reset** reloads saved preferences and does not delete the file. To test fresh defaults, use a clean override directory or remove the file while the app is stopped.
 
-ICE server entries are stored as newline-separated values in one of these forms:
+The file is plaintext and stores configured TURN credentials as supplied. It does not store active capture or peer sessions. Native source IDs can become stale after an app/system restart and may be rebound during catalog refresh.
 
-- `stun:stun.l.google.com:19302`
-- `turn:turn.example.com:3478?transport=udp|username|credential`
+## ICE Configuration
 
-Accepted URL schemes are `stun:`, `stuns:`, `turn:`, and `turns:`.
+No STUN/TURN services or default server entries are bundled. Enter one actual server entry per line in **ICE Servers**, or repeat `--ice-server` in CLI smoke commands. Accepted schemes: `stun:`, `stuns:`, `turn:`, `turns:`.
 
-The same file also stores whether automatic GUI refresh polling is enabled and which refresh interval the desktop shell should use on the next launch.
+Example syntax (placeholder servers):
 
-## STUN/TURN Configuration
-
-The current MVP does not ship a TURN service, but both CLI and Tauri can now pass explicit ICE server entries through to the underlying `RTCPeerConnection`.
-
-CLI examples:
-
-```bash
-cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 \
-  --ice-server 'stun:stun.l.google.com:19302'
+```text
+stun:stun.example.com:3478
+turn:turn.example.com:3478?transport=udp|username|credential
 ```
 
-```bash
-cargo run -p p2p-cli -- webrtc-host --room demo --signal 127.0.0.1:7000 \
-  --ice-server 'turn:turn.example.com:3478?transport=udp|username|credential'
-```
-
-In the Tauri desktop shell, enter one ICE server per line in the `ICE Servers` field, then save or prepare the session.
-Invalid URL schemes are rejected before the session is started or saved.
+Multiple URLs may be comma-separated within an entry sharing credentials. Invalid schemes are rejected before save/start. The **Signaling** field remains a TCP `host:port`; ICE server URLs are separate settings. See [networking](NETWORKING.md).
 
 ## Troubleshooting
 
-### `cargo tauri` is not found
+### Tauri command or build is unavailable
 
-Symptoms:
+Check that Rust, the Tauri CLI, platform prerequisites, and CMake are installed in the active shell. Run `cargo tauri --help`. Start Tauri from `apps/desktop/src-tauri`; root Cargo checks only cover the core workspace. The release helper additionally requires Python 3 and generates icons before building.
 
-- `cargo tauri --help` fails
-- `cargo tauri dev` fails immediately
+### The page shows Browser preview
 
-What to check:
+Opening static HTML outside Tauri does not execute Rust commands. Run `cargo tauri dev`; the badge should show **Tauri runtime connected**. If the badge reports a command timeout, inspect the Tauri terminal and session logs.
 
-- Rust is installed and working
-- the Tauri CLI is installed for the active toolchain
-- you are using the same shell environment where the CLI was installed
+### Peers do not connect
 
-### The desktop app starts in preview mode or commands do nothing
+Check that signaling is running, both peers use the same room, and both can reach its TCP address. `127.0.0.1` refers to each machine itself; for different machines use the server's reachable address. A room supports one host and one viewer; stop old peers before reusing their roles.
 
-Symptoms:
+Keep host Auto Refresh enabled during negotiation or use manual Refresh to process answer/ICE. Viewer signaling has an independent pump. For different networks, configure reachable STUN/TURN servers and inspect ICE diagnostics. Real cross-network/NAT coverage is still outstanding.
 
-- the static frontend renders
-- no Rust-side session actions happen
-- UI does not reflect real session state
+### No decoded picture or audible audio
 
-Cause:
+Use a desktop viewer; CLI WebRTC commands are short diagnostics. Check that the host selected a native macOS source and started capture, the runtime is running, and the peer is connected. Change the window content to produce frames. Host encoded counts and viewer decoded counts should increase.
 
-- the HTML was opened directly instead of starting the Tauri runtime
+The player starts muted; use **Enable Sound** or the play control if autoplay is blocked. Audio requires macOS 13+, **Include Audio**, and audio from the selected source. Received audio sample counts are not proof of audible device output. Debug bursts are non-playable; avoid them during a playback check.
 
-Fix:
+### Source catalog or permission is unavailable
 
-- run `cargo tauri dev` from `apps/desktop/src-tauri`
+macOS passive refresh preflights permission and attempts native enumeration when granted. Explicit start can request Screen Recording access. After granting it, relaunch if required, refresh/select a native source, and retry. Example fallback sources cannot start native capture. See [capture guide](MACOS_CAPTURE.md).
 
-### The viewer or host does not connect
+Linux catalog discovery uses X11 `wmctrl` metadata when available. Even a populated catalog or granted hint does not mean media capture exists; Portal/PipeWire and X11 capture remain unimplemented.
 
-What to check:
+### Capture stopped after selection or reconnect
 
-- `signaling-server` is running
-- both peers use the same room name
-- both peers use the same signaling address
-- the signaling address is reachable from the desktop shell or CLI process
-- if you are testing across networks, the STUN/TURN entries are valid and reachable
-
-Start from the known local default first:
-
-```bash
-127.0.0.1:7000
-```
-
-For NAT-traversal tests, start with a known-good STUN entry before assuming TURN is required:
-
-```bash
-stun:stun.l.google.com:19302
-```
-
-For the intended production signaling/STUN/TURN topology, see `docs/NETWORKING.md`.
-
-### The viewer receives media, but shows no picture or sound
-
-Use the desktop viewer for playback; the CLI viewer only reports RTP diagnostics. The desktop player starts muted. Click Enable Sound or the video play control if the WebView requires a user gesture.
-
-Today the repo supports:
-
-- live signaling
-- live WebRTC negotiation
-- codec-aware H.264/Opus tracks
-- debug `capture-core` payload publishing
-- a continuous native macOS capture/encode/publish worker
-
-On macOS, start native capture with a real source and connect a viewer. Host `Encoded H.264`/`Encoded Opus` and viewer `Received Video RTP`/`Received Audio RTP` should increase while media is active. The desktop player should show decoded frames; check its playback status/error and click Play if autoplay is blocked. Raw diagnostic counts depend on GUI refresh; encoded publication continues independently. Debug bursts are non-playable packetization tests.
-
-### macOS source listing falls back or permission looks blocked
-
-Current behavior:
-
-- SCShareableContent enumeration is attempted when Screen Recording preflight is granted; passive refresh does not request permission
-- if that fails, the app falls back to blueprint metadata
-
-What to check:
-
-- screen recording permission for the app/terminal session
-- whether the session log reports `required` or `denied`
-
-Important limitation:
-
-- native capture starts only on an explicit capture action with a real catalog source
-- permission changes may require relaunch, catalog refresh, and reselection before retry
-- playback requires WebRTC/H.264/Opus support in the installed WebView; Linux still needs manual validation; see [the viewer guide](VIEWER_PLAYBACK.md)
-
-### Linux source listing is incomplete or unavailable
-
-Current behavior:
-
-- runtime enumeration currently depends on `wmctrl`-style X11 metadata when available
-- unsupported environments fall back to blueprint metadata
-
-Expected limitation:
-
-- Wayland portal + PipeWire capture is still not implemented
-
-### The saved config seems wrong or stale
-
-Reset options:
-
-- delete the persisted `session.conf`
-- point `VIDEO_P2P_MVP_CONFIG_DIR` to a clean directory for a test run
-- use the in-app reset flow to return the live session state to idle
+Source/audio changes and catalog rebinding stop the old capture. Reconnect rebuilds the peer and also leaves capture stopped. Click **Start Native Capture** again. If one side replaced an established peer, rebuild both sides to refresh SDP/DTLS state.
 
 ### Release bundling fails
 
-Check these first:
-
-- `cargo tauri --help` works
-- you are running `./scripts/build-desktop-release.sh` from the repository root
-- Tauri platform prerequisites are installed on the current machine
-
-Current limitation:
-
-- signing/notarization details are still not fully documented or automated in this repo
+Check Tauri platform dependencies, Python 3, CMake, and the release helper's terminal output. The current config targets macOS bundles. Signing/notarization and install/playback validation are not automated or verified in this repository. Record failures in the [QA checklist](QA_CHECKLIST.md).
