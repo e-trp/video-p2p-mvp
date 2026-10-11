@@ -8,6 +8,9 @@ use app_core::{
 use serde::Serialize;
 use std::sync::Mutex;
 
+#[cfg(feature = "gui-qa")]
+mod gui_qa;
+
 #[derive(Serialize)]
 struct ProjectStatus {
     stage: String,
@@ -121,7 +124,7 @@ struct CaptureCatalogView {
     sources: Vec<CaptureSourceView>,
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn project_status(state: tauri::State<'_, Mutex<SessionManager>>) -> ProjectStatus {
     let snapshot = state.lock().expect("session state poisoned").snapshot();
     ProjectStatus {
@@ -133,13 +136,13 @@ fn project_status(state: tauri::State<'_, Mutex<SessionManager>>) -> ProjectStat
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn session_snapshot(state: tauri::State<'_, Mutex<SessionManager>>) -> SessionView {
     let snapshot = state.lock().expect("session state poisoned").refresh();
     map_snapshot(snapshot)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn capture_catalog(state: tauri::State<'_, Mutex<SessionManager>>) -> CaptureCatalogView {
     let mut state = state.lock().expect("session state poisoned");
     let catalog = state.capture_catalog();
@@ -147,7 +150,7 @@ fn capture_catalog(state: tauri::State<'_, Mutex<SessionManager>>) -> CaptureCat
     map_capture_catalog(catalog, snapshot)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn start_host(
     room: String,
     signaling_addr: String,
@@ -181,7 +184,7 @@ fn start_host(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn join_room(
     room: String,
     signaling_addr: String,
@@ -209,7 +212,7 @@ fn join_room(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn viewer_poll_signals(
     generation: u64,
     state: tauri::State<'_, Mutex<SessionManager>>,
@@ -220,7 +223,7 @@ fn viewer_poll_signals(
         .poll_viewer_signaling(generation)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn viewer_send_signal(
     generation: u64,
     signal: ViewerSignal,
@@ -232,7 +235,7 @@ fn viewer_send_signal(
         .send_viewer_signal(generation, signal.into())
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn viewer_report_playback(
     generation: u64,
     report: ViewerPlaybackReport,
@@ -244,7 +247,7 @@ fn viewer_report_playback(
         .report_viewer_playback(generation, report)
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn start_local_demo(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state
         .lock()
@@ -258,7 +261,7 @@ fn start_local_demo(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandRe
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn update_session_config(
     room: Option<String>,
     signaling_addr: Option<String>,
@@ -284,7 +287,7 @@ fn update_session_config(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn select_capture_source(
     source_id: String,
     include_audio: bool,
@@ -302,7 +305,7 @@ fn select_capture_source(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn publish_debug_capture_samples(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state
         .lock()
@@ -316,7 +319,7 @@ fn publish_debug_capture_samples(state: tauri::State<'_, Mutex<SessionManager>>)
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn start_capture_stream(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let mut state = state.lock().expect("session state poisoned");
     match state.start_capture_stream() {
@@ -336,7 +339,7 @@ fn start_capture_stream(state: tauri::State<'_, Mutex<SessionManager>>) -> Comma
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn poll_capture_stream(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state
         .lock()
@@ -350,7 +353,7 @@ fn poll_capture_stream(state: tauri::State<'_, Mutex<SessionManager>>) -> Comman
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn stop_capture_stream(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state
         .lock()
@@ -364,7 +367,7 @@ fn stop_capture_stream(state: tauri::State<'_, Mutex<SessionManager>>) -> Comman
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn stop_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state.lock().expect("session state poisoned").stop();
 
@@ -375,7 +378,7 @@ fn stop_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn reconnect_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let mut state = state.lock().expect("session state poisoned");
     match state.reconnect() {
@@ -395,7 +398,7 @@ fn reconnect_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandR
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn clear_session_logs(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state.lock().expect("session state poisoned").clear_logs();
 
@@ -406,7 +409,7 @@ fn clear_session_logs(state: tauri::State<'_, Mutex<SessionManager>>) -> Command
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn reset_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResult {
     let snapshot = state.lock().expect("session state poisoned").reset();
 
@@ -417,7 +420,7 @@ fn reset_session(state: tauri::State<'_, Mutex<SessionManager>>) -> CommandResul
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn update_ui_preferences(
     auto_refresh_enabled: Option<bool>,
     refresh_interval_secs: Option<u32>,
@@ -441,37 +444,57 @@ fn update_ui_preferences(
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 fn specification_markdown() -> String {
     include_str!("../../../../docs/SPECIFICATION.md").to_string()
 }
 
 fn main() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .manage(Mutex::new(SessionManager::new()))
-        .invoke_handler(tauri::generate_handler![
-            project_status,
-            session_snapshot,
-            capture_catalog,
-            start_host,
-            join_room,
-            viewer_poll_signals,
-            viewer_send_signal,
-            viewer_report_playback,
-            start_local_demo,
-            update_session_config,
-            select_capture_source,
-            publish_debug_capture_samples,
-            start_capture_stream,
-            poll_capture_stream,
-            stop_capture_stream,
-            stop_session,
-            reconnect_session,
-            clear_session_logs,
-            reset_session,
-            update_ui_preferences,
-            specification_markdown
-        ])
+        .invoke_handler(|invoke: tauri::ipc::Invoke<tauri::Wry>| {
+            #[cfg(feature = "gui-qa")]
+            if invoke.message.command().starts_with("gui_qa_") {
+                let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
+                    gui_qa::gui_qa_configuration,
+                    gui_qa::gui_qa_report,
+                    gui_qa::gui_qa_resize,
+                    gui_qa::gui_qa_finish
+                ];
+                return handler(invoke);
+            }
+            let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
+                project_status,
+                session_snapshot,
+                capture_catalog,
+                start_host,
+                join_room,
+                viewer_poll_signals,
+                viewer_send_signal,
+                viewer_report_playback,
+                start_local_demo,
+                update_session_config,
+                select_capture_source,
+                publish_debug_capture_samples,
+                start_capture_stream,
+                poll_capture_stream,
+                stop_capture_stream,
+                stop_session,
+                reconnect_session,
+                clear_session_logs,
+                reset_session,
+                update_ui_preferences,
+                specification_markdown
+            ];
+            handler(invoke)
+        });
+    #[cfg(feature = "gui-qa")]
+    let builder = if std::env::var_os("VIDEO_P2P_GUI_QA_REPORT").is_some() {
+        builder.plugin(gui_qa::plugin())
+    } else {
+        builder
+    };
+    builder
         .run(tauri::generate_context!())
         .expect("failed to run tauri app");
 }

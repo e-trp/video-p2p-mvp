@@ -21,7 +21,7 @@ Use `[x]` only for fully completed results. `[ ]` marks outstanding work. Runtim
 | Newly completed feature IDs since adopting this policy | None — `0/5`; the existing inventory is the baseline |
 | Last passing full-project QA checkpoint | None; automated checks alone do not satisfy manual QA |
 | Next feature milestone | M1, after actionable bugs; baseline macOS capture/playback QA is the first feature prerequisite |
-| Release gate | Open; required manual QA remains outstanding |
+| Release gate | Open; [Tauri GUI QA failed](docs/qa/tauri-gui-0.1.0-74a8e37.md) under BUG-008/BUG-009, and required OS/device/network QA remains outstanding |
 
 Update this checkpoint as feature IDs are completed. Keep ordinary task commits separate. Run full QA at each milestone, before any version tag, and at five newly completed features at the latest. Record the covered IDs and reset the counter only after a passing full QA run. Documentation, refactoring, and fixes do not count as features. Tag only a verified release commit; a docs-only update keeps `0.1.0`.
 
@@ -63,7 +63,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 
 ### UI, Preferences, and Tooling
 
-- [x] Host/viewer preparation, source picker, capture start/poll/stop, session stop/reset, and manual reconnect with recovery guidance.
+- [x] **BASE-DESKTOP-CONTROLS:** Host/viewer preparation, source picker, capture start/poll/stop, session stop/reset, and manual reconnect with recovery guidance. Real Tauri GUI defects are tracked in the bug register.
 - [x] Transport/capture/playback diagnostics, selected ICE path, and available RTT/bitrate/bytes/loss metrics.
 - [x] Persisted room/signaling/ICE/source/audio selection and Auto Refresh preferences; polling preserves unsaved form edits.
 - [x] Custom STUN/TURN validation and configuration propagation to Rust/WebView peers through CLI/Tauri settings.
@@ -75,6 +75,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 - [x] **BASE-DEV-WORKFLOW:** Project `AGENTS.md`: Rust style, safe FFI, implementation order, tests, documentation maintenance, and build-artifact cleanup rules. This records the instructions artifact; local cleanup results are tracked separately.
 - [x] English project guidelines/documentation, stable milestone feature IDs, and a version/checkpoint policy with annotated-tag gates.
 - [x] Dedicated bug register with stable bug/feature IDs, evidence, priorities, lifecycle/closure rules, and a documented module-replacement exception.
+- [x] Opt-in real Tauri GUI regression runner for production DOM/IPC, preferences across application restarts, native window layout, and attempted decoded playback; its failing playback scenario remains open under BUG-008. See the [GUI QA record](docs/qa/tauri-gui-0.1.0-74a8e37.md).
 
 ## PARTIALLY COMPLETED — INCOMPLETE
 
@@ -102,6 +103,8 @@ Run the [QA checklist](docs/QA_CHECKLIST.md) on real devices. These are verifica
 - [ ] Actual native capture → desktop viewer video/audio, autoplay/user gestures, and sound output devices.
 - [ ] Packaged Tauri build/install/startup, playback, and stop/reset/close/startup cleanup.
 - [ ] Regression coverage for existing desktop controls, preferences, recovery, mock demo, and diagnostic CLI paths; record all checklist sections with explicit results.
+
+The [2026-10-11 GUI record](docs/qa/tauri-gui-0.1.0-74a8e37.md) records actual Tauri DOM/IPC results, before/after GUI defects, automated checks, bundle builds, and explicit blocked/manual scope. This prerequisite stays open: BUG-008 prevents decoded Tauri playback, BUG-009 stalls bundled preference checks, and Screen Recording, Accessibility, audible devices, multiple monitors, installation/signing, and cross-network QA are not verified. The runner is baseline verification tooling and advances no new feature ID.
 
 Resolve discovered defects before extending the affected path. Where hardware/permissions are unavailable, keep the checks blocked and work on the next independent task; required blocked QA prevents a release tag.
 

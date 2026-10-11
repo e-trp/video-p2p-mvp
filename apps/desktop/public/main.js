@@ -146,6 +146,13 @@ function setActionBusy(isBusy, message = null) {
 
 function markSessionFieldDirty(event) {
   dirtySessionFields.add(event.target.id);
+  if (lastSession) {
+    syncPrototypeControls(lastSession);
+  }
+}
+
+function commandErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function clearSessionFieldDrafts() {
@@ -822,7 +829,7 @@ async function runCommand(command, args = {}, options = {}) {
   try {
     result = await invokeWithTimeout(command, args, userActionTimeoutMs);
   } catch (error) {
-    setCommandResult(`${command} did not finish: ${error.message}`, "bad");
+    setCommandResult(`${command} did not finish: ${commandErrorMessage(error)}`, "bad");
     return null;
   }
   if (!result) {

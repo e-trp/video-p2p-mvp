@@ -1,0 +1,667 @@
+{
+  "baseline": "74a8e37",
+  "version": "0.1.0",
+  "method": "Real Tauri DOM actions and IPC; programmatic input; synthetic native-codec media",
+  "runs": {
+    "before": {
+      "controls": {
+        "scenario": "controls",
+        "complete": true,
+        "success": false,
+        "errors": [],
+        "results": [
+          {
+            "name": "Save and render escaped configuration",
+            "result": "FAIL",
+            "durationMs": 302,
+            "error": "ICE configuration not saved"
+          },
+          {
+            "name": "Invalid ICE is rejected without overwriting saved config",
+            "result": "FAIL",
+            "durationMs": 271,
+            "error": "Invalid ICE shows success"
+          },
+          {
+            "name": "Auto Refresh toggle and interval boundaries persist",
+            "result": "FAIL",
+            "durationMs": 287,
+            "error": "Interval 1 not applied"
+          },
+          {
+            "name": "Prototype buttons respond to edits without Auto Refresh",
+            "result": "FAIL",
+            "durationMs": 243,
+            "error": "Valid edits leave prototype buttons disabled"
+          },
+          {
+            "name": "Source selection and audio opt-out persist",
+            "result": "FAIL",
+            "durationMs": 544,
+            "error": "Source/audio choice not applied"
+          },
+          {
+            "name": "Prepare Host signals without starting native capture",
+            "result": "FAIL",
+            "durationMs": 535,
+            "error": "Host negotiation did not start"
+          },
+          {
+            "name": "Window layout at 1120px",
+            "result": "FAIL",
+            "durationMs": 2,
+            "error": "Horizontal overflow: 2527/1120; [{\"tag\":\"SUMMARY\",\"id\":\"\",\"class\":\"\",\"text\":\"Diagnostics\"},{\"tag\":\"ARTICLE\",\"id\":\"\",\"class\":\"card\",\"text\":\"\\n            \\n              Session Log\\n              \\n                Refresh\\n           \"},{\"tag\":\"DIV\",\"id\":\"\",\"class\":\"section-head\",\"text\":\"\\n              Session Log\\n              \\n                Refresh\\n                Clear Lo\"},{\"tag\":\"DIV\",\"id\":\"\",\"class\":\"actions compact\",\"text\":\"\\n                Refresh\\n                Clear Logs\\n              \"},{\"tag\":\"BUTTON\",\"id\":\"refresh-btn\",\"class\":\"ghost\",\"text\":\"Refresh\"},{\"tag\":\"BUTTON\",\"id\":\"clear-logs-btn\",\"class\":\"ghost\",\"text\":\"Clear Logs\"},{\"tag\":\"PRE\",\"id\":\"session-log\",\"class\":\"\",\"text\":\"[1791741215] session log cleared\"},{\"tag\":\"ARTICLE\",\"id\":\"\",\"class\":\"card\",\"text\":\"\\n            Last Signaling Message\\n            No signaling messages yet.\\n          \"},{\"tag\":\"H2\",\"id\":\"\",\"class\":\"\",\"text\":\"Last Signaling Message\"},{\"tag\":\"PRE\",\"id\":\"signal-preview\",\"class\":\"\",\"text\":\"No signaling messages yet.\"}]"
+          },
+          {
+            "name": "Window layout at 800px",
+            "result": "FAIL",
+            "durationMs": 52,
+            "error": "Horizontal overflow: 2521/800; [{\"tag\":\"ARTICLE\",\"id\":\"\",\"class\":\"card\",\"text\":\"\\n          Session Control\\n          \\n            \\n              Room\\n              \\n     \"},{\"tag\":\"H2\",\"id\":\"\",\"class\":\"\",\"text\":\"Session Control\"},{\"tag\":\"FORM\",\"id\":\"session-form\",\"class\":\"form\",\"text\":\"\\n            \\n              Room\\n              \\n            \\n            \\n              Si\"},{\"tag\":\"LABEL\",\"id\":\"\",\"class\":\"\",\"text\":\"\\n              Room\\n              \\n            \"},{\"tag\":\"SPAN\",\"id\":\"\",\"class\":\"\",\"text\":\"Room\"},{\"tag\":\"INPUT\",\"id\":\"room\",\"class\":\"\",\"text\":\"\"},{\"tag\":\"LABEL\",\"id\":\"\",\"class\":\"\",\"text\":\"\\n              Signaling\\n              \\n            \"},{\"tag\":\"SPAN\",\"id\":\"\",\"class\":\"\",\"text\":\"Signaling\"},{\"tag\":\"INPUT\",\"id\":\"signaling\",\"class\":\"\",\"text\":\"\"},{\"tag\":\"LABEL\",\"id\":\"\",\"class\":\"\",\"text\":\"\\n              ICE Servers\\n              \\n            \"}]"
+          },
+          {
+            "name": "Window layout at 600px",
+            "result": "FAIL",
+            "durationMs": 52,
+            "error": "Horizontal overflow: 2521/600; [{\"tag\":\"ARTICLE\",\"id\":\"\",\"class\":\"card\",\"text\":\"\\n          Session Control\\n          \\n            \\n              Room\\n              \\n     \"},{\"tag\":\"H2\",\"id\":\"\",\"class\":\"\",\"text\":\"Session Control\"},{\"tag\":\"FORM\",\"id\":\"session-form\",\"class\":\"form\",\"text\":\"\\n            \\n              Room\\n              \\n            \\n            \\n              Si\"},{\"tag\":\"LABEL\",\"id\":\"\",\"class\":\"\",\"text\":\"\\n              Room\\n              \\n            \"},{\"tag\":\"SPAN\",\"id\":\"\",\"class\":\"\",\"text\":\"Room\"},{\"tag\":\"INPUT\",\"id\":\"room\",\"class\":\"\",\"text\":\"\"},{\"tag\":\"LABEL\",\"id\":\"\",\"class\":\"\",\"text\":\"\\n              Signaling\\n              \\n            \"},{\"tag\":\"SPAN\",\"id\":\"\",\"class\":\"\",\"text\":\"Signaling\"},{\"tag\":\"INPUT\",\"id\":\"signaling\",\"class\":\"\",\"text\":\"\"},{\"tag\":\"LABEL\",\"id\":\"\",\"class\":\"\",\"text\":\"\\n              ICE Servers\\n              \\n            \"}]"
+          }
+        ]
+      },
+      "restore": {
+        "scenario": "restore",
+        "complete": true,
+        "success": false,
+        "errors": [],
+        "results": []
+      },
+      "viewer": {
+        "scenario": "viewer",
+        "complete": true,
+        "success": false,
+        "errors": [],
+        "results": []
+      }
+    },
+    "debug": {
+      "controls": {
+        "scenario": "controls",
+        "complete": true,
+        "success": true,
+        "errors": [],
+        "results": [
+          {
+            "name": "Runtime and complete initial render",
+            "result": "PASS",
+            "durationMs": 1,
+            "details": {
+              "permission": "required",
+              "origin": "blueprintfallback",
+              "sources": 2,
+              "width": 1120,
+              "height": 728
+            }
+          },
+          {
+            "name": "Idle capture and reconnect guards",
+            "result": "PASS",
+            "durationMs": 244
+          },
+          {
+            "name": "Local demo and shared busy state",
+            "result": "PASS",
+            "durationMs": 273
+          },
+          {
+            "name": "Stop remains stopped after repeated refresh",
+            "result": "PASS",
+            "durationMs": 1000,
+            "details": "stopped"
+          },
+          {
+            "name": "Reset returns idle and disables reconnect",
+            "result": "PASS",
+            "durationMs": 274
+          },
+          {
+            "name": "Save and render escaped configuration",
+            "result": "PASS",
+            "durationMs": 274
+          },
+          {
+            "name": "Invalid ICE is rejected without overwriting saved config",
+            "result": "PASS",
+            "durationMs": 303
+          },
+          {
+            "name": "Auto Refresh preserves all unsaved session fields",
+            "result": "PASS",
+            "durationMs": 2444
+          },
+          {
+            "name": "Auto Refresh toggle and interval boundaries persist",
+            "result": "PASS",
+            "durationMs": 1683
+          },
+          {
+            "name": "Prototype buttons respond to edits without Auto Refresh",
+            "result": "PASS",
+            "durationMs": 242
+          },
+          {
+            "name": "Source selection and audio opt-out persist",
+            "result": "PASS",
+            "durationMs": 524,
+            "details": {
+              "source": "mac-window-browser",
+              "sourceLabel": "Safari - Safari"
+            }
+          },
+          {
+            "name": "Prepare Host signals without starting native capture",
+            "result": "PASS",
+            "durationMs": 518
+          },
+          {
+            "name": "Debug action remains separate from encoded capture",
+            "result": "PASS",
+            "durationMs": 285
+          },
+          {
+            "name": "Start Native Capture and Host Prototype expose blocked permission",
+            "result": "PASS",
+            "durationMs": 975,
+            "details": {
+              "captureStatus": "permission_required",
+              "permission": "required"
+            }
+          },
+          {
+            "name": "Host Stop and edited reconnect rebuild role",
+            "result": "PASS",
+            "durationMs": 1484
+          },
+          {
+            "name": "Unavailable signaling exposes recovery guidance",
+            "result": "PASS",
+            "durationMs": 592
+          },
+          {
+            "name": "Save stable preferences and Reset reloads them",
+            "result": "PASS",
+            "durationMs": 485
+          },
+          {
+            "name": "Diagnostics expand and Clear Logs updates UI",
+            "result": "PASS",
+            "durationMs": 255
+          },
+          {
+            "name": "Window layout at 1120px",
+            "result": "PASS",
+            "durationMs": 6,
+            "details": {
+              "width": 1120,
+              "scrollWidth": 1120
+            }
+          },
+          {
+            "name": "Window layout at 800px",
+            "result": "PASS",
+            "durationMs": 60,
+            "details": {
+              "width": 800,
+              "scrollWidth": 800
+            }
+          },
+          {
+            "name": "Window layout at 600px",
+            "result": "PASS",
+            "durationMs": 69,
+            "details": {
+              "width": 600,
+              "scrollWidth": 600
+            }
+          },
+          {
+            "name": "No unhandled frontend errors",
+            "result": "PASS",
+            "durationMs": 0
+          }
+        ]
+      },
+      "restore": {
+        "scenario": "restore",
+        "complete": true,
+        "success": true,
+        "errors": [],
+        "results": [
+          {
+            "name": "Runtime and complete initial render",
+            "result": "PASS",
+            "durationMs": 1,
+            "details": {
+              "permission": "required",
+              "origin": "blueprintfallback",
+              "sources": 2,
+              "width": 1120,
+              "height": 728
+            }
+          },
+          {
+            "name": "Preferences survive actual application restart",
+            "result": "PASS",
+            "durationMs": 34,
+            "details": {
+              "source": "mac-window-browser",
+              "interval": 15
+            }
+          },
+          {
+            "name": "No unhandled frontend errors",
+            "result": "PASS",
+            "durationMs": 0
+          }
+        ]
+      },
+      "viewer": {
+        "scenario": "viewer",
+        "complete": true,
+        "success": false,
+        "errors": [],
+        "results": [
+          {
+            "name": "Runtime and complete initial render",
+            "result": "PASS",
+            "durationMs": 0,
+            "details": {
+              "permission": "required",
+              "origin": "blueprintfallback",
+              "sources": 2,
+              "width": 1120,
+              "height": 728
+            }
+          },
+          {
+            "name": "Join Viewer with Auto Refresh disabled negotiates real media",
+            "result": "FAIL",
+            "durationMs": 20522,
+            "player": {
+              "width": 0,
+              "height": 0,
+              "paused": false,
+              "muted": true,
+              "currentTime": 0,
+              "readyState": 0,
+              "status": "Waiting for the host stream... \u00b7 0 video frames decoded",
+              "secure": true,
+              "visibility": "visible",
+              "tracks": [
+                {
+                  "kind": "video",
+                  "state": "live"
+                },
+                {
+                  "kind": "audio",
+                  "state": "live"
+                }
+              ]
+            },
+            "error": "Timed out: Tauri decoded video",
+            "session": {
+              "mode": "viewer",
+              "stage": "negotiating_webrtc",
+              "transport_state": "connecting",
+              "signaling_connected": true,
+              "capture_permission_state": "required",
+              "capture_runtime_status": "not_started",
+              "viewer_playback_state": "waiting",
+              "viewer_playback_error": null,
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            },
+            "peer": {
+              "connection": "connecting",
+              "ice": "connected",
+              "gathering": "complete",
+              "signaling": "stable",
+              "transport_stats": [
+                {
+                  "id": "T01",
+                  "timestamp": 1791743994959,
+                  "type": "transport",
+                  "bytesReceived": 0,
+                  "bytesSent": 1944,
+                  "dtlsRole": "client",
+                  "dtlsState": "connecting",
+                  "iceLocalUsernameFragment": "BAjj",
+                  "iceRole": "controlled",
+                  "iceState": "connected",
+                  "localCertificateId": "CFD0:19:E0:18:1A:94:9D:82:61:C8:34:E7:5E:8D:BC:00:F2:42:32:F9:C4:43:D5:76:1B:F9:EA:40:32:5E:82:9D",
+                  "packetsReceived": 0,
+                  "packetsSent": 9,
+                  "selectedCandidatePairChanges": 1,
+                  "selectedCandidatePairId": "CPdgfVXAIy_c516Jcwx"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Decoded video/audio continues without diagnostic polling",
+            "result": "BLOCKED",
+            "durationMs": 1,
+            "details": {
+              "qaResult": "BLOCKED",
+              "reason": "BUG-008: no established decoded Tauri playback"
+            }
+          },
+          {
+            "name": "Sound control state and pause/resume",
+            "result": "BLOCKED",
+            "durationMs": 0,
+            "details": {
+              "qaResult": "BLOCKED",
+              "reason": "BUG-008: no established decoded Tauri playback; real user gestures also require Accessibility"
+            }
+          },
+          {
+            "name": "Stop closes actual viewer tracks and prevents revival",
+            "result": "PASS",
+            "durationMs": 1023
+          },
+          {
+            "name": "Reconnect creates a fresh viewer generation",
+            "result": "PASS",
+            "durationMs": 607
+          },
+          {
+            "name": "No unhandled frontend errors",
+            "result": "PASS",
+            "durationMs": 0
+          }
+        ]
+      }
+    },
+    "packaged": {
+      "controls": {
+        "scenario": "controls",
+        "running": "Auto Refresh toggle and interval boundaries persist",
+        "errors": [],
+        "results": [
+          {
+            "name": "Runtime and complete initial render",
+            "result": "PASS",
+            "durationMs": 2,
+            "details": {
+              "permission": "required",
+              "origin": "blueprintfallback",
+              "sources": 2,
+              "width": 1120,
+              "height": 728
+            }
+          },
+          {
+            "name": "Idle capture and reconnect guards",
+            "result": "PASS",
+            "durationMs": 243
+          },
+          {
+            "name": "Local demo and shared busy state",
+            "result": "PASS",
+            "durationMs": 287
+          },
+          {
+            "name": "Stop remains stopped after repeated refresh",
+            "result": "PASS",
+            "durationMs": 1549,
+            "details": "stopped"
+          },
+          {
+            "name": "Reset returns idle and disables reconnect",
+            "result": "PASS",
+            "durationMs": 541
+          },
+          {
+            "name": "Save and render escaped configuration",
+            "result": "PASS",
+            "durationMs": 381
+          },
+          {
+            "name": "Invalid ICE is rejected without overwriting saved config",
+            "result": "PASS",
+            "durationMs": 543
+          },
+          {
+            "name": "Auto Refresh preserves all unsaved session fields",
+            "result": "PASS",
+            "durationMs": 2675
+          }
+        ]
+      },
+      "restore": {
+        "scenario": "restore",
+        "complete": true,
+        "success": false,
+        "errors": [],
+        "results": [
+          {
+            "name": "Runtime and complete initial render",
+            "result": "PASS",
+            "durationMs": 1,
+            "details": {
+              "permission": "required",
+              "origin": "blueprintfallback",
+              "sources": 2,
+              "width": 1120,
+              "height": 728
+            }
+          },
+          {
+            "name": "Preferences survive actual application restart",
+            "result": "FAIL",
+            "durationMs": 32,
+            "player": {
+              "width": 0,
+              "height": 0,
+              "paused": true,
+              "muted": true,
+              "currentTime": 0,
+              "readyState": 0,
+              "status": "Waiting for the host stream...",
+              "secure": true,
+              "visibility": "hidden"
+            },
+            "error": "Session settings not restored",
+            "session": {
+              "mode": "idle",
+              "stage": "idle",
+              "transport_state": "not_initialized",
+              "signaling_connected": false,
+              "capture_permission_state": "required",
+              "capture_runtime_status": "not_started",
+              "viewer_playback_state": "not_started",
+              "viewer_playback_error": null,
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            }
+          },
+          {
+            "name": "No unhandled frontend errors",
+            "result": "PASS",
+            "durationMs": 0
+          }
+        ]
+      },
+      "viewer": {
+        "scenario": "viewer",
+        "complete": true,
+        "success": false,
+        "errors": [],
+        "results": [
+          {
+            "name": "Runtime and complete initial render",
+            "result": "PASS",
+            "durationMs": 0,
+            "details": {
+              "permission": "required",
+              "origin": "blueprintfallback",
+              "sources": 2,
+              "width": 1120,
+              "height": 728
+            }
+          },
+          {
+            "name": "Join Viewer with Auto Refresh disabled negotiates real media",
+            "result": "FAIL",
+            "durationMs": 30276,
+            "player": {
+              "width": 64,
+              "height": 36,
+              "paused": false,
+              "muted": true,
+              "currentTime": 28.472527000005357,
+              "readyState": 4,
+              "status": "Playing \u00b7 sound muted \u00b7 177 video frames decoded",
+              "secure": true,
+              "visibility": "hidden",
+              "tracks": [
+                {
+                  "kind": "video",
+                  "state": "live"
+                },
+                {
+                  "kind": "audio",
+                  "state": "live"
+                }
+              ]
+            },
+            "error": "Timed out: Tauri decoded video",
+            "session": {
+              "mode": "viewer",
+              "stage": "live_webrtc",
+              "transport_state": "connected",
+              "signaling_connected": true,
+              "capture_permission_state": "required",
+              "capture_runtime_status": "not_started",
+              "viewer_playback_state": "playing",
+              "viewer_playback_error": null,
+              "decoded_video_frame_count": 177,
+              "received_audio_sample_count": 96480
+            },
+            "peer": {
+              "connection": "connected",
+              "ice": "connected",
+              "gathering": "complete",
+              "signaling": "stable",
+              "transport_stats": [
+                {
+                  "id": "T01",
+                  "timestamp": 1791744142128,
+                  "type": "transport",
+                  "bytesReceived": 192865,
+                  "bytesSent": 5282,
+                  "dtlsCipher": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+                  "dtlsRole": "client",
+                  "dtlsState": "connected",
+                  "iceLocalUsernameFragment": "E1Hh",
+                  "iceRole": "controlled",
+                  "iceState": "connected",
+                  "localCertificateId": "CFCD:E9:EC:7C:39:C9:F2:6D:D9:B2:A3:5C:DD:9A:51:16:CA:42:38:AB:9D:A8:34:6B:72:B2:15:43:18:3C:F1:F5",
+                  "packetsReceived": 1371,
+                  "packetsSent": 57,
+                  "selectedCandidatePairChanges": 1,
+                  "selectedCandidatePairId": "CPWAIt16Il_jRyw96+7",
+                  "srtpCipher": "AES_CM_128_HMAC_SHA1_80",
+                  "tlsVersion": "FEFD"
+                }
+              ]
+            }
+          },
+          {
+            "name": "Decoded video/audio continues without diagnostic polling",
+            "result": "BLOCKED",
+            "durationMs": 0,
+            "details": {
+              "qaResult": "BLOCKED",
+              "reason": "BUG-008: no established decoded Tauri playback"
+            }
+          },
+          {
+            "name": "Sound control state and pause/resume",
+            "result": "BLOCKED",
+            "durationMs": 0,
+            "details": {
+              "qaResult": "BLOCKED",
+              "reason": "BUG-008: no established decoded Tauri playback; real user gestures also require Accessibility"
+            }
+          },
+          {
+            "name": "Stop closes actual viewer tracks and prevents revival",
+            "result": "PASS",
+            "durationMs": 1564
+          },
+          {
+            "name": "Reconnect creates a fresh viewer generation",
+            "result": "PASS",
+            "durationMs": 1235
+          },
+          {
+            "name": "No unhandled frontend errors",
+            "result": "PASS",
+            "durationMs": 0
+          }
+        ]
+      }
+    },
+    "packaged_controls_retry": {
+      "controls": {
+        "scenario": "controls",
+        "running": "Auto Refresh preserves all unsaved session fields",
+        "errors": [],
+        "results": [
+          {
+            "name": "Runtime and complete initial render",
+            "result": "PASS",
+            "durationMs": 3,
+            "details": {
+              "permission": "required",
+              "origin": "blueprintfallback",
+              "sources": 2,
+              "width": 1120,
+              "height": 728
+            }
+          },
+          {
+            "name": "Idle capture and reconnect guards",
+            "result": "PASS",
+            "durationMs": 244
+          },
+          {
+            "name": "Local demo and shared busy state",
+            "result": "PASS",
+            "durationMs": 300
+          },
+          {
+            "name": "Stop remains stopped after repeated refresh",
+            "result": "PASS",
+            "durationMs": 2737,
+            "details": "stopped"
+          },
+          {
+            "name": "Reset returns idle and disables reconnect",
+            "result": "PASS",
+            "durationMs": 510
+          },
+          {
+            "name": "Save and render escaped configuration",
+            "result": "PASS",
+            "durationMs": 528
+          },
+          {
+            "name": "Invalid ICE is rejected without overwriting saved config",
+            "result": "PASS",
+            "durationMs": 497
+          }
+        ]
+      }
+    }
+  }
+}

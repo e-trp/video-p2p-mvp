@@ -26,6 +26,8 @@ QA record fields: version/milestone, tested commit and any uncommitted version d
 
 There are currently no passing full-project release QA records. The `0.1.0` baseline remains untagged and required manual checks remain open.
 
+The [2026-10-11 Tauri GUI run](qa/tauri-gui-0.1.0-74a8e37.md) exercises real desktop windows/IPC and records each checklist section. It found and verified fixes for three GUI defects, but desktop playback fails under BUG-008 and OS/device/network checks remain blocked. This is a failed GUI validation run, not a passing release checkpoint. Programmatic DOM actions are recorded separately from manual/system interactions.
+
 ## Automated Checks
 
 Run from the repository root with local sockets and macOS codec services available where required:
@@ -44,6 +46,8 @@ node --test apps/desktop/tests/viewer-player.test.mjs
 Root CI runs the root Rust/Node checks on Linux/macOS, plus `sh scripts/test-macos-capture.sh` on macOS. It does not check/package Tauri or run native browser playback probes. Native extraction and codec tests use synthetic sample buffers/frames, not actual screen recording.
 
 For synthetic decoded playback/recovery in WKWebView and Chromium, follow [viewer verification](VIEWER_PLAYBACK.md#verification). These probes verify pixels, Opus PCM, RTCP recovery, and cleanup; they do not establish actual capture, audible devices, user gestures, or cross-network behavior.
+
+For production DOM handlers and IPC inside real Tauri windows, follow the [GUI runner](GUI_TAURI.md#real-tauri-gui-regression-runner). Preserve the runner's failed evidence and leave dependent media scenarios blocked when decoding never starts.
 
 [AGENTS.md](../AGENTS.md) requires formatting/lint/tests for each completed change, all available macOS native/browser probes, documentation updates, and cleanup after the checks. Save results and any needed release bundles, stop test processes, then clean both workspaces:
 

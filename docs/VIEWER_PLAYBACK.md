@@ -2,6 +2,8 @@
 
 The desktop viewer receives H.264 video and Opus audio directly in a WebView `RTCPeerConnection`. Its WebRTC stack handles RTP depacketization, jitter buffering, decoding, and playback through a single `<video>` element. Rust retains native host capture/encoding and TCP signaling; media never crosses Tauri IPC. The CLI viewer is a short negotiation/RTP diagnostic command that exits after connection, without playback.
 
+Known validation failure: the [2026-10-11 real Tauri run](qa/tauri-gui-0.1.0-74a8e37.md) reaches SDP/ICE but fails before decoded desktop media under [BUG-008](BUGS.md#bug-008-tauri-viewer-stays-connecting-without-decoded-media). The standalone WKWebView/Chrome fixture results below do not certify the desktop bundle.
+
 ## Using The Player
 
 1. Start `signaling-server`, then run two desktop instances with the same room/signaling address. Use a server address reachable by both; loopback only works on one machine.

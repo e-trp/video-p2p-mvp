@@ -96,6 +96,7 @@ h1 {
 }
 
 .card {
+  min-width: 0;
   padding: 20px;
   border-radius: 8px;
   background: var(--panel);
@@ -127,6 +128,7 @@ h1 {
 }
 
 .form input {
+  min-width: 0;
   width: 100%;
   padding: 12px 14px;
   border: 1px solid var(--border);
@@ -137,6 +139,7 @@ h1 {
 }
 
 .form select {
+  min-width: 0;
   width: 100%;
   padding: 12px 14px;
   border: 1px solid var(--border);
@@ -147,6 +150,7 @@ h1 {
 }
 
 .form textarea {
+  min-width: 0;
   width: 100%;
   padding: 12px 14px;
   border: 1px solid var(--border);
@@ -314,7 +318,7 @@ dl {
 
 dl div {
   display: grid;
-  grid-template-columns: 132px 1fr;
+  grid-template-columns: 132px minmax(0, 1fr);
   gap: 12px;
   padding: 10px 0;
   border-top: 1px solid var(--border);
@@ -327,6 +331,7 @@ dt {
 dd {
   margin: 0;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .compact-status div {
@@ -377,8 +382,10 @@ dd {
 }
 
 .diagnostics {
+  min-width: 0;
   grid-column: 1 / -1;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -515,7 +522,7 @@ pre {
   }
 
   .grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .prototype-flow {

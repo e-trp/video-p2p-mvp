@@ -27,6 +27,8 @@ Opening the HTML outside Tauri shows a static preview without Rust session comma
 
 Actions use a shared busy state. Backend-provided labels are escaped when rendered as detail rows. Stop/reset/role changes close the viewer player; generation checks reject callbacks from replaced sessions.
 
+The IPC command argument contract is explicitly `snake_case`, matching the frontend (for example `signaling_addr`, `ice_servers`, `source_id`, and `include_audio`). Required and optional arguments use the same convention. String IPC rejections are displayed with their original reason. Prototype readiness updates on form input, including when Auto Refresh is disabled. Expanded diagnostics and long detail values stay within the window width.
+
 Source/audio changes stop active capture; Start Native Capture starts the new selection. Reconnect rebuilds the current role but does not restart host capture automatically. Host signaling uses the refresh path during negotiation; viewer signaling and established media run independently of diagnostic refresh.
 
 ## Backend Responsibilities
@@ -46,3 +48,29 @@ Source/audio changes stop active capture; Start Native Capture starts the new se
 - Signed/notarized release validation and Linux bundle targets.
 
 The existing macOS `.app`/`.dmg` configuration, icons, and build helper do not establish release readiness. See [TODO](../todo.md) and [manual QA](QA_CHECKLIST.md).
+
+## Real Tauri GUI Regression Runner
+
+Build the opt-in QA executable and local fixtures from the repository root:
+
+```bash
+cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml --features gui-qa
+cargo build -p signaling-server
+cargo build -p app-core --example playback_probe
+node scripts/test-tauri-gui.mjs
+```
+
+The runner starts actual Tauri windows, executes the production DOM event handlers and Rust IPC, restarts the application to check preferences, and attempts real native-codec/WebRTC decoding in the desktop viewer. It does not replace IPC, sessions, or media with mocks. A diagnostic constructor observer only records the actual browser peers. Window-width tests resize the native window to 1120, 800, and 600 logical pixels.
+
+The `gui-qa` feature has no additional dependencies and is absent from default builds. Its driver activates only with the runner's environment variables and requires a separate `VIDEO_P2P_MVP_CONFIG_DIR`. QA commands require that test state. JSON evidence, process logs, and isolated test preferences are saved in a temporary directory printed by the runner. `--output PATH` selects that directory; use a new directory for a fresh run. Existing user preferences are preserved. All child processes are stopped on completion/failure; partial evidence survives timeouts. Exit status is nonzero if any scenario fails or remains blocked.
+
+To run the same checks against a QA-instrumented release bundle:
+
+```bash
+cd apps/desktop/src-tauri
+cargo tauri build --features gui-qa --bundles app
+cd ../../..
+node scripts/test-tauri-gui.mjs --binary apps/desktop/src-tauri/target/release/bundle/macos/VideoP2P.app/Contents/MacOS/desktop-app
+```
+
+Keep a default `.app`/`.dmg` separate from the instrumented QA build. DOM `.click()`/input events are programmatic actions: they do not certify Accessibility clicks, trusted user gestures, audible devices, or Screen Recording grant/relaunch. The playback fixture is synthetic, while decoding and the Tauri/Rust path are real. A failing Tauri playback check remains a failure even when standalone WKWebView/Chrome probes pass. See the [GUI QA record](qa/tauri-gui-0.1.0-74a8e37.md) and [BUG-008](BUGS.md#bug-008-tauri-viewer-stays-connecting-without-decoded-media).

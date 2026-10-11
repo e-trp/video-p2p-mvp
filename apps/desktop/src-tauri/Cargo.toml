@@ -20,5 +20,6 @@ tauri = { version = "2", features = [] }
 
 [features]
 default = []
+gui-qa = []
 
 [workspace]

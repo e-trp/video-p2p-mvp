@@ -13,7 +13,66 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 
 ## Current Issues
 
-No unresolved issues are currently recorded. New observed failures must be registered before extending the affected feature.
+| Bug | Owning feature | Priority | Status | Kind | Next action |
+| --- | --- | --- | --- | --- | --- |
+| [BUG-008](#bug-008-tauri-viewer-stays-connecting-without-decoded-media) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P1 | INVESTIGATING | Tauri WebRTC/media | Inspect host DTLS/candidates and compare retained Tauri/WKWebView failures with passing controls |
+| [BUG-009](#bug-009-packaged-gui-run-stalls-during-refresh-preference-checks) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | INVESTIGATING | Unexplained packaged test stall | Repeat without concurrent browser work and identify the pending operation |
+| [BUG-005](#bug-005-desktop-command-arguments-do-not-match-tauri-ipc) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P1 | INVESTIGATING | Desktop IPC contract | Record verified IPC fix; decoded acceptance remains blocked by BUG-008 |
+| [BUG-006](#bug-006-prototype-buttons-remain-disabled-after-valid-form-edits) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | INVESTIGATING | Input readiness | Real Tauri regression passes; record fixing commit |
+| [BUG-007](#bug-007-desktop-diagnostics-overflow-the-window-horizontally) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | INVESTIGATING | GUI layout | All three native widths pass after fix; record fixing commit |
+
+### BUG-005: Desktop Command Arguments Do Not Match Tauri IPC
+
+- **Affected version/components:** untagged `0.1.0`, tested base `74a8e37`; desktop `main.js` and Rust Tauri command wrappers; ownership `BASE-DESKTOP-CONTROLS`.
+- **Priority/status/kind:** P1, INVESTIGATING, product IPC contract defect.
+- **Evidence/reproduction (2026-10-11):** real Tauri GUI run `/private/tmp/video-p2p-gui-qa/debug-third`, opt-in DOM driver with production IPC, no backend mocks. Save a signaling/ICE configuration; change refresh interval/audio/source; prepare host/viewer. Required snake_case arguments are rejected; optional ones are silently ignored. `session.conf` contains only room and default refresh settings. The UI catches string IPC rejections as `undefined`.
+- **Expected/actual/reliability:** all supplied settings must reach the backend, invalid ICE must fail, and valid roles must start. Instead Save reports success without saving signaling/ICE, refresh preferences stay default, and source/role commands fail. Deterministic across controls and restart scenarios.
+- **Cause:** Tauri commands default to camelCase arguments; the production frontend sends snake_case. Installed `tauri-macros` command parsing confirms the default.
+- **Implementation/verification:** all production wrappers explicitly accept snake_case; string rejection reasons are displayed. Final real Tauri debug controls/restart/role IPC checks pass. The instrumented release's first save/ICE validation checks also pass before a separate stall. Decoded acceptance remains blocked by BUG-008; keep this entry unresolved. See the [GUI QA record](qa/tauri-gui-0.1.0-74a8e37.md).
+- **Closure criteria/next action:** align the explicit IPC contract and preserve useful rejection text; fail before/pass after real Tauri save/invalid-input/source/refresh/restart/host/viewer checks, including decoded playback and Stop. Record fixing commit and mandatory checks.
+- **Deferral:** none.
+
+### BUG-006: Prototype Buttons Remain Disabled After Valid Form Edits
+
+- **Affected version/components:** untagged `0.1.0`, desktop form input/readiness; ownership `BASE-DESKTOP-CONTROLS`.
+- **Priority/status/kind:** P2, INVESTIGATING, product input-state defect.
+- **Evidence/reproduction (2026-10-11):** start with empty room/signaling fields, refresh (prototype buttons disabled), then fill both fields. With Auto Refresh disabled, Join Viewer and Start Host Prototype remain disabled until manual Refresh. The first viewer GUI run hit the disabled Join Viewer button before invoking IPC.
+- **Expected/actual/reliability:** button readiness should follow current input immediately. Input only marks drafts dirty, leaving controls based on the previous render. Deterministic; independent of BUG-005.
+- **Cause:** `markSessionFieldDirty` does not refresh prototype controls.
+- **Implementation/verification:** input now recomputes guards from the current form and session. The same empty-to-valid regression fails before and passes after; valid-to-empty also passes with polling disabled. Fixing commit recording is pending. See the [GUI QA record](qa/tauri-gui-0.1.0-74a8e37.md).
+- **Closure criteria/next action:** real Tauri regression checks empty-to-valid and valid-to-empty edits with polling disabled; no command/refresh required to update readiness. Record fixing commit and mandatory checks.
+- **Deferral:** none.
+
+### BUG-007: Desktop Diagnostics Overflow the Window Horizontally
+
+- **Affected version/components:** untagged `0.1.0`, desktop CSS/detail rows/diagnostics grid; ownership `BASE-DESKTOP-CONTROLS`.
+- **Priority/status/kind:** P2, INVESTIGATING, product layout defect.
+- **Evidence/reproduction (2026-10-11):** expand Diagnostics in the real Tauri window and resize to 1120, 800, and 600 logical pixels. All three checks in `debug-third/controls.json` detect document width exceeding the viewport. The driver uses native window resizing and DOM geometry, not a simulated viewport.
+- **Expected/actual/reliability:** controls/detail panels should fit horizontally with internal scrolling for logs/specification. Instead the whole document gains horizontal overflow; deterministic in the recorded run.
+- **Cause/implementation:** diagnostic grid auto minimums expand to the long specification/log content; narrow layouts and detail values also need zero-minimum tracks and wrapping. Explicit bounded tracks, minimum widths, and wrapped detail values fix the overflow. Final real native window checks pass at 1120, 800, and 600 pixels with Diagnostics expanded; fixing commit recording is pending. Screenshot review remains blocked separately. See the [GUI QA record](qa/tauri-gui-0.1.0-74a8e37.md).
+- **Closure criteria/next action:** contain diagnostic grid minimum widths and long detail values; repeat native-window geometry checks at all three sizes with expanded diagnostics and realistic long values. Record fixing commit and mandatory checks. Visual screenshot QA remains separate.
+- **Deferral:** none.
+
+### BUG-008: Tauri Viewer Stays Connecting Without Decoded Media
+
+- **Affected version/components:** untagged `0.1.0`; actual Tauri WKWebView viewer, after BUG-005's argument fix; ownership `BASE-DESKTOP-CONTROLS`, related `BASE-VIEWER-PROBES`.
+- **Priority/status/kind:** P1, INVESTIGATING, observed product/runtime failure; environment contribution is not yet established.
+- **Evidence/reproduction (2026-10-11):** `/private/tmp/video-p2p-gui-qa/viewer-diagnostics/viewer.json`. A real Tauri viewer joins the synthetic native H.264/Opus host, with Auto Refresh disabled. After 20 seconds SDP/ICE are ready, two tracks are live, signaling is connected, and a direct candidate pair is selected; transport stays `connecting`, video dimensions/time/received bytes/decoded counts stay zero. The element is unpaused, muted, visible, in a secure context. Two Tauri runs reproduce it; the normal and recovery standalone WKWebView control probes pass against the same host/player code.
+- **Expected/actual:** the desktop WebView must establish transport and decode video/audio. A passing standalone browser probe does not establish Tauri playback. The sound label also waits for a pending play operation while no media arrives; that symptom is not yet established as an independent defect.
+- **Cause/next action:** unknown; inspect host DTLS/candidate diagnostics and compare retained Tauri/WKWebView failures against passing browser controls. Release and peer diagnostics below establish the symptom but not its cause. Do not bypass media/signaling checks or substitute a mocked player.
+- **Further investigation:** release viewer also fails, sometimes reaching terminal peer failure. Actual peer stats show ICE connected/stable signaling with a nominated pair, but DTLS connecting (client), 1,944 bytes/9 packets sent and zero received. Later normal/recovery standalone WKWebView runs also fail with no media, while Chrome and WKWebView EOF runs can pass. A Tauri-only cause is not established. All failures/retries remain in the [GUI record](qa/tauri-gui-0.1.0-74a8e37.md); no fix or closure is claimed.
+- **Closure criteria:** failing-before/passing-after real Tauri decoding with correct pixels and increasing audio/video counts, independent viewer signaling, sound-state/Stop/Reset/reconnect checks, and mandatory verification. Actual capture, audible device output, and user gesture QA remain separate.
+- **Deferral:** none.
+
+### BUG-009: Packaged GUI Run Stalls During Refresh Preference Checks
+
+- **Affected version/components:** untagged `0.1.0`, QA-instrumented release `.app`, GUI regression driver; ownership `BASE-DESKTOP-CONTROLS`.
+- **Priority/status/kind:** P2, INVESTIGATING, observed test/runtime stall. A product cause versus fixture/environment contribution is not established.
+- **Evidence/reproduction (2026-10-11):** full bundled run `/private/tmp/video-p2p-gui-qa/packaged-reviewed` completes eight controls checks, then the report stays at `Auto Refresh toggle and interval boundaries persist` until the external 90-second timeout terminates the app. `session.conf` ends at interval 3 and Auto Refresh enabled; there are no captured frontend errors or Rust panic logs. The same final controls run passes all 22 checks in debug. The following restart check fails because the timed-out setup never saved its final settings; this is dependent evidence, not a second preference defect.
+- **Expected/actual/reliability:** each preference update must finish and the GUI remain responsive. The bundled run stops producing evidence mid-scenario. A controls-only repeat completes seven checks then stalls during draft preservation; observed twice at nearby one-second-refresh steps. The repeat overlapped standalone browser verification, so the entire OS was not idle. No cause or closure is claimed; see the [GUI record](qa/tauri-gui-0.1.0-74a8e37.md).
+- **Cause/next action:** unknown; repeat controls without concurrent browser verification, add operation-level timing if needed, and distinguish UI timers, pending IPC, native enumeration, and test-driver behavior.
+- **Closure criteria:** establish cause, implement a fix if required, and verify the original bundled scenario plus application restart with recorded regression evidence. A passing retry alone does not close this entry.
+- **Deferral:** none.
 
 ## Closed Issues
 
