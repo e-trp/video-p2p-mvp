@@ -13,20 +13,7 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 
 ## Current Issues
 
-| Bug | Owning feature | Priority | Status | Kind | Next action |
-| --- | --- | --- | --- | --- | --- |
-| [BUG-003](#bug-003-rejected-signaling-clients-can-relay-and-remove-the-registered-peer) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P1 | INVESTIGATING | Registration lifecycle | All automated checks and cleanup passed; record fixing commit |
-
-### BUG-003: Rejected Signaling Clients Can Relay and Remove the Registered Peer
-
-- **Affected version/components:** untagged `0.1.0`; `crates/signaling-server/src/main.rs`, registration and client cleanup. Owning feature: `BASE-SIGNALING`; related future milestone: M5.
-- **First observed (2026-10-11):** inspection of `6841888` found that an occupied-role rejection writes `ERROR` but returns `Ok(())`. `handle_client` consequently enters the relay loop and later unregisters the already occupied role. Registration announcement/replay write errors also return after inserting the new participant, without unregistering it.
-- **Reproduction:** join a room as sender/receiver, then connect a second client with the same role, send a valid signaling envelope, and disconnect. Separately, fail a writer during initial registration/peer announcement/replay. Before the fix, `cargo test -p signaling-server` failed all three new regressions: rejected ICE was delivered to the opposite peer, failed `WAITING` left the room allocated, and failed pairing left the joining role occupied; the two existing tests passed.
-- **Expected/actual:** a rejected client must not relay, alter replay history, or remove the accepted peer; a failed registration must release its own slot. The former control flow permitted all of these lifecycle violations.
-- **Cause:** rejection is reported as successful registration, and cleanup starts only after registration returns successfully.
-- **Implementation/verification (2026-10-11):** rejection now returns an error before the relay loop; announcement/replay write failures unregister the inserted participant. All six focused tests pass, including both roles, all initial write phases, retry/replay, and normal accepted-client relay/disconnect. Both workspaces passed formatting, strict Clippy, tests, and cleanup; native extraction, JS lifecycle tests, probe lifetime tests, and all four WKWebView/Chrome playback/recovery modes passed. Fixing-commit evidence is pending; see the [focused record](qa/BUG-003-registration-lifecycle.md).
-- **Closure criteria:** reproduce the defects with failing regression tests, terminate rejected clients before relay, roll back inserted participants on announcement/replay failure, preserve the opposite participant/history, and verify normal pairing, late replay, retry, and disconnect. Record the fixing commit and both workspace/native/browser checks.
-- **Deferral:** none; the existing supported signaling path needs an immediate fix.
+No unresolved issues are currently recorded. New observed failures must be registered before extending the affected feature.
 
 ## Closed Issues
 
@@ -34,6 +21,7 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | --- | --- | --- | --- | --- | --- |
 | [BUG-001](#bug-001-intermittent-wkwebview-playback-probe-failure) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | CLOSED | Test fixture lifecycle | Connection-relative host lifetime; slow-start and all browser modes verified |
 | [BUG-002](#bug-002-tauri-artifact-cleanup-is-blocked-by-root-ownership) | [BASE-DEV-WORKFLOW](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Local environment | Both workspace cleanups succeeded; both target directories are absent |
+| [BUG-003](#bug-003-rejected-signaling-clients-can-relay-and-remove-the-registered-peer) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P1 | CLOSED | Registration lifecycle | Rejected-client isolation and failed-registration rollback verified for both roles |
 
 ### BUG-001: Intermittent WKWebView Playback Probe Failure
 
@@ -62,3 +50,16 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 - **Resolution:** required cleanup completed with no application-code fix or version bump; no outstanding action remains for this checkout.
 - **Closure criteria:** ownership is corrected and `cargo clean --manifest-path apps/desktop/src-tauri/Cargo.toml` completes successfully; record the command/result. No Rust application change or version bump is required for this local environment repair.
 - **Deferral:** none; future release/bundle features do not justify leaving incorrect local ownership unresolved.
+
+### BUG-003: Rejected Signaling Clients Can Relay and Remove the Registered Peer
+
+- **Affected version/components:** untagged `0.1.0`; `crates/signaling-server/src/main.rs`, registration and client cleanup. Owning feature: `BASE-SIGNALING`; related future milestone: M5.
+- **First observed (2026-10-11):** inspection of `6841888` found that an occupied-role rejection writes `ERROR` but returns `Ok(())`. `handle_client` consequently enters the relay loop and later unregisters the already occupied role. Registration announcement/replay write errors also return after inserting the new participant, without unregistering it.
+- **Reproduction:** join a room as sender/receiver, then connect a second client with the same role, send a valid signaling envelope, and disconnect. Separately, fail a writer during initial registration/peer announcement/replay. Before the fix, `cargo test -p signaling-server` failed all three new regressions: rejected ICE was delivered to the opposite peer, failed `WAITING` left the room allocated, and failed pairing left the joining role occupied; the two existing tests passed.
+- **Expected/actual:** a rejected client must not relay, alter replay history, or remove the accepted peer; a failed registration must release its own slot. The former control flow permitted all of these lifecycle violations.
+- **Cause:** rejection was reported as successful registration, and cleanup started only after registration returned successfully.
+- **Implementation/verification (2026-10-11):** rejection now returns an error before the relay loop; announcement/replay write failures unregister the inserted participant. All six focused tests pass, including both roles, all initial write phases, retry/replay, and normal accepted-client relay/disconnect. Both workspaces passed formatting, strict Clippy, tests, and cleanup; native extraction, JS lifecycle tests, probe lifetime tests, and all four WKWebView/Chrome playback/recovery modes passed. See the [focused record](qa/BUG-003-registration-lifecycle.md).
+- **Fixing commit/version:** `12b96ae0380cec1dc6054cd3019200f4ffb191cd`, on the untagged `0.1.0` development baseline; no release tag or version bump.
+- **Resolution:** `CLOSED`; before/after regressions, normal lifecycle/retry/replay checks, and full automated verification satisfy the closure criteria. Subsequent closure/evidence edits are documentation only.
+- **Closure criteria:** reproduce the defects with failing regression tests, terminate rejected clients before relay, roll back inserted participants on announcement/replay failure, preserve the opposite participant/history, and verify normal pairing, late replay, retry, and disconnect. Record the fixing commit and both workspace/native/browser checks.
+- **Deferral:** none; the existing supported signaling path needed an immediate fix.

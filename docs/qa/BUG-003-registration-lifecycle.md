@@ -5,7 +5,7 @@ This focused fix does not complete a new feature or a release checkpoint. The pr
 ## Tested Tree and Environment
 
 - Date: 2026-10-11.
-- Base commit: `6841888`; fixing commit will be recorded after verification.
+- Tested implementation/configuration: `12b96ae0380cec1dc6054cd3019200f4ffb191cd`, based on `6841888`. Later closure/evidence edits are documentation only; tested code/configuration is unchanged.
 - macOS `27.0` (`26A428`), WebKit `22625.1.29.11.27`, Chrome `155.0.8059.40`.
 - Node `26.11.1`, Rust/Cargo `1.99.0`.
 - Registration tests use loopback TCP and deterministic write failures; browser probes use synthetic `64x36` video and stereo 48 kHz audio with native codecs and local signaling/WebRTC.
@@ -14,7 +14,7 @@ This focused fix does not complete a new feature or a release checkpoint. The pr
 
 Before the implementation change, `cargo test -p signaling-server` ran five tests: the two existing normal relay/late-replay tests passed, and all three new regressions failed. The rejected client's ICE reached the opposite participant; failed `WAITING` left the room allocated; failed pairing left the new role occupied.
 
-An occupied-role rejection now propagates an error to terminate the handler before relay and unregister. If initial announcement/replay writes fail after insertion, registration releases only the joining role before returning the write error.
+An occupied-role rejection now propagates an error to terminate the handler before entering the relay loop or unregistering a role. If initial announcement/replay writes fail after insertion, registration releases only the joining role before returning the write error.
 
 After the fix, all six focused tests pass:
 
@@ -54,10 +54,12 @@ Every new scenario runs for both sender and receiver. TCP reads have three-secon
 | `cargo clean` | PASS | Removed 8,454 files / 1.9 GiB |
 | `cargo clean --manifest-path apps/desktop/src-tauri/Cargo.toml` | PASS | Removed 9,581 files / 2.6 GiB |
 
-All mandatory automated checks passed. Browser runners stopped their child processes and removed temporary probe directories. Both workspaces were cleaned after all checks; a filesystem check confirmed that both target directories are absent. Fixing-commit recording is pending.
+All mandatory automated checks passed. Browser runners stopped their child processes and removed temporary probe directories. Both workspaces were cleaned after all checks; a filesystem check confirmed that both target directories are absent.
 
 ## Scope and Remaining QA
 
-Actual capture/permission prompts, audible output devices, packaged-app operation, Linux execution, and cross-network behavior are outside this focused run and remain open in the [QA checklist](../QA_CHECKLIST.md). Synthetic playback does not verify those scenarios. No release tag or version bump is planned for this development fix.
+BUG-003 is `CLOSED`: the fixing commit and all stated closure checks are recorded. No new feature ID is completed.
+
+Actual capture/permission prompts, audible output devices, packaged-app operation, Linux execution, and cross-network behavior were **NOT RUN** in this focused run and remain open in the [QA checklist](../QA_CHECKLIST.md). Synthetic playback does not verify those scenarios. No release tag or version bump was created for this development fix.
 
 README, architecture, installation, user guide, and QA checklist were reviewed: their existing normal signaling commands, role limits, and outstanding production/manual QA statements remain accurate. The networking guide and TODO describe the corrected registration behavior. TLS, authorization, TTL, resource bounds, and rate limits remain M5 work.
