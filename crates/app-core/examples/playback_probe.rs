@@ -91,7 +91,7 @@ fn bridge(address: &str) -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             manager.snapshot()
                         };
-                        json!({"mode":"viewer","stage":if session.stage == SessionStage::Stopped {"stopped"} else {"active"},"viewer_generation":session.viewer_generation,"video_frames":session.decoded_video_frame_count,"audio_samples":session.received_audio_sample_count,"state":session.viewer_playback_state,"connection":session.transport_state})
+                        json!({"mode":"viewer","stage":if session.stage == SessionStage::Stopped {"stopped"} else {"active"},"viewer_generation":session.viewer_generation,"video_frames":session.decoded_video_frame_count,"audio_samples":session.received_audio_sample_count,"state":session.viewer_playback_state,"connection":session.transport_state,"signaling_connected":session.signaling_connected,"recovery_state":session.recovery_state,"reconnect_recommended":session.reconnect_recommended})
                     }
                     "stop" => {
                         manager.stop();

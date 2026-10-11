@@ -34,6 +34,8 @@ Run the focused registration/relay tests with `cargo test -p signaling-server`. 
 
 For different machines, use an address reachable by both clients and configure network access to the chosen TCP port. Loopback addresses only work on the server's own machine. Real cross-network streaming remains unvalidated.
 
+Client polling distinguishes a temporarily idle socket from a server that has closed its output. Complete final messages are delivered once before a closure error on the next poll; final server rejection reasons are preserved. EOF with an unfinished line reports an incomplete message, and further sends fail after observed EOF. The session releases failed signaling once and shows `signaling_unavailable` with reconnect guidance, while retaining the existing transport/player. Host detection uses Refresh; desktop viewer detection uses its independent signaling pump. Reconnect creates a new connection and viewer generation. Run `cargo test -p app-core signaling::tests` and `cargo test -p app-core graceful_signaling_close` for the [EOF/recovery regressions](qa/BUG-004-signaling-eof.md).
+
 ## ICE Configuration And Diagnostics
 
 Both Rust and WebView peers accept configured STUN/TURN entries. Supported schemes are `stun:`, `stuns:`, `turn:`, and `turns:`. Use one entry per desktop text line or repeat CLI `--ice-server` flags:

@@ -83,6 +83,8 @@ RTP reception is not proof of decoded playback. Raw counters are not publication
 
 The Recovery panel distinguishes healthy/negotiating/stopped, signaling unavailability, and disconnected/failed/closed transport. **Reconnect** is available after preparing a role and rebuilds that role. It is manual session recreation, not an automatic ICE restart. Transient viewer disconnections keep the player available; terminal failure closes it until reconnect.
 
+When the signaling server closes the connection, host **Refresh** or the viewer's independent signaling pump detects it and recommends reconnecting. Complete final server messages are processed before closure is reported. Signaling loss alone keeps the current peer/player in place; verify whether media is still arriving. Restore the server and use **Reconnect** when needed; this rebuilds the session, and host capture must be started again.
+
 Screen Recording permission can require relaunch. Restart the app, refresh/select a native source, and retry. Passive refresh does not request permission; explicit capture start can request it.
 
 ## Demo And Debug Tools

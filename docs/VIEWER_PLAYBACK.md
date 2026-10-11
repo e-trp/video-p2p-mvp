@@ -18,6 +18,8 @@ Host signaling uses the session refresh loop during setup. The viewer has a sepa
 
 Every command is validated against the active generation and terminal playback state. Delayed responses/callbacks from stopped, failed, or replaced sessions cannot resume signaling or overwrite the session's diagnostics. The player buffers remote ICE until the offer is applied and sends its answer before local ICE. Stop/reconnect cancels pending work and releases tracks and the peer, including when an ICE operation is awaiting completion. Diagnostic refresh preserves the stopped state. Codec/WebView/SDP failures are shown in the player, distinct from a user-gesture/autoplay block.
 
+Graceful signaling EOF is detected by the viewer pump. Complete final messages are delivered once before closure is reported, and the backend releases failed signaling and recommends reconnecting. Signaling loss alone retains the current peer/player generation; new signaling sends fail. Manual Reconnect replaces the generation and clears its playback counters.
+
 Both peers use BUNDLE for shared media transport. The viewer requires `max-bundle`; host SDP advertises Constrained Baseline H.264 Level 3.1 (`42e01f`, packetization mode 1), 90 kHz video, and 48 kHz stereo Opus. VideoToolbox SPS tests verify the advertised profile constraints. Synthetic playback and initial-keyframe-loss recovery were verified in macOS WKWebView and Chromium, separately from the packaged Tauri app.
 
 The WebView decoder sends RTCP keyframe feedback directly to the host. The host responds to video PLI/FIR through the capture worker, coalescing repeated requests and waiting at least 500 ms after the previous published keyframe. The host capture panel shows Keyframe Requests, Published Keyframes, and Keyframe Pending. Pending requests require another captured frame; keyframe recovery does not adjust bitrate or repair a sustained network outage.
@@ -64,6 +66,15 @@ To omit the initial SPS/PPS/IDR and require browser-originated RTCP feedback plu
 node scripts/test-viewer-playback.mjs --keyframe-recovery
 node scripts/test-viewer-playback.mjs --chrome --keyframe-recovery
 ```
+
+To close only the viewer's signaling channel after playback is established:
+
+```bash
+node scripts/test-viewer-playback.mjs --signaling-disconnect
+node scripts/test-viewer-playback.mjs --chrome --signaling-disconnect
+```
+
+This mode forwards the viewer's TCP signaling through a local proxy, then sends EOF while the host's signaling remains connected. It verifies `signaling_unavailable` and reconnect guidance, the same peer/generation, more than three additional decoded video frames and 48,000 received audio samples, fresh nonzero decoded PCM after at least 1.5 seconds, and normal Stop/cleanup. It exercises real synthetic-media decoding after signaling loss; actual window/audio and packaged-app interruption tests remain manual QA. See [BUG-004 verification](qa/BUG-004-signaling-eof.md).
 
 ## Remaining Validation
 

@@ -13,7 +13,20 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 
 ## Current Issues
 
-No unresolved issues are currently recorded. New observed failures must be registered before extending the affected feature.
+| Bug | Owning feature | Priority | Status | Kind | Next action |
+| --- | --- | --- | --- | --- | --- |
+| [BUG-004](#bug-004-graceful-signaling-disconnect-is-reported-as-connected) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P1 | INVESTIGATING | Client connection lifecycle | All automated checks and cleanup passed; record fixing commit |
+
+### BUG-004: Graceful Signaling Disconnect Is Reported as Connected
+
+- **Affected version/components:** untagged `0.1.0`; `app-core::signaling`, `SessionManager`, desktop/CLI recovery diagnostics. Owning feature: `BASE-SIGNALING`; related milestone: M5 room lifecycle.
+- **First observed (2026-10-11):** inspection of `1810c03` found that `SignalingConnection::poll` handles `read == 0` like a temporarily empty socket. `SessionManager` therefore keeps `signaling_connected = true` after a server's graceful disconnect. Its existing recovery test sets the disconnected flag directly and does not exercise EOF.
+- **Reproduction/reliability:** establish a signaling connection, receive `WAITING`, then have the server shut down its write side or exit gracefully. Poll/refresh the client repeatedly. Before the fix, `cargo test -p app-core signaling::tests` failed five EOF regressions (two normal parsing tests passed), and `cargo test -p app-core graceful_signaling_close` failed both session recovery checks. Unix socket shutdown makes the reproducer deterministic; a separate loopback TCP check covers the production socket type.
+- **Expected/actual:** EOF must expose disconnected signaling and reconnect guidance; complete final messages (especially server rejection reasons) must be delivered before closure. The former client silently returned an empty successful poll forever after EOF.
+- **Cause:** the nonblocking read loop does not distinguish EOF from `WouldBlock`; session poll errors also leave the failed connection available for repeated polling/logging.
+- **Implementation/verification (2026-10-11):** EOF now records a terminal read state, complete final events are delivered once, and the next poll returns a contextual closure/truncation error. Sending after observed EOF fails. Session poll errors release the signaling connection once and preserve transport/player ownership. Seven read/parser tests and two session tests pass. Both workspaces passed formatting, strict Clippy, tests, and cleanup; native extraction, eight JS lifecycle tests, four probe lifetime tests, and all six WKWebView/Chrome normal/recovery/EOF modes passed. EOF modes verified continued decoded video/audio on the same peer with unavailable signaling and reconnect guidance. Fixing-commit evidence is pending; see the [focused record](qa/BUG-004-signaling-eof.md).
+- **Closure criteria:** demonstrate a failing EOF regression; distinguish idle/fragmented reads from closure, preserve final messages and server errors, diagnose incomplete final lines, reject sends after observed EOF, release failed session signaling once, and verify host/viewer recovery and manual reconnect. Preserve established WebRTC playback and generation/stop behavior. Record fixing commit and all mandatory workspace/native/browser results.
+- **Deferral:** none; correct disconnect detection is required by the existing recovery workflow.
 
 ## Closed Issues
 

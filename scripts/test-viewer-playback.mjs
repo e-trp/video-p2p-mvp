@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
 import { createServer as createHttpServer } from "node:http";
-import { createServer as createTcpServer } from "node:net";
+import { createServer as createTcpServer, createConnection } from "node:net";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -12,6 +12,7 @@ if (process.platform !== "darwin") throw new Error("The synthetic VideoToolbox h
 const root = resolve(import.meta.dirname, "..");
 const chromeMode = process.argv.includes("--chrome") || process.env.VIEWER_TEST_BROWSER === "chrome";
 const recoveryMode = process.argv.includes("--keyframe-recovery");
+const signalingDisconnectMode = process.argv.includes("--signaling-disconnect");
 const browserStartupDelayMs = Number(process.env.VIEWER_TEST_BROWSER_STARTUP_DELAY_MS ?? 0);
 if (!Number.isSafeInteger(browserStartupDelayMs) || browserStartupDelayMs < 0 || browserStartupDelayMs > 60000) {
   throw new Error("VIEWER_TEST_BROWSER_STARTUP_DELAY_MS must be an integer between 0 and 60000");
@@ -20,6 +21,9 @@ const scratch = await mkdtemp(resolve(tmpdir(), "video-p2p-playback-"));
 const children = [];
 let logs = "";
 let httpServer;
+let signalingProxy;
+let proxyClient;
+let proxyUpstream;
 let hostReport = null;
 let host;
 let result;
@@ -99,12 +103,33 @@ try {
     if (player.context?.error && player.context.closed) throw new Error(player.context.error);
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
+  let signalingLoss = null;
+  if (${signalingDisconnectMode}) {
+    const peer = player.context.peer;
+    const generation = player.context.generation;
+    await player.context.outgoing;
+    const before = await invoke("snapshot");
+    if (before.connection !== "connected" || !before.signaling_connected) throw new Error("Signaling disconnect requires established playback");
+    await invoke("disconnect_signaling");
+    const disconnectedAt = Date.now();
+    let after;
+    const recoveryDeadline = disconnectedAt + 5000;
+    while (Date.now() < recoveryDeadline) {
+      after = await invoke("snapshot");
+      if (Date.now() - disconnectedAt >= 1500 && !after.signaling_connected
+          && after.video_frames > before.video_frames + 3 && after.audio_samples > before.audio_samples + 48000) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    const pcm = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(pcm);
+    signalingLoss = { before, after, amplitude: Math.max(...pcm.map(Math.abs)),
+      samePeer: player.context?.peer === peer, sameGeneration: player.context?.generation === generation };
+  }
   const canvas = document.createElement("canvas"); canvas.width = 64; canvas.height = 36;
   const drawing = canvas.getContext("2d"); drawing.drawImage(video, 0, 0);
   const pixel = [...drawing.getImageData(32, 18, 1, 1).data];
   const backend = await invoke("snapshot");
   const host = await invoke("host_snapshot");
-  const result = { width: video.videoWidth, height: video.videoHeight, amplitude, pixel, backend, host, state: player.context?.state };
+  const result = { width: video.videoWidth, height: video.videoHeight, amplitude, pixel, backend, host, state: player.context?.state, signalingLoss };
   const tracks = player.context.stream.getTracks();
   const peer = player.context.peer;
   await invoke("stop");
@@ -126,7 +151,8 @@ try {
 try {
   const reserve = createTcpServer();
   await new Promise((resolve, reject) => { reserve.once("error", reject); reserve.listen(0, "127.0.0.1", resolve); });
-  const address = `127.0.0.1:${reserve.address().port}`;
+  const signalingPort = reserve.address().port;
+  const address = `127.0.0.1:${signalingPort}`;
   await new Promise((resolve) => reserve.close(resolve));
   const server = child(resolve(root, "target/debug/signaling-server"), [address]);
   let ready = false;
@@ -136,13 +162,35 @@ try {
   const env = { ...process.env, VIDEO_P2P_MVP_CONFIG_DIR: resolve(scratch, "preferences") };
   host = child(resolve(root, "target/debug/examples/playback_probe"), ["host", address, ...(recoveryMode ? ["--drop-first-keyframe"] : [])], { env });
   createInterface({ input: host.stdout }).on("line", (line) => { hostReport = JSON.parse(line); });
-  const bridge = new Bridge(child(resolve(root, "target/debug/examples/playback_probe"), ["bridge", address], { env }));
+  let viewerAddress = address;
+  if (signalingDisconnectMode) {
+    signalingProxy = createTcpServer((client) => {
+      if (proxyClient) { client.destroy(); return; }
+      proxyClient = client;
+      proxyUpstream = createConnection({ host: "127.0.0.1", port: signalingPort });
+      client.on("error", (error) => { logs = (logs + `Viewer signaling proxy: ${error.message}\n`).slice(-6000); proxyUpstream.destroy(); });
+      proxyUpstream.on("error", (error) => { logs = (logs + `Upstream signaling proxy: ${error.message}\n`).slice(-6000); client.destroy(); });
+      client.on("close", () => proxyUpstream.destroy());
+      proxyUpstream.on("close", () => { if (!client.writableEnded) client.end(); });
+      client.pipe(proxyUpstream); proxyUpstream.pipe(client);
+    });
+    await new Promise((resolve, reject) => { signalingProxy.once("error", reject); signalingProxy.listen(0, "127.0.0.1", resolve); });
+    viewerAddress = `127.0.0.1:${signalingProxy.address().port}`;
+  }
+  const bridge = new Bridge(child(resolve(root, "target/debug/examples/playback_probe"), ["bridge", viewerAddress], { env }));
   httpServer = createHttpServer(async (request, response) => {
     try {
       if (request.url === "/invoke") {
         let body = ""; for await (const chunk of request) body += chunk;
         const { command, args } = JSON.parse(body);
         response.setHeader("Content-Type", "application/json");
+        if (command === "disconnect_signaling") {
+          assert.ok(signalingDisconnectMode && proxyClient && proxyUpstream, "viewer signaling proxy is unavailable");
+          proxyClient.unpipe(proxyUpstream); proxyUpstream.unpipe(proxyClient);
+          proxyClient.end(); proxyUpstream.destroy();
+          response.end(JSON.stringify({ result: true }));
+          return;
+        }
         response.end(JSON.stringify({ result: command === "host_snapshot" ? hostReport : await bridge.invoke(command, args) }));
       } else if (request.url === "/viewer-player.mjs") {
         response.setHeader("Content-Type", "text/javascript");
@@ -201,15 +249,28 @@ try {
     assert.ok(result.host.received_requests > 0, "the browser did not request a keyframe through RTCP");
     assert.ok(result.host.recovery_keyframes > 0, "the host did not publish a feedback-driven keyframe");
   }
-  console.log(`${chromeMode ? "Chrome" : "WKWebView"} playback passed: ${result.width}x${result.height}, ${result.backend.video_frames} decoded frames, ${result.backend.audio_samples} audio samples; stop released media.${recoveryMode ? " Browser RTCP keyframe recovery verified." : ""}`);
+  if (signalingDisconnectMode) {
+    const loss = result.signalingLoss;
+    assert.equal(loss.after.signaling_connected, false, "graceful EOF was not detected");
+    assert.equal(loss.after.recovery_state, "signaling_unavailable");
+    assert.equal(loss.after.reconnect_recommended, true);
+    assert.equal(loss.after.connection, "connected");
+    assert.equal(loss.samePeer && loss.sameGeneration, true, "signaling loss replaced the viewer");
+    assert.ok(loss.after.video_frames > loss.before.video_frames + 3, "video decoding stopped after signaling EOF");
+    assert.ok(loss.after.audio_samples > loss.before.audio_samples + 48000, "audio reception stopped after signaling EOF");
+    assert.ok(loss.amplitude > 0.001, "decoded audio became silent after signaling EOF");
+  }
+  console.log(`${chromeMode ? "Chrome" : "WKWebView"} playback passed: ${result.width}x${result.height}, ${result.backend.video_frames} decoded frames, ${result.backend.audio_samples} audio samples; stop released media.${recoveryMode ? " Browser RTCP keyframe recovery verified." : ""}${signalingDisconnectMode ? " Signaling EOF detected while video/audio continued on the same peer." : ""}`);
 } catch (error) {
-  console.error(JSON.stringify({ browser: chromeMode ? "Chrome" : "WKWebView", recoveryMode, browserStartupDelayMs,
+  console.error(JSON.stringify({ browser: chromeMode ? "Chrome" : "WKWebView", recoveryMode, signalingDisconnectMode, browserStartupDelayMs,
     hostExitCode: host?.exitCode ?? null, hostSignal: host?.signalCode ?? null, result, logs }, null, 2));
   throw error;
 } finally {
   const exits = children.map((process) => process.exitCode !== null || process.signalCode !== null ? undefined : new Promise((resolve) => process.once("exit", resolve)));
   for (const process of children) if (process.exitCode === null && process.signalCode === null) process.kill();
   if (httpServer) { httpServer.closeAllConnections(); await new Promise((resolve) => httpServer.close(resolve)); }
+  proxyClient?.destroy(); proxyUpstream?.destroy();
+  if (signalingProxy) await new Promise((resolve) => signalingProxy.close(resolve));
   await Promise.all(exits);
   await rm(scratch, { recursive: true, force: true });
 }

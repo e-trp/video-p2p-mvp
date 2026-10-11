@@ -1514,6 +1514,7 @@ impl SessionManager {
             Some(connection) => match connection.poll() {
                 Ok(events) => events,
                 Err(error) => {
+                    self.state.signaling = None;
                     self.state.signaling_connected = false;
                     self.push_log(format!("signaling poll error: {error}"));
                     return;
@@ -2069,7 +2070,7 @@ mod tests {
     use std::collections::HashMap;
     use std::fs;
     use std::io::{BufRead, BufReader, Write};
-    use std::net::{Ipv4Addr, SocketAddr};
+    use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener};
     use std::os::unix::net::UnixStream;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -2929,6 +2930,165 @@ mod tests {
             snapshot.recovery_reason,
             "Signaling is disconnected. Verify the signaling server or address, then reconnect."
         );
+    }
+
+    #[test]
+    fn graceful_signaling_close_exposes_recovery_and_releases_connection_once() {
+        for role in [Role::Sender, Role::Receiver] {
+            let (mut manager, config_dir) = new_test_manager("signaling-close");
+            let intent = SessionIntent {
+                room: "closure".into(),
+                signaling_addr: "127.0.0.1:0".into(),
+                source_label: None,
+                ice_servers: Vec::new(),
+            };
+            if role == Role::Sender {
+                manager.start_host(intent);
+            } else {
+                manager.start_playback_viewer(intent);
+            }
+            let (client, mut server) = UnixStream::pair().expect("create signaling pair");
+            manager.state.signaling = Some(
+                SignalingConnection::from_unix_stream_for_tests(client, "closure", role, 0)
+                    .expect("attach signaling"),
+            );
+            manager.state.signaling_connected = true;
+            server.write_all(b"WAITING\n").expect("send waiting state");
+            assert!(manager.refresh().signaling_connected);
+            server
+                .shutdown(Shutdown::Write)
+                .expect("close server output");
+            let generation = manager.snapshot().viewer_generation;
+            if let Some(generation) = generation {
+                assert!(
+                    manager
+                        .poll_viewer_signaling(generation)
+                        .expect("viewer remains active")
+                        .active
+                );
+            } else {
+                manager.refresh();
+            }
+
+            let snapshot = manager.snapshot();
+            assert!(!snapshot.signaling_connected);
+            assert_eq!(snapshot.recovery_state, "signaling_unavailable");
+            assert!(snapshot.can_reconnect && snapshot.reconnect_recommended);
+            assert!(manager.state.signaling.is_none());
+            for _ in 0..3 {
+                assert!(!manager.refresh().signaling_connected);
+            }
+            assert_eq!(
+                manager
+                    .snapshot()
+                    .logs
+                    .iter()
+                    .filter(|line| line
+                        .contains("signaling poll error: signaling server closed the connection"))
+                    .count(),
+                1,
+            );
+            manager.stop();
+            assert_eq!(manager.refresh().stage, SessionStage::Stopped);
+            fs::remove_dir_all(config_dir).expect("remove isolated preferences");
+        }
+    }
+
+    #[test]
+    fn graceful_signaling_close_preserves_viewer_state_until_manual_reconnect() {
+        use crate::{IceCandidate, SignalingMessage, ViewerPlaybackReport};
+        let (mut manager, config_dir) = new_test_manager("live-viewer-signaling-close");
+        let initial = manager.start_playback_viewer(SessionIntent {
+            room: "closure".into(),
+            signaling_addr: "127.0.0.1:0".into(),
+            source_label: None,
+            ice_servers: Vec::new(),
+        });
+        let generation = initial.viewer_generation.expect("viewer generation");
+        let (client, server) = UnixStream::pair().expect("create signaling pair");
+        manager.state.signaling = Some(
+            SignalingConnection::from_unix_stream_for_tests(client, "closure", Role::Receiver, 0)
+                .expect("attach signaling"),
+        );
+        manager.state.signaling_connected = true;
+        manager
+            .report_viewer_playback(
+                generation,
+                ViewerPlaybackReport {
+                    connection_state: "connected".into(),
+                    playback_state: "playing".into(),
+                    ice_path_kind: "direct".into(),
+                    video_frames: 7,
+                    audio_samples: 960,
+                    ..Default::default()
+                },
+            )
+            .expect("report established viewer state");
+        server
+            .shutdown(Shutdown::Write)
+            .expect("close server output");
+
+        let batch = manager
+            .poll_viewer_signaling(generation)
+            .expect("poll without closing viewer");
+        assert!(batch.active && batch.signals.is_empty());
+        let snapshot = manager.snapshot();
+        assert!(!snapshot.signaling_connected);
+        assert_eq!(snapshot.recovery_state, "signaling_unavailable");
+        assert_eq!(snapshot.stage, SessionStage::LiveWebRtc);
+        assert_eq!(snapshot.viewer_generation, Some(generation));
+        assert_eq!(snapshot.decoded_video_frame_count, 7);
+        assert_eq!(snapshot.received_audio_sample_count, 960);
+        assert!(
+            manager
+                .state
+                .browser_viewer
+                .as_ref()
+                .expect("viewer remains")
+                .is_active()
+        );
+        assert_eq!(
+            manager
+                .send_viewer_signal(
+                    generation,
+                    SignalingMessage::IceCandidate(IceCandidate {
+                        candidate: "candidate:late".into(),
+                        sdp_mid: Some("0".into()),
+                        sdp_mline_index: Some(0),
+                    })
+                )
+                .expect_err("disconnected signaling rejects new sends"),
+            "viewer signaling is unavailable"
+        );
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind replacement signaling");
+        manager.update_config(
+            None,
+            Some(listener.local_addr().expect("listen address").to_string()),
+            None,
+            None,
+        );
+        let reconnected = manager.reconnect().expect("manual reconnect succeeds");
+        assert!(reconnected.signaling_connected);
+        assert_ne!(reconnected.viewer_generation, Some(generation));
+        assert_eq!(reconnected.decoded_video_frame_count, 0);
+        assert!(manager.poll_viewer_signaling(generation).is_err());
+        let (mut replacement_server, _) =
+            listener.accept().expect("accept new signaling connection");
+        replacement_server
+            .write_all(b"WAITING\n")
+            .expect("send replacement waiting state");
+        let new_generation = reconnected.viewer_generation.expect("new generation");
+        assert!(
+            manager
+                .poll_viewer_signaling(new_generation)
+                .expect("new signaling poll succeeds")
+                .active
+        );
+        assert!(manager.snapshot().signaling_connected);
+        manager.stop();
+        assert_eq!(manager.refresh().stage, SessionStage::Stopped);
+        fs::remove_dir_all(config_dir).expect("remove isolated preferences");
     }
 
     #[test]

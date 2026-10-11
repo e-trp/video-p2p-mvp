@@ -34,6 +34,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 - [x] **BASE-SIGNALING:** TCP signaling client/server, SDP/ICE envelopes, relay, and replay for the second participant joining later.
 - [x] Local host/viewer SDP/ICE integration tests and late-join replay checks.
 - [x] Rejected signaling clients cannot relay or remove accepted peers; failed registration writes release the joining slot. Both roles and retry/disconnect/replay behavior have regression coverage; see [BUG-003 verification](docs/qa/BUG-003-registration-lifecycle.md).
+- [x] Graceful signaling closure exposes reconnect guidance and releases the failed connection once, preserving final messages and viewer ownership; EOF/fragmentation/rejection and host/viewer/reconnect regressions pass. See [BUG-004 verification](docs/qa/BUG-004-signaling-eof.md).
 - [x] WebRTC session flow in CLI and Tauri; legacy mock UDP is separate from the real media path.
 
 ### macOS Capture and Codec Implementation
