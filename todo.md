@@ -31,8 +31,9 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 
 - [x] Real Rust `PeerConnection`: offer/answer, ICE, connection state, stats, and a bootstrap data channel.
 - [x] H.264/Opus host tracks and encoded publication; the diagnostic Rust viewer receives/counts RTP.
-- [x] TCP signaling client/server, SDP/ICE envelopes, relay, and replay for the second participant joining later.
+- [x] **BASE-SIGNALING:** TCP signaling client/server, SDP/ICE envelopes, relay, and replay for the second participant joining later.
 - [x] Local host/viewer SDP/ICE integration tests and late-join replay checks.
+- [x] Rejected signaling clients cannot relay or remove accepted peers; failed registration writes release the joining slot. Both roles and retry/disconnect/replay behavior have regression coverage; see [BUG-003 verification](docs/qa/BUG-003-registration-lifecycle.md).
 - [x] WebRTC session flow in CLI and Tauri; legacy mock UDP is separate from the real media path.
 
 ### macOS Capture and Codec Implementation

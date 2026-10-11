@@ -16,7 +16,9 @@ The separate legacy CLI `sender`/`receiver` flow uses mock UDP packets, not WebR
 
 - Plain TCP, configured as `host:port`; default listen address is `127.0.0.1:7000`.
 - One sender/host and one receiver/viewer per room, identified by a manually entered room string.
+- An occupied role receives `ERROR role already occupied in this room` and its connection ends before relay; the accepted participant and replay history stay intact.
 - Validated `SIG|SDP|...` and `SIG|ICE|...` envelopes are relayed and stored for late-join replay.
+- If the initial waiting/peer announcement or replay write fails, the joining participant's slot is released. The opposite participant and its history remain; a later client can retry the released role.
 - Disconnect clears that role's stored signals; a room is removed when both slots are empty.
 - Server listen address comes from its command argument. Client address and ICE settings are independent desktop/CLI configuration.
 
@@ -27,6 +29,8 @@ Start a server for local testing:
 ```bash
 cargo run -p signaling-server -- 127.0.0.1:7000
 ```
+
+Run the focused registration/relay tests with `cargo test -p signaling-server`. They cover both roles, rejected-client isolation over loopback TCP, normal relay/disconnect, initial announcement/replay write failures, role reuse, and late-join history. See the [BUG-003 verification record](qa/BUG-003-registration-lifecycle.md). This does not establish authenticated access or production resource bounds.
 
 For different machines, use an address reachable by both clients and configure network access to the chosen TCP port. Loopback addresses only work on the server's own machine. Real cross-network streaming remains unvalidated.
 
