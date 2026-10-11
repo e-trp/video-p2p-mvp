@@ -15,42 +15,20 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 
 | Bug | Owning feature | Priority | Status | Kind | Next action |
 | --- | --- | --- | --- | --- | --- |
+| [BUG-005](#bug-005-desktop-command-arguments-do-not-match-tauri-ipc) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P1 | FIXED | Desktop IPC contract | Decoded acceptance remains blocked by BUG-008 |
 | [BUG-008](#bug-008-tauri-viewer-stays-connecting-without-decoded-media) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P1 | INVESTIGATING | Tauri WebRTC/media | Inspect host DTLS/candidates and compare retained Tauri/WKWebView failures with passing controls |
 | [BUG-009](#bug-009-packaged-gui-run-stalls-during-refresh-preference-checks) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | INVESTIGATING | Unexplained packaged test stall | Repeat without concurrent browser work and identify the pending operation |
-| [BUG-005](#bug-005-desktop-command-arguments-do-not-match-tauri-ipc) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P1 | INVESTIGATING | Desktop IPC contract | Record verified IPC fix; decoded acceptance remains blocked by BUG-008 |
-| [BUG-006](#bug-006-prototype-buttons-remain-disabled-after-valid-form-edits) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | INVESTIGATING | Input readiness | Real Tauri regression passes; record fixing commit |
-| [BUG-007](#bug-007-desktop-diagnostics-overflow-the-window-horizontally) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | INVESTIGATING | GUI layout | All three native widths pass after fix; record fixing commit |
 
 ### BUG-005: Desktop Command Arguments Do Not Match Tauri IPC
 
 - **Affected version/components:** untagged `0.1.0`, tested base `74a8e37`; desktop `main.js` and Rust Tauri command wrappers; ownership `BASE-DESKTOP-CONTROLS`.
-- **Priority/status/kind:** P1, INVESTIGATING, product IPC contract defect.
+- **Priority/status/kind:** P1, FIXED, product IPC contract defect; remaining decoded acceptance is unresolved.
 - **Evidence/reproduction (2026-10-11):** real Tauri GUI run `/private/tmp/video-p2p-gui-qa/debug-third`, opt-in DOM driver with production IPC, no backend mocks. Save a signaling/ICE configuration; change refresh interval/audio/source; prepare host/viewer. Required snake_case arguments are rejected; optional ones are silently ignored. `session.conf` contains only room and default refresh settings. The UI catches string IPC rejections as `undefined`.
 - **Expected/actual/reliability:** all supplied settings must reach the backend, invalid ICE must fail, and valid roles must start. Instead Save reports success without saving signaling/ICE, refresh preferences stay default, and source/role commands fail. Deterministic across controls and restart scenarios.
 - **Cause:** Tauri commands default to camelCase arguments; the production frontend sends snake_case. Installed `tauri-macros` command parsing confirms the default.
 - **Implementation/verification:** all production wrappers explicitly accept snake_case; string rejection reasons are displayed. Final real Tauri debug controls/restart/role IPC checks pass. The instrumented release's first save/ICE validation checks also pass before a separate stall. Decoded acceptance remains blocked by BUG-008; keep this entry unresolved. See the [GUI QA record](qa/tauri-gui-0.1.0-74a8e37.md).
-- **Closure criteria/next action:** align the explicit IPC contract and preserve useful rejection text; fail before/pass after real Tauri save/invalid-input/source/refresh/restart/host/viewer checks, including decoded playback and Stop. Record fixing commit and mandatory checks.
-- **Deferral:** none.
-
-### BUG-006: Prototype Buttons Remain Disabled After Valid Form Edits
-
-- **Affected version/components:** untagged `0.1.0`, desktop form input/readiness; ownership `BASE-DESKTOP-CONTROLS`.
-- **Priority/status/kind:** P2, INVESTIGATING, product input-state defect.
-- **Evidence/reproduction (2026-10-11):** start with empty room/signaling fields, refresh (prototype buttons disabled), then fill both fields. With Auto Refresh disabled, Join Viewer and Start Host Prototype remain disabled until manual Refresh. The first viewer GUI run hit the disabled Join Viewer button before invoking IPC.
-- **Expected/actual/reliability:** button readiness should follow current input immediately. Input only marks drafts dirty, leaving controls based on the previous render. Deterministic; independent of BUG-005.
-- **Cause:** `markSessionFieldDirty` does not refresh prototype controls.
-- **Implementation/verification:** input now recomputes guards from the current form and session. The same empty-to-valid regression fails before and passes after; valid-to-empty also passes with polling disabled. Fixing commit recording is pending. See the [GUI QA record](qa/tauri-gui-0.1.0-74a8e37.md).
-- **Closure criteria/next action:** real Tauri regression checks empty-to-valid and valid-to-empty edits with polling disabled; no command/refresh required to update readiness. Record fixing commit and mandatory checks.
-- **Deferral:** none.
-
-### BUG-007: Desktop Diagnostics Overflow the Window Horizontally
-
-- **Affected version/components:** untagged `0.1.0`, desktop CSS/detail rows/diagnostics grid; ownership `BASE-DESKTOP-CONTROLS`.
-- **Priority/status/kind:** P2, INVESTIGATING, product layout defect.
-- **Evidence/reproduction (2026-10-11):** expand Diagnostics in the real Tauri window and resize to 1120, 800, and 600 logical pixels. All three checks in `debug-third/controls.json` detect document width exceeding the viewport. The driver uses native window resizing and DOM geometry, not a simulated viewport.
-- **Expected/actual/reliability:** controls/detail panels should fit horizontally with internal scrolling for logs/specification. Instead the whole document gains horizontal overflow; deterministic in the recorded run.
-- **Cause/implementation:** diagnostic grid auto minimums expand to the long specification/log content; narrow layouts and detail values also need zero-minimum tracks and wrapping. Explicit bounded tracks, minimum widths, and wrapped detail values fix the overflow. Final real native window checks pass at 1120, 800, and 600 pixels with Diagnostics expanded; fixing commit recording is pending. Screenshot review remains blocked separately. See the [GUI QA record](qa/tauri-gui-0.1.0-74a8e37.md).
-- **Closure criteria/next action:** contain diagnostic grid minimum widths and long detail values; repeat native-window geometry checks at all three sizes with expanded diagnostics and realistic long values. Record fixing commit and mandatory checks. Visual screenshot QA remains separate.
+- **Fixing commit/version:** `d53e11e14f499bfd76b739c6bea5f7484c5129c2`, untagged `0.1.0`. Regression/mandatory results are recorded in the GUI QA record; no release tag or version bump.
+- **Closure criteria/next action:** align the explicit IPC contract and preserve useful rejection text; fail before/pass after real Tauri save/invalid-input/source/refresh/restart/host/viewer checks, including decoded playback and Stop. IPC/Stop regressions pass, but BUG-008 must be resolved and decoded Tauri acceptance rerun before closure.
 - **Deferral:** none.
 
 ### BUG-008: Tauri Viewer Stays Connecting Without Decoded Media
@@ -82,6 +60,8 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | [BUG-002](#bug-002-tauri-artifact-cleanup-is-blocked-by-root-ownership) | [BASE-DEV-WORKFLOW](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Local environment | Both workspace cleanups succeeded; both target directories are absent |
 | [BUG-003](#bug-003-rejected-signaling-clients-can-relay-and-remove-the-registered-peer) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P1 | CLOSED | Registration lifecycle | Rejected-client isolation and failed-registration rollback verified for both roles |
 | [BUG-004](#bug-004-graceful-signaling-disconnect-is-reported-as-connected) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P1 | CLOSED | Client connection lifecycle | EOF/recovery/reconnect verified; both browsers keep decoding after viewer signaling loss |
+| [BUG-006](#bug-006-prototype-buttons-remain-disabled-after-valid-form-edits) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Input readiness | Empty/valid edits update both prototype guards immediately with polling disabled |
+| [BUG-007](#bug-007-desktop-diagnostics-overflow-the-window-horizontally) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | GUI layout | Expanded diagnostics fit native widths 1120/800/600; screenshot QA remains separate |
 
 ### BUG-001: Intermittent WKWebView Playback Probe Failure
 
@@ -136,3 +116,28 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 - **Resolution:** `CLOSED`; failing before/passing after regressions, fresh TCP reconnect, and actual synthetic video/audio decoding after viewer signaling EOF satisfy the closure criteria. Later closure/evidence edits are documentation only. Actual capture and packaged/cross-network interruption QA remain open.
 - **Closure criteria:** demonstrate a failing EOF regression; distinguish idle/fragmented reads from closure, preserve final messages and server errors, diagnose incomplete final lines, reject sends after observed EOF, release failed session signaling once, and verify host/viewer recovery and manual reconnect. Preserve established WebRTC playback and generation/stop behavior. Record fixing commit and all mandatory workspace/native/browser results.
 - **Deferral:** none; correct disconnect detection was required by the existing recovery workflow.
+
+### BUG-006: Prototype Buttons Remain Disabled After Valid Form Edits
+
+- **Affected version/components:** untagged `0.1.0`, desktop form input/readiness; ownership `BASE-DESKTOP-CONTROLS`.
+- **Priority/status/kind:** P2, CLOSED, product input-state defect.
+- **Evidence/reproduction (2026-10-11):** start with empty room/signaling fields, refresh (prototype buttons disabled), then fill both fields. With Auto Refresh disabled, Join Viewer and Start Host Prototype remain disabled until manual Refresh. The first viewer GUI run hit the disabled Join Viewer button before invoking IPC.
+- **Expected/actual/reliability:** button readiness should follow current input immediately. Input only marks drafts dirty, leaving controls based on the previous render. Deterministic; independent of BUG-005.
+- **Cause:** `markSessionFieldDirty` does not refresh prototype controls.
+- **Implementation/verification:** input now recomputes guards from the current form and session. The same empty-to-valid regression fails before and passes after; valid-to-empty also passes with polling disabled. See the [GUI QA record](qa/tauri-gui-0.1.0-74a8e37.md) for regression and mandatory checks, including retained unrelated browser/bundle failures.
+- **Fixing commit/version:** `d53e11e14f499bfd76b739c6bea5f7484c5129c2`, untagged `0.1.0`; no release tag or version bump.
+- **Resolution:** CLOSED; the real Tauri debug regression meets the input-readiness criteria. This does not resolve BUG-008/BUG-009 or establish passing packaged/full-project QA.
+- **Closure criteria:** real Tauri regression checks empty-to-valid and valid-to-empty edits with polling disabled; no command/refresh required to update readiness. Record fixing commit and mandatory checks.
+- **Deferral:** none.
+
+### BUG-007: Desktop Diagnostics Overflow the Window Horizontally
+
+- **Affected version/components:** untagged `0.1.0`, desktop CSS/detail rows/diagnostics grid; ownership `BASE-DESKTOP-CONTROLS`.
+- **Priority/status/kind:** P2, CLOSED, product layout defect.
+- **Evidence/reproduction (2026-10-11):** expand Diagnostics in the real Tauri window and resize to 1120, 800, and 600 logical pixels. All three checks in `debug-third/controls.json` detect document width exceeding the viewport. The driver uses native window resizing and DOM geometry, not a simulated viewport.
+- **Expected/actual/reliability:** controls/detail panels should fit horizontally with internal scrolling for logs/specification. Instead the whole document gains horizontal overflow; deterministic in the recorded run.
+- **Cause/implementation:** diagnostic grid auto minimums expand to the long specification/log content; narrow layouts and detail values also need zero-minimum tracks and wrapping. Explicit bounded tracks, minimum widths, and wrapped detail values fix the overflow. Final real native window checks pass at 1120, 800, and 600 pixels with Diagnostics expanded. See the [GUI QA record](qa/tauri-gui-0.1.0-74a8e37.md) for regression and mandatory checks, including retained unrelated browser/bundle failures.
+- **Fixing commit/version:** `d53e11e14f499bfd76b739c6bea5f7484c5129c2`, untagged `0.1.0`; no release tag or version bump.
+- **Resolution:** CLOSED; all three native-window geometry regressions meet the overflow criteria. Screenshot/visual QA remains blocked separately; BUG-008/BUG-009 remain unresolved.
+- **Closure criteria:** contain diagnostic grid minimum widths and long detail values; repeat native-window geometry checks at all three sizes with expanded diagnostics and realistic long values. Record fixing commit and mandatory checks. Visual screenshot QA remains separate.
+- **Deferral:** none.
