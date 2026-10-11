@@ -5,7 +5,7 @@ This is a focused bug-fix record, not a full-project release checkpoint. The pro
 ## Tested Tree and Environment
 
 - Date: 2026-10-11.
-- Base: `1810c03`; the fixing commit will be recorded after verification.
+- Tested implementation/configuration: `34585a32c335e155412f847e78d353cd32f5f876`, based on `1810c03`. Later closure/evidence edits are documentation only; tested code/configuration is unchanged.
 - macOS `27.0` (`26A428`), WebKit `22625.1.29.11.27`, Chrome `155.0.8059.40`.
 - Node `26.11.1`, Rust/Cargo `1.99.0`.
 - Deterministic Unix socket shutdown and loopback TCP; isolated session preferences. No Screen Recording permission is requested by these regressions.
@@ -60,9 +60,11 @@ The viewer-state unit test uses synthetic playback reports and verifies backend 
 | `cargo clean` | PASS | Removed 9,350 files / 2.0 GiB |
 | `cargo clean --manifest-path apps/desktop/src-tauri/Cargo.toml` | PASS | Removed 9,603 files / 2.6 GiB |
 
-All mandatory automated checks passed. Workspace checks were rerun after the final probe/bridge changes. Browser runners stopped their child processes, closed proxy sockets/listeners, and removed temporary probe directories. Both workspaces were cleaned after all checks, and both target directories are absent. Two empty preference-test directories left by the intentional failing reproduction were also removed. Fixing-commit recording is pending.
+All mandatory automated checks passed. Workspace checks were rerun after the final probe/bridge changes. Browser runners stopped their child processes, closed proxy sockets/listeners, and removed temporary probe directories. Both workspaces were cleaned after all checks, and both target directories are absent. Two empty preference-test directories left by the intentional failing reproduction were also removed.
 
 ## Scope and Remaining QA
+
+BUG-004 is `CLOSED`: the fixing commit and all closure checks are recorded, including decoded synthetic video/audio after viewer signaling EOF in both browsers. No new feature ID was completed, and no release tag/version bump was created.
 
 Actual screen/audio capture, audible devices, packaged operation, whole-server interruption during actual capture/playback, Linux execution, and cross-network scenarios have **NOT RUN** in this focused verification. These remain open in the [QA checklist](../QA_CHECKLIST.md). Browser EOF probes use synthetic media and close only the viewer's signaling channel; the ordinary/recovery modes verify normal decoding and cleanup.
 
