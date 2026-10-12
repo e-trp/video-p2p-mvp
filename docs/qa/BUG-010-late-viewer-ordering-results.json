@@ -355,5 +355,7 @@
     },
     "targetsAbsent": true,
     "savedGuiBundlesPreserved": true
-  }
+  },
+  "fixingCommit": "72a9927c066c72d9727b8f670208dafa22746b7c",
+  "bugStatus": "FIXED pending hosted Ubuntu acceptance"
 }

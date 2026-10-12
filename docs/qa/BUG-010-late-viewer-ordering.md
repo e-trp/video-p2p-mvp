@@ -5,6 +5,7 @@
 ## Scope and Evidence
 
 - Date: 2026-10-12; untagged `0.1.0`, local base `70276b6`.
+- Fixing implementation: `72a9927c066c72d9727b8f670208dafa22746b7c`; checks ran on that code before committing. Subsequent status/commit metadata edits are documentation only.
 - Affected file: `crates/app-core/tests/host_viewer_flow.rs`; owning feature `BASE-SIGNALING`, related `BASE-DEV-WORKFLOW`.
 - The user supplies the Ubuntu `late_viewer_join_replays_offer_over_real_tcp_signaling` failure at line 192: missing `signaling server is waiting for the second peer`; one of two integration tests fails, Cargo exits 101.
 - Public GitHub API inspection finds 10 runs. The latest three fail Ubuntu `Run tests`, while their macOS matrix jobs are cancelled. Latest remote commit is `615cb2a84235cb81ebf472539386e8e9a3e573f4`, not the current local GUI implementation. The supplied error is the detailed assertion evidence; API step metadata alone does not establish identical assertions in every failed run.
@@ -70,7 +71,7 @@ All checks are repeated after the final registration-gate refinement; both brows
 
 ## Status and Follow-up
 
-Record the fixing commit after local verification. Keep BUG-010 FIXED pending a successful Ubuntu Actions run on that commit; inspect any subsequent failure independently. No push, release tag, version bump, or feature-counter change is part of this task.
+BUG-010 is FIXED in `72a9927c066c72d9727b8f670208dafa22746b7c`, pending a successful Ubuntu Actions run on that commit; inspect any subsequent failure independently. No push, release tag, version bump, or feature-counter change is part of this task.
 
 README, architecture and installation guides were reviewed; their CI scope, component boundaries and commands remain accurate. Networking, TODO, QA checklist and bug register describe the corrected test ordering and separate remote acceptance. Cleanup is performed after all builds/tests/probes, preserving the previously saved GUI bundles, preferences, lockfiles and pre-existing `.python-version`.
 
