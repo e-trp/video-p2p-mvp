@@ -95,6 +95,10 @@
     return state.recovery_state;
   }
   try {
+    await until(async () => {
+      const state = await invoke("gui_qa_window_state");
+      return state.focused && state.visible;
+    }, "foreground Tauri QA window");
     await until(() => el("runtime-badge")?.textContent === "Tauri runtime connected"
       && !el("spec").textContent.includes("loading..."), "real Tauri boot", 15000);
     // load() installs UI listeners after the initial refresh and specification have resolved.
@@ -104,7 +108,8 @@
       assert(el("spec").textContent.length > 100, "Rust specification command did not load");
       assert(row("session", "Mode") === "idle", "Fresh/restored app did not start idle");
       assert(el("viewer-playback").hidden && el("viewer-sound-btn").disabled, "Idle player controls are active");
-      return { permission: row("capture-catalog", "Permission"), origin: row("capture-catalog", "Origin"),
+      return { nativeWindow: await invoke("gui_qa_window_state"),
+        permission: row("capture-catalog", "Permission"), origin: row("capture-catalog", "Origin"),
         sources: el("source-picker").options.length, width: innerWidth, height: innerHeight };
     });
 

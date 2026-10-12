@@ -16,6 +16,23 @@ pub(crate) struct QaState {
     report_path: PathBuf,
 }
 
+#[derive(Serialize)]
+pub(crate) struct WindowState {
+    focused: bool,
+    visible: bool,
+}
+
+#[tauri::command]
+pub(crate) fn gui_qa_window_state(
+    window: WebviewWindow,
+    _state: State<'_, QaState>,
+) -> Result<WindowState, String> {
+    Ok(WindowState {
+        focused: window.is_focused().map_err(|error| error.to_string())?,
+        visible: window.is_visible().map_err(|error| error.to_string())?,
+    })
+}
+
 #[tauri::command]
 pub(crate) fn gui_qa_configuration(state: State<'_, QaState>) -> Configuration {
     state.configuration.clone()
@@ -66,7 +83,10 @@ pub(crate) fn plugin() -> TauriPlugin<tauri::Wry> {
         })
         .on_page_load(|webview, payload| {
             if payload.event() == PageLoadEvent::Finished
-                && let Err(error) = webview.eval(include_str!("../../tests/gui-scenarios.js"))
+                && let Err(error) = webview
+                    .window()
+                    .set_focus()
+                    .and_then(|()| webview.eval(include_str!("../../tests/gui-scenarios.js")))
             {
                 eprintln!("cannot start GUI QA scenarios: {error}");
                 webview.app_handle().exit(1);
