@@ -47,6 +47,8 @@ turn:turn.example.com:3478?transport=udp|username|credential
 
 These are syntax examples; replace them with deployed servers. Multiple URLs may share one entry when comma-separated and using the same credentials.
 
+Native peers advertise numeric ICE candidates and disable remote mDNS queries. The browser answerer checks those candidates, allowing the native host to learn its authenticated peer-reflexive address. This prevents a late, differently routed mDNS result from stranding nomination on the earlier address in the current ICE library. No loopback-only gathering, SDP address rewriting, or relaxed STUN/DTLS verification is used. This path is covered by a native mDNS-style answer regression and real Tauri/WKWebView/Chrome playback; cross-network STUN/TURN acceptance remains open. See the [GUI verification record](qa/gui-client-0.1.0-6bd1a31.md) and [RFC 8445 peer-reflexive discovery](https://www.rfc-editor.org/rfc/rfc8445.html#section-7.3.1.3).
+
 Snapshots show configured server count/summary and a best-effort selected candidate-pair direct/relay hint. RTT, available bitrate, bytes, and packet loss depend on stats exposed by the Rust/WebView peer; missing values do not prove a failed connection. Current diagnostics do not measure capture-to-render latency or A/V skew.
 
 Configuration support does not establish TURN/NAT interoperability. Direct and relay paths still need real-network QA. A signaling address is not an ICE server URL, and adding STUN does not guarantee a direct connection through every NAT.

@@ -14,6 +14,7 @@ use tokio::runtime::Runtime;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MIME_TYPE_H264, MIME_TYPE_OPUS, MediaEngine};
+use webrtc::api::setting_engine::SettingEngine;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::peer_connection::RTCPeerConnection;
@@ -238,9 +239,14 @@ impl TransportSession {
                 RTPCodecType::Video,
             );
 
+            let mut settings = SettingEngine::default();
+            // Browser answerers check our numeric candidates. Learn their authenticated
+            // peer-reflexive address instead of letting a late mDNS answer change the path.
+            settings.set_ice_multicast_dns_mode(webrtc::ice::mdns::MulticastDnsMode::Disabled);
             let api = APIBuilder::new()
                 .with_media_engine(media_engine)
                 .with_interceptor_registry(registry)
+                .with_setting_engine(settings)
                 .build();
 
             let connection = api
@@ -1216,6 +1222,74 @@ mod tests {
     use super::{TransportSession, WebRtcConfig};
     use capture_core::{AudioBuffer, VideoFrame, VideoPixelFormat};
     use std::time::Duration;
+
+    #[test]
+    fn browser_mdns_answer_connects_through_authenticated_peer_reflexive_checks() {
+        let config = |role: &str| WebRtcConfig {
+            room: "browser-mdns".into(),
+            role: role.into(),
+            signaling_url: "127.0.0.1:7000".into(),
+            ice_servers: Vec::new(),
+        };
+        let mut host = TransportSession::new(config("host")).unwrap();
+        let mut viewer = TransportSession::new(config("viewer")).unwrap();
+        let super::WebRtcSignal::SessionDescription { sdp, .. } =
+            host.create_local_offer().unwrap()
+        else {
+            panic!("host offer");
+        };
+        let super::WebRtcSignal::SessionDescription { sdp, .. } =
+            viewer.accept_remote_offer(sdp).unwrap()
+        else {
+            panic!("viewer answer");
+        };
+        host.accept_remote_answer(sdp).unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let mut browser_candidates = 0;
+        loop {
+            for signal in host.drain_local_signals() {
+                if let super::WebRtcSignal::IceCandidate {
+                    candidate,
+                    sdp_mid,
+                    sdp_mline_index,
+                } = signal
+                {
+                    viewer
+                        .add_remote_ice_candidate(candidate, sdp_mid, sdp_mline_index)
+                        .unwrap();
+                }
+            }
+            for signal in viewer.drain_local_signals() {
+                if let super::WebRtcSignal::IceCandidate {
+                    candidate,
+                    sdp_mid,
+                    sdp_mline_index,
+                } = signal
+                {
+                    let mut fields: Vec<_> = candidate.split_whitespace().collect();
+                    fields[4] = "browser-private-address.local";
+                    host.add_remote_ice_candidate(fields.join(" "), sdp_mid, sdp_mline_index)
+                        .unwrap();
+                    browser_candidates += 1;
+                }
+            }
+            if host.encoded_publisher().unwrap().is_connected() {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "mDNS-only answer never connected"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(
+            browser_candidates > 0,
+            "browser-style ICE candidates were exercised"
+        );
+        assert_eq!(host.snapshot().connection_state, "connected");
+        host.close().unwrap();
+        viewer.close().unwrap();
+    }
 
     #[test]
     fn host_role_attaches_h264_and_opus_tracks() {
