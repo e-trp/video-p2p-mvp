@@ -4,7 +4,7 @@
 
 The desktop prototype has a macOS capture/encode/publish path and a WebView viewer. Synthetic media playback is verified in WKWebView and Chromium. Actual window/audio capture, packaged behavior, and different networks still require [manual QA](QA_CHECKLIST.md). Linux capture/video encoding are not implemented; Linux playback is unvalidated.
 
-The [current Tauri GUI QA](qa/tauri-gui-0.1.0-74a8e37.md) found a desktop connection/playback failure, tracked as BUG-008. The session steps below describe the implemented workflow; successful playback in the desktop bundle has not passed validation.
+The [current Tauri GUI QA](qa/gui-client-0.1.0-6bd1a31.md) verifies the controls and decoded synthetic playback in the desktop WebView, including the bundled app. Real screen/audio capture, trusted user gestures, audible devices, and different networks still require manual validation.
 
 For dependencies, running/building the app, and troubleshooting, see [installation](INSTALLATION.md). For completion status, see [TODO](../todo.md).
 

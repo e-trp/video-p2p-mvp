@@ -1,0 +1,1147 @@
+{
+  "date": "2026-10-12",
+  "version": "0.1.0",
+  "baseCommit": "6bd1a31",
+  "testedChanges": [
+    "BUG-008 native remote mDNS disabled; authenticated peer-reflexive checks",
+    "BUG-009 own QA window focus and native foreground precondition"
+  ],
+  "guiAutomation": "PASS",
+  "fullReleaseGate": "BLOCKED",
+  "finalRuns": [
+    {
+      "directory": "/private/tmp/video-p2p-gui-fix/debug-final",
+      "build": "debug",
+      "total": 32,
+      "scenarios": [
+        {
+          "scenario": "controls",
+          "complete": true,
+          "success": true,
+          "checks": [
+            {
+              "name": "Runtime and complete initial render",
+              "result": "PASS",
+              "durationMs": 2,
+              "details": {
+                "nativeWindow": {
+                  "focused": true,
+                  "visible": true
+                },
+                "permission": "required",
+                "origin": "blueprintfallback",
+                "sources": 2,
+                "width": 1120,
+                "height": 728
+              }
+            },
+            {
+              "name": "Idle capture and reconnect guards",
+              "result": "PASS",
+              "durationMs": 242
+            },
+            {
+              "name": "Local demo and shared busy state",
+              "result": "PASS",
+              "durationMs": 284
+            },
+            {
+              "name": "Stop remains stopped after repeated refresh",
+              "result": "PASS",
+              "durationMs": 998,
+              "details": "stopped"
+            },
+            {
+              "name": "Reset returns idle and disables reconnect",
+              "result": "PASS",
+              "durationMs": 278
+            },
+            {
+              "name": "Save and render escaped configuration",
+              "result": "PASS",
+              "durationMs": 289
+            },
+            {
+              "name": "Invalid ICE is rejected without overwriting saved config",
+              "result": "PASS",
+              "durationMs": 312
+            },
+            {
+              "name": "Auto Refresh preserves all unsaved session fields",
+              "result": "PASS",
+              "durationMs": 2443
+            },
+            {
+              "name": "Auto Refresh toggle and interval boundaries persist",
+              "result": "PASS",
+              "durationMs": 1777
+            },
+            {
+              "name": "Prototype buttons respond to edits without Auto Refresh",
+              "result": "PASS",
+              "durationMs": 243
+            },
+            {
+              "name": "Source selection and audio opt-out persist",
+              "result": "PASS",
+              "durationMs": 532,
+              "details": {
+                "source": "mac-window-browser",
+                "sourceLabel": "Safari - Safari"
+              }
+            },
+            {
+              "name": "Prepare Host signals without starting native capture",
+              "result": "PASS",
+              "durationMs": 520
+            },
+            {
+              "name": "Debug action remains separate from encoded capture",
+              "result": "PASS",
+              "durationMs": 294
+            },
+            {
+              "name": "Start Native Capture and Host Prototype expose blocked permission",
+              "result": "PASS",
+              "durationMs": 975,
+              "details": {
+                "captureStatus": "permission_required",
+                "permission": "required"
+              }
+            },
+            {
+              "name": "Host Stop and edited reconnect rebuild role",
+              "result": "PASS",
+              "durationMs": 1469
+            },
+            {
+              "name": "Unavailable signaling exposes recovery guidance",
+              "result": "PASS",
+              "durationMs": 487
+            },
+            {
+              "name": "Save stable preferences and Reset reloads them",
+              "result": "PASS",
+              "durationMs": 488
+            },
+            {
+              "name": "Diagnostics expand and Clear Logs updates UI",
+              "result": "PASS",
+              "durationMs": 248
+            },
+            {
+              "name": "Window layout at 1120px",
+              "result": "PASS",
+              "durationMs": 5,
+              "details": {
+                "width": 1120,
+                "scrollWidth": 1120
+              }
+            },
+            {
+              "name": "Window layout at 800px",
+              "result": "PASS",
+              "durationMs": 53,
+              "details": {
+                "width": 800,
+                "scrollWidth": 800
+              }
+            },
+            {
+              "name": "Window layout at 600px",
+              "result": "PASS",
+              "durationMs": 52,
+              "details": {
+                "width": 600,
+                "scrollWidth": 600
+              }
+            },
+            {
+              "name": "No unhandled frontend errors",
+              "result": "PASS",
+              "durationMs": 0
+            }
+          ]
+        },
+        {
+          "scenario": "restore",
+          "complete": true,
+          "success": true,
+          "checks": [
+            {
+              "name": "Runtime and complete initial render",
+              "result": "PASS",
+              "durationMs": 1,
+              "details": {
+                "nativeWindow": {
+                  "focused": true,
+                  "visible": true
+                },
+                "permission": "required",
+                "origin": "blueprintfallback",
+                "sources": 2,
+                "width": 1120,
+                "height": 728
+              }
+            },
+            {
+              "name": "Preferences survive actual application restart",
+              "result": "PASS",
+              "durationMs": 44,
+              "details": {
+                "source": "mac-window-browser",
+                "interval": 15
+              }
+            },
+            {
+              "name": "No unhandled frontend errors",
+              "result": "PASS",
+              "durationMs": 0
+            }
+          ]
+        },
+        {
+          "scenario": "viewer",
+          "complete": true,
+          "success": true,
+          "checks": [
+            {
+              "name": "Runtime and complete initial render",
+              "result": "PASS",
+              "durationMs": 2,
+              "details": {
+                "nativeWindow": {
+                  "focused": true,
+                  "visible": true
+                },
+                "permission": "required",
+                "origin": "blueprintfallback",
+                "sources": 2,
+                "width": 1120,
+                "height": 728
+              }
+            },
+            {
+              "name": "Join Viewer with Auto Refresh disabled negotiates real media",
+              "result": "PASS",
+              "durationMs": 2108,
+              "details": {
+                "pixel": [
+                  191,
+                  63,
+                  30,
+                  255
+                ]
+              }
+            },
+            {
+              "name": "Decoded video/audio continues without diagnostic polling",
+              "result": "PASS",
+              "durationMs": 1870,
+              "details": {
+                "beforeFrames": 0,
+                "afterFrames": 52,
+                "beforeSamples": 0,
+                "afterSamples": 87840
+              }
+            },
+            {
+              "name": "Sound control state and pause/resume",
+              "result": "PASS",
+              "durationMs": 661
+            },
+            {
+              "name": "Stop closes actual viewer tracks and prevents revival",
+              "result": "PASS",
+              "durationMs": 1010
+            },
+            {
+              "name": "Reconnect creates a fresh viewer generation",
+              "result": "PASS",
+              "durationMs": 594
+            },
+            {
+              "name": "No unhandled frontend errors",
+              "result": "PASS",
+              "durationMs": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "directory": "/private/tmp/video-p2p-gui-fix/release-final",
+      "build": "gui-qa release app",
+      "total": 32,
+      "scenarios": [
+        {
+          "scenario": "controls",
+          "complete": true,
+          "success": true,
+          "checks": [
+            {
+              "name": "Runtime and complete initial render",
+              "result": "PASS",
+              "durationMs": 2,
+              "details": {
+                "nativeWindow": {
+                  "focused": true,
+                  "visible": true
+                },
+                "permission": "required",
+                "origin": "blueprintfallback",
+                "sources": 2,
+                "width": 1120,
+                "height": 728
+              }
+            },
+            {
+              "name": "Idle capture and reconnect guards",
+              "result": "PASS",
+              "durationMs": 244
+            },
+            {
+              "name": "Local demo and shared busy state",
+              "result": "PASS",
+              "durationMs": 275
+            },
+            {
+              "name": "Stop remains stopped after repeated refresh",
+              "result": "PASS",
+              "durationMs": 996,
+              "details": "stopped"
+            },
+            {
+              "name": "Reset returns idle and disables reconnect",
+              "result": "PASS",
+              "durationMs": 290
+            },
+            {
+              "name": "Save and render escaped configuration",
+              "result": "PASS",
+              "durationMs": 294
+            },
+            {
+              "name": "Invalid ICE is rejected without overwriting saved config",
+              "result": "PASS",
+              "durationMs": 330
+            },
+            {
+              "name": "Auto Refresh preserves all unsaved session fields",
+              "result": "PASS",
+              "durationMs": 2444
+            },
+            {
+              "name": "Auto Refresh toggle and interval boundaries persist",
+              "result": "PASS",
+              "durationMs": 1765
+            },
+            {
+              "name": "Prototype buttons respond to edits without Auto Refresh",
+              "result": "PASS",
+              "durationMs": 243
+            },
+            {
+              "name": "Source selection and audio opt-out persist",
+              "result": "PASS",
+              "durationMs": 532,
+              "details": {
+                "source": "mac-window-browser",
+                "sourceLabel": "Safari - Safari"
+              }
+            },
+            {
+              "name": "Prepare Host signals without starting native capture",
+              "result": "PASS",
+              "durationMs": 523
+            },
+            {
+              "name": "Debug action remains separate from encoded capture",
+              "result": "PASS",
+              "durationMs": 301
+            },
+            {
+              "name": "Start Native Capture and Host Prototype expose blocked permission",
+              "result": "PASS",
+              "durationMs": 982,
+              "details": {
+                "captureStatus": "permission_required",
+                "permission": "required"
+              }
+            },
+            {
+              "name": "Host Stop and edited reconnect rebuild role",
+              "result": "PASS",
+              "durationMs": 1464
+            },
+            {
+              "name": "Unavailable signaling exposes recovery guidance",
+              "result": "PASS",
+              "durationMs": 490
+            },
+            {
+              "name": "Save stable preferences and Reset reloads them",
+              "result": "PASS",
+              "durationMs": 486
+            },
+            {
+              "name": "Diagnostics expand and Clear Logs updates UI",
+              "result": "PASS",
+              "durationMs": 246
+            },
+            {
+              "name": "Window layout at 1120px",
+              "result": "PASS",
+              "durationMs": 6,
+              "details": {
+                "width": 1120,
+                "scrollWidth": 1120
+              }
+            },
+            {
+              "name": "Window layout at 800px",
+              "result": "PASS",
+              "durationMs": 53,
+              "details": {
+                "width": 800,
+                "scrollWidth": 800
+              }
+            },
+            {
+              "name": "Window layout at 600px",
+              "result": "PASS",
+              "durationMs": 52,
+              "details": {
+                "width": 600,
+                "scrollWidth": 600
+              }
+            },
+            {
+              "name": "No unhandled frontend errors",
+              "result": "PASS",
+              "durationMs": 0
+            }
+          ]
+        },
+        {
+          "scenario": "restore",
+          "complete": true,
+          "success": true,
+          "checks": [
+            {
+              "name": "Runtime and complete initial render",
+              "result": "PASS",
+              "durationMs": 1,
+              "details": {
+                "nativeWindow": {
+                  "focused": true,
+                  "visible": true
+                },
+                "permission": "required",
+                "origin": "blueprintfallback",
+                "sources": 2,
+                "width": 1120,
+                "height": 728
+              }
+            },
+            {
+              "name": "Preferences survive actual application restart",
+              "result": "PASS",
+              "durationMs": 38,
+              "details": {
+                "source": "mac-window-browser",
+                "interval": 15
+              }
+            },
+            {
+              "name": "No unhandled frontend errors",
+              "result": "PASS",
+              "durationMs": 0
+            }
+          ]
+        },
+        {
+          "scenario": "viewer",
+          "complete": true,
+          "success": true,
+          "checks": [
+            {
+              "name": "Runtime and complete initial render",
+              "result": "PASS",
+              "durationMs": 2,
+              "details": {
+                "nativeWindow": {
+                  "focused": true,
+                  "visible": true
+                },
+                "permission": "required",
+                "origin": "blueprintfallback",
+                "sources": 2,
+                "width": 1120,
+                "height": 728
+              }
+            },
+            {
+              "name": "Join Viewer with Auto Refresh disabled negotiates real media",
+              "result": "PASS",
+              "durationMs": 2122,
+              "details": {
+                "pixel": [
+                  191,
+                  63,
+                  30,
+                  255
+                ]
+              }
+            },
+            {
+              "name": "Decoded video/audio continues without diagnostic polling",
+              "result": "PASS",
+              "durationMs": 1898,
+              "details": {
+                "beforeFrames": 0,
+                "afterFrames": 51,
+                "beforeSamples": 0,
+                "afterSamples": 88800
+              }
+            },
+            {
+              "name": "Sound control state and pause/resume",
+              "result": "PASS",
+              "durationMs": 651
+            },
+            {
+              "name": "Stop closes actual viewer tracks and prevents revival",
+              "result": "PASS",
+              "durationMs": 1016
+            },
+            {
+              "name": "Reconnect creates a fresh viewer generation",
+              "result": "PASS",
+              "durationMs": 600
+            },
+            {
+              "name": "No unhandled frontend errors",
+              "result": "PASS",
+              "durationMs": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "directory": "/private/tmp/video-p2p-gui-fix/release-repeat",
+      "build": "gui-qa release app",
+      "total": 32,
+      "scenarios": [
+        {
+          "scenario": "controls",
+          "complete": true,
+          "success": true,
+          "checks": [
+            {
+              "name": "Runtime and complete initial render",
+              "result": "PASS",
+              "durationMs": 2,
+              "details": {
+                "nativeWindow": {
+                  "focused": true,
+                  "visible": true
+                },
+                "permission": "required",
+                "origin": "blueprintfallback",
+                "sources": 2,
+                "width": 1120,
+                "height": 728
+              }
+            },
+            {
+              "name": "Idle capture and reconnect guards",
+              "result": "PASS",
+              "durationMs": 242
+            },
+            {
+              "name": "Local demo and shared busy state",
+              "result": "PASS",
+              "durationMs": 270
+            },
+            {
+              "name": "Stop remains stopped after repeated refresh",
+              "result": "PASS",
+              "durationMs": 999,
+              "details": "stopped"
+            },
+            {
+              "name": "Reset returns idle and disables reconnect",
+              "result": "PASS",
+              "durationMs": 284
+            },
+            {
+              "name": "Save and render escaped configuration",
+              "result": "PASS",
+              "durationMs": 275
+            },
+            {
+              "name": "Invalid ICE is rejected without overwriting saved config",
+              "result": "PASS",
+              "durationMs": 322
+            },
+            {
+              "name": "Auto Refresh preserves all unsaved session fields",
+              "result": "PASS",
+              "durationMs": 2443
+            },
+            {
+              "name": "Auto Refresh toggle and interval boundaries persist",
+              "result": "PASS",
+              "durationMs": 1742
+            },
+            {
+              "name": "Prototype buttons respond to edits without Auto Refresh",
+              "result": "PASS",
+              "durationMs": 253
+            },
+            {
+              "name": "Source selection and audio opt-out persist",
+              "result": "PASS",
+              "durationMs": 610,
+              "details": {
+                "source": "mac-window-browser",
+                "sourceLabel": "Safari - Safari"
+              }
+            },
+            {
+              "name": "Prepare Host signals without starting native capture",
+              "result": "PASS",
+              "durationMs": 609
+            },
+            {
+              "name": "Debug action remains separate from encoded capture",
+              "result": "PASS",
+              "durationMs": 277
+            },
+            {
+              "name": "Start Native Capture and Host Prototype expose blocked permission",
+              "result": "PASS",
+              "durationMs": 978,
+              "details": {
+                "captureStatus": "permission_required",
+                "permission": "required"
+              }
+            },
+            {
+              "name": "Host Stop and edited reconnect rebuild role",
+              "result": "PASS",
+              "durationMs": 1457
+            },
+            {
+              "name": "Unavailable signaling exposes recovery guidance",
+              "result": "PASS",
+              "durationMs": 512
+            },
+            {
+              "name": "Save stable preferences and Reset reloads them",
+              "result": "PASS",
+              "durationMs": 484
+            },
+            {
+              "name": "Diagnostics expand and Clear Logs updates UI",
+              "result": "PASS",
+              "durationMs": 244
+            },
+            {
+              "name": "Window layout at 1120px",
+              "result": "PASS",
+              "durationMs": 6,
+              "details": {
+                "width": 1120,
+                "scrollWidth": 1120
+              }
+            },
+            {
+              "name": "Window layout at 800px",
+              "result": "PASS",
+              "durationMs": 51,
+              "details": {
+                "width": 800,
+                "scrollWidth": 800
+              }
+            },
+            {
+              "name": "Window layout at 600px",
+              "result": "PASS",
+              "durationMs": 52,
+              "details": {
+                "width": 600,
+                "scrollWidth": 600
+              }
+            },
+            {
+              "name": "No unhandled frontend errors",
+              "result": "PASS",
+              "durationMs": 0
+            }
+          ]
+        },
+        {
+          "scenario": "restore",
+          "complete": true,
+          "success": true,
+          "checks": [
+            {
+              "name": "Runtime and complete initial render",
+              "result": "PASS",
+              "durationMs": 1,
+              "details": {
+                "nativeWindow": {
+                  "focused": true,
+                  "visible": true
+                },
+                "permission": "required",
+                "origin": "blueprintfallback",
+                "sources": 2,
+                "width": 1120,
+                "height": 728
+              }
+            },
+            {
+              "name": "Preferences survive actual application restart",
+              "result": "PASS",
+              "durationMs": 26,
+              "details": {
+                "source": "mac-window-browser",
+                "interval": 15
+              }
+            },
+            {
+              "name": "No unhandled frontend errors",
+              "result": "PASS",
+              "durationMs": 0
+            }
+          ]
+        },
+        {
+          "scenario": "viewer",
+          "complete": true,
+          "success": true,
+          "checks": [
+            {
+              "name": "Runtime and complete initial render",
+              "result": "PASS",
+              "durationMs": 1,
+              "details": {
+                "nativeWindow": {
+                  "focused": true,
+                  "visible": true
+                },
+                "permission": "required",
+                "origin": "blueprintfallback",
+                "sources": 2,
+                "width": 1120,
+                "height": 728
+              }
+            },
+            {
+              "name": "Join Viewer with Auto Refresh disabled negotiates real media",
+              "result": "PASS",
+              "durationMs": 1974,
+              "details": {
+                "pixel": [
+                  191,
+                  63,
+                  30,
+                  255
+                ]
+              }
+            },
+            {
+              "name": "Decoded video/audio continues without diagnostic polling",
+              "result": "PASS",
+              "durationMs": 1892,
+              "details": {
+                "beforeFrames": 0,
+                "afterFrames": 50,
+                "beforeSamples": 0,
+                "afterSamples": 90240
+              }
+            },
+            {
+              "name": "Sound control state and pause/resume",
+              "result": "PASS",
+              "durationMs": 657
+            },
+            {
+              "name": "Stop closes actual viewer tracks and prevents revival",
+              "result": "PASS",
+              "durationMs": 1021
+            },
+            {
+              "name": "Reconnect creates a fresh viewer generation",
+              "result": "PASS",
+              "durationMs": 582
+            },
+            {
+              "name": "No unhandled frontend errors",
+              "result": "PASS",
+              "durationMs": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "failingBefore": {
+    "viewer": {
+      "scenario": "viewer",
+      "complete": true,
+      "success": false,
+      "checks": [
+        {
+          "name": "Runtime and complete initial render",
+          "result": "PASS",
+          "durationMs": 1,
+          "details": {
+            "permission": "required",
+            "origin": "blueprintfallback",
+            "sources": 2,
+            "width": 1120,
+            "height": 728
+          }
+        },
+        {
+          "name": "Join Viewer with Auto Refresh disabled negotiates real media",
+          "result": "FAIL",
+          "durationMs": 20675,
+          "error": "Timed out: Tauri decoded video\nuntil@tauri://localhost:31:50\n@tauri://localhost:274:20\nasync check@tauri://localhost:64:35\n@tauri://localhost:272:18"
+        },
+        {
+          "name": "Decoded video/audio continues without diagnostic polling",
+          "result": "BLOCKED",
+          "durationMs": 0,
+          "details": {
+            "qaResult": "BLOCKED",
+            "reason": "BUG-008: no established decoded Tauri playback"
+          }
+        },
+        {
+          "name": "Sound control state and pause/resume",
+          "result": "BLOCKED",
+          "durationMs": 0,
+          "details": {
+            "qaResult": "BLOCKED",
+            "reason": "BUG-008: no established decoded Tauri playback; real user gestures also require Accessibility"
+          }
+        },
+        {
+          "name": "Stop closes actual viewer tracks and prevents revival",
+          "result": "PASS",
+          "durationMs": 1547
+        },
+        {
+          "name": "Reconnect creates a fresh viewer generation",
+          "result": "PASS",
+          "durationMs": 741
+        },
+        {
+          "name": "No unhandled frontend errors",
+          "result": "PASS",
+          "durationMs": 0
+        }
+      ]
+    },
+    "inactiveBundleControls": {
+      "scenario": "controls",
+      "checks": [
+        {
+          "name": "Runtime and complete initial render",
+          "result": "PASS",
+          "durationMs": 1,
+          "details": {
+            "permission": "required",
+            "origin": "blueprintfallback",
+            "sources": 2,
+            "width": 1120,
+            "height": 728
+          }
+        },
+        {
+          "name": "Idle capture and reconnect guards",
+          "result": "PASS",
+          "durationMs": 243
+        },
+        {
+          "name": "Local demo and shared busy state",
+          "result": "PASS",
+          "durationMs": 276
+        }
+      ],
+      "running": "Stop remains stopped after repeated refresh",
+      "processResult": "FAIL: external 90-second timeout; partial report retained"
+    },
+    "dependentRestore": {
+      "scenario": "restore",
+      "complete": true,
+      "success": false,
+      "checks": [
+        {
+          "name": "Runtime and complete initial render",
+          "result": "PASS",
+          "durationMs": 1,
+          "details": {
+            "permission": "required",
+            "origin": "blueprintfallback",
+            "sources": 2,
+            "width": 1120,
+            "height": 728
+          }
+        },
+        {
+          "name": "Preferences survive actual application restart",
+          "result": "FAIL",
+          "durationMs": 45,
+          "error": "Session settings not restored\nassert@tauri://localhost:21:75\n@tauri://localhost:263:15\nasync check@tauri://localhost:64:35\n@tauri://localhost:261:18"
+        },
+        {
+          "name": "No unhandled frontend errors",
+          "result": "PASS",
+          "durationMs": 0
+        }
+      ]
+    },
+    "note": "Provisional loopback configuration was discarded after a zero-media WKWebView repeat."
+  },
+  "foregroundDiagnosisControls": {
+    "scenario": "controls",
+    "complete": true,
+    "success": true,
+    "checks": [
+      {
+        "name": "Runtime and complete initial render",
+        "result": "PASS",
+        "durationMs": 1,
+        "details": {
+          "permission": "required",
+          "origin": "blueprintfallback",
+          "sources": 2,
+          "width": 1120,
+          "height": 728
+        }
+      },
+      {
+        "name": "Idle capture and reconnect guards",
+        "result": "PASS",
+        "durationMs": 244
+      },
+      {
+        "name": "Local demo and shared busy state",
+        "result": "PASS",
+        "durationMs": 287
+      },
+      {
+        "name": "Stop remains stopped after repeated refresh",
+        "result": "PASS",
+        "durationMs": 1542,
+        "details": "stopped"
+      },
+      {
+        "name": "Reset returns idle and disables reconnect",
+        "result": "PASS",
+        "durationMs": 420
+      },
+      {
+        "name": "Save and render escaped configuration",
+        "result": "PASS",
+        "durationMs": 477
+      },
+      {
+        "name": "Invalid ICE is rejected without overwriting saved config",
+        "result": "PASS",
+        "durationMs": 578
+      },
+      {
+        "name": "Auto Refresh preserves all unsaved session fields",
+        "result": "PASS",
+        "durationMs": 2721
+      },
+      {
+        "name": "Auto Refresh toggle and interval boundaries persist",
+        "result": "PASS",
+        "durationMs": 17082
+      },
+      {
+        "name": "Prototype buttons respond to edits without Auto Refresh",
+        "result": "PASS",
+        "durationMs": 245
+      },
+      {
+        "name": "Source selection and audio opt-out persist",
+        "result": "PASS",
+        "durationMs": 533,
+        "details": {
+          "source": "mac-window-browser",
+          "sourceLabel": "Safari - Safari"
+        }
+      },
+      {
+        "name": "Prepare Host signals without starting native capture",
+        "result": "PASS",
+        "durationMs": 521
+      },
+      {
+        "name": "Debug action remains separate from encoded capture",
+        "result": "PASS",
+        "durationMs": 301
+      },
+      {
+        "name": "Start Native Capture and Host Prototype expose blocked permission",
+        "result": "PASS",
+        "durationMs": 978,
+        "details": {
+          "captureStatus": "permission_required",
+          "permission": "required"
+        }
+      },
+      {
+        "name": "Host Stop and edited reconnect rebuild role",
+        "result": "PASS",
+        "durationMs": 1464
+      },
+      {
+        "name": "Unavailable signaling exposes recovery guidance",
+        "result": "PASS",
+        "durationMs": 555
+      },
+      {
+        "name": "Save stable preferences and Reset reloads them",
+        "result": "PASS",
+        "durationMs": 488
+      },
+      {
+        "name": "Diagnostics expand and Clear Logs updates UI",
+        "result": "PASS",
+        "durationMs": 246
+      },
+      {
+        "name": "Window layout at 1120px",
+        "result": "PASS",
+        "durationMs": 8,
+        "details": {
+          "width": 1120,
+          "scrollWidth": 1120
+        }
+      },
+      {
+        "name": "Window layout at 800px",
+        "result": "PASS",
+        "durationMs": 54,
+        "details": {
+          "width": 800,
+          "scrollWidth": 800
+        }
+      },
+      {
+        "name": "Window layout at 600px",
+        "result": "PASS",
+        "durationMs": 51,
+        "details": {
+          "width": 600,
+          "scrollWidth": 600
+        }
+      },
+      {
+        "name": "No unhandled frontend errors",
+        "result": "PASS",
+        "durationMs": 0
+      }
+    ]
+  },
+  "browserChecks": [
+    {
+      "mode": "WKWebView normal",
+      "result": "PASS",
+      "frames": 22,
+      "audioSamples": 38400
+    },
+    {
+      "mode": "WKWebView normal final repeat",
+      "result": "PASS",
+      "frames": 17,
+      "audioSamples": 28800
+    },
+    {
+      "mode": "WKWebView keyframe recovery",
+      "result": "PASS",
+      "frames": 17,
+      "audioSamples": 34080
+    },
+    {
+      "mode": "Chrome normal",
+      "result": "PASS",
+      "frames": 21,
+      "audioSamples": 35520
+    },
+    {
+      "mode": "Chrome keyframe recovery",
+      "result": "PASS",
+      "frames": 22,
+      "audioSamples": 40320
+    },
+    {
+      "mode": "WKWebView signaling EOF",
+      "result": "PASS",
+      "frames": 43,
+      "audioSamples": 75360
+    },
+    {
+      "mode": "Chrome signaling EOF",
+      "result": "PASS",
+      "frames": 53,
+      "audioSamples": 94080
+    }
+  ],
+  "automatedChecks": {
+    "rootRustTests": 123,
+    "probeLifetimeTests": 4,
+    "viewerLifecycleTests": 8,
+    "desktopRustTests": 0,
+    "strictClippyBothWorkspaces": "PASS",
+    "formatBothWorkspaces": "PASS",
+    "nativeExtraction": "PASS"
+  },
+  "artifacts": {
+    "directory": "/private/tmp/video-p2p-gui-fix/artifacts",
+    "productionBinarySha256": "96735a1cc2d029cbc9b3a1a8a8866844b694c79d52673af2c32455c4e7df5698",
+    "dmgSha256": "1994ea2a75e8d13fd369179db48b187193457b306e0299c3645a62e2d8461161",
+    "dmgChecksum": "VALID",
+    "productionContainsQaWindowCommand": false
+  },
+  "openQa": [
+    "Screen Recording grant/relaunch and actual sources",
+    "Accessibility and trusted gestures",
+    "audible hardware",
+    "actual-source recovery and rebuilt-peer media reconnect",
+    "Linux",
+    "remote STUN/TURN/NAT and performance",
+    "installation/signing/notarization"
+  ],
+  "testedCodeCommit": "480a5819665211a4dea923134e46bb61bafe57e9",
+  "fixingCommits": {
+    "BUG-005": "d53e11e14f499bfd76b739c6bea5f7484c5129c2",
+    "BUG-008": "f588cb81e86552c10820e0d57b6e8f42ab33d7d5",
+    "BUG-009": "480a5819665211a4dea923134e46bb61bafe57e9"
+  },
+  "cleanup": {
+    "root": {
+      "result": "PASS",
+      "removedFiles": 12835,
+      "removedGiB": 2.9
+    },
+    "desktop": {
+      "result": "PASS",
+      "removedFiles": 17659,
+      "removedGiB": 4.9
+    },
+    "targetsAbsent": true,
+    "artifactsPreserved": true
+  }
+}

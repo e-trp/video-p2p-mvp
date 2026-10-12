@@ -28,6 +28,8 @@ There are currently no passing full-project release QA records. The `0.1.0` base
 
 The [2026-10-11 Tauri GUI run](qa/tauri-gui-0.1.0-74a8e37.md) exercises real desktop windows/IPC and records each checklist section. It found and verified fixes for three GUI defects, but desktop playback fails under BUG-008 and OS/device/network checks remain blocked. This is a failed GUI validation run, not a passing release checkpoint. Programmatic DOM actions are recorded separately from manual/system interactions.
 
+The [2026-10-12 follow-up](qa/gui-client-0.1.0-6bd1a31.md) verifies the ICE and foreground-fixture fixes with all 32 checks passing in debug and in two full bundled runs. Synthetic desktop video/audio now decodes. Actual Screen Recording/device/network/distribution scenarios remain open, so this is still not a passing full-project release checkpoint.
+
 ## Automated Checks
 
 Run from the repository root with local sockets and macOS codec services available where required:
