@@ -1,0 +1,359 @@
+{
+  "date": "2026-10-12",
+  "version": "0.1.0",
+  "localBase": "70276b6",
+  "bug": "BUG-010",
+  "owningFeature": "BASE-SIGNALING",
+  "localVerification": "PASS",
+  "hostedUbuntuAcceptance": "NOT RUN",
+  "actionsHistory": [
+    {
+      "id": 38035966630,
+      "commit": "615cb2a84235cb81ebf472539386e8e9a3e573f4",
+      "url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/38035966630",
+      "conclusion": "failure",
+      "createdAt": "2026-10-10T07:53:13Z",
+      "jobs": [
+        {
+          "id": 114166325343,
+          "name": "check (macos-latest)",
+          "conclusion": "cancelled",
+          "failedSteps": []
+        },
+        {
+          "id": 114166325534,
+          "name": "check (ubuntu-latest)",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Run tests"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 38034422745,
+      "commit": "f1cb06bb3a67c7aa0557699741f9e6f8849eae0d",
+      "url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/38034422745",
+      "conclusion": "failure",
+      "createdAt": "2026-10-10T07:26:19Z",
+      "jobs": [
+        {
+          "id": 114161794472,
+          "name": "check (ubuntu-latest)",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Run tests"
+          ]
+        },
+        {
+          "id": 114161794616,
+          "name": "check (macos-latest)",
+          "conclusion": "cancelled",
+          "failedSteps": []
+        }
+      ]
+    },
+    {
+      "id": 37781533975,
+      "commit": "ad8a0bba681b90887843521968dba106c0ae1759",
+      "url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/37781533975",
+      "conclusion": "failure",
+      "createdAt": "2026-10-08T13:04:34Z",
+      "jobs": [
+        {
+          "id": 113325570136,
+          "name": "check (ubuntu-latest)",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Run tests"
+          ]
+        },
+        {
+          "id": 113325570651,
+          "name": "check (macos-latest)",
+          "conclusion": "cancelled",
+          "failedSteps": []
+        }
+      ]
+    },
+    {
+      "id": 33505124030,
+      "commit": "e7fd56d11bfa1dc69da204eb00f1faa440711534",
+      "url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/33505124030",
+      "conclusion": "failure",
+      "createdAt": "2026-09-01T11:57:38Z",
+      "jobs": [
+        {
+          "id": 99847254564,
+          "name": "check",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Run Clippy"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 33504819263,
+      "commit": "d8263e57f6b8b9b3420edd0b9f2b85ecd2a01bff",
+      "url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/33504819263",
+      "conclusion": "failure",
+      "createdAt": "2026-09-01T11:53:54Z",
+      "jobs": [
+        {
+          "id": 99846259220,
+          "name": "check",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Run Clippy"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 30799505610,
+      "commit": "32163a7b47ddd8170ee6a1a898e2b5eede7b93e0",
+      "url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/30799505610",
+      "conclusion": "failure",
+      "createdAt": "2026-08-03T08:59:09Z",
+      "jobs": [
+        {
+          "id": 91640575611,
+          "name": "check",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Check formatting"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 28510205897,
+      "commit": "e2175ea2064ce844cc996a3ad4189411b7ee6c72",
+      "url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/28510205897",
+      "conclusion": "failure",
+      "createdAt": "2026-07-01T10:14:09Z",
+      "jobs": [
+        {
+          "id": 84508395671,
+          "name": "check",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Check formatting"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 28504562836,
+      "commit": "1efb308ea6b43ccb8f49ac23555122f1f58a1aa3",
+      "url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/28504562836",
+      "conclusion": "failure",
+      "createdAt": "2026-07-01T08:34:42Z",
+      "jobs": [
+        {
+          "id": 84489687513,
+          "name": "check",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Run Clippy"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 28504556642,
+      "commit": "f0c333a1b53a8cbc9f5a6d422474dee3290132b9",
+      "url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/28504556642",
+      "conclusion": "failure",
+      "createdAt": "2026-07-01T08:34:35Z",
+      "jobs": [
+        {
+          "id": 84489664331,
+          "name": "check",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Run Clippy"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 28504343890,
+      "commit": "909058ab43af30f98dba538f29da1d6e205f56f2",
+      "url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/28504343890",
+      "conclusion": "failure",
+      "createdAt": "2026-07-01T08:30:41Z",
+      "jobs": [
+        {
+          "id": 84488933378,
+          "name": "check",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Run Clippy"
+          ]
+        }
+      ]
+    }
+  ],
+  "jobLogDownload": {
+    "job": 114166325534,
+    "httpStatus": 403
+  },
+  "providedFailure": {
+    "platform": "ubuntu-latest",
+    "test": "late_viewer_join_replays_offer_over_real_tcp_signaling",
+    "missingLog": "signaling server is waiting for the second peer",
+    "cargoExit": 101,
+    "note": "User-supplied log; original run ID unspecified."
+  },
+  "controlledBefore": {
+    "test": "late_viewer_join_waits_for_delayed_server_registration",
+    "registrationResponse": "withheld by channel gate",
+    "cargoExit": 101,
+    "passed": 0,
+    "failed": 1,
+    "durationSeconds": 0.26,
+    "assertion": "expected server waiting log absent"
+  },
+  "after": {
+    "integrationTests": 3,
+    "repeatRuns": 10,
+    "repeatPassed": 30,
+    "repeatFailed": 0,
+    "rootRustTests": 124,
+    "doctests": "PASS",
+    "probeLifetimeTests": 4,
+    "desktopRustTests": 0,
+    "viewerLifecycleTests": 8,
+    "bothWorkspaceStrictClippy": "PASS",
+    "bothWorkspaceFormatting": "PASS",
+    "nativeExtraction": "PASS"
+  },
+  "browserChecks": [
+    {
+      "mode": "WKWebView normal",
+      "result": "PASS",
+      "frames": 19,
+      "audioSamples": 33120
+    },
+    {
+      "mode": "WKWebView keyframe recovery",
+      "result": "PASS",
+      "frames": 19,
+      "audioSamples": 36480
+    },
+    {
+      "mode": "Chrome normal",
+      "result": "PASS",
+      "frames": 25,
+      "audioSamples": 42720
+    },
+    {
+      "mode": "Chrome keyframe recovery",
+      "result": "PASS",
+      "frames": 22,
+      "audioSamples": 40320
+    }
+  ],
+  "remoteBlocker": "Fix has not run in hosted Ubuntu; local Docker daemon socket is absent.",
+  "workflowModified": false,
+  "productionModified": false,
+  "newFeatureCount": 0,
+  "controlledRevertedCondition": {
+    "registrationRelease": "after first snapshot inside predicate",
+    "cargoExit": 101,
+    "passed": 0,
+    "failed": 1,
+    "durationSeconds": 0.11,
+    "assertion": "expected server waiting log absent"
+  },
+  "finalRepeatRuns": [
+    {
+      "run": 1,
+      "exitCode": 0,
+      "result": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.61s"
+    },
+    {
+      "run": 2,
+      "exitCode": 0,
+      "result": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.40s"
+    },
+    {
+      "run": 3,
+      "exitCode": 0,
+      "result": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.90s"
+    },
+    {
+      "run": 4,
+      "exitCode": 0,
+      "result": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.39s"
+    },
+    {
+      "run": 5,
+      "exitCode": 0,
+      "result": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.30s"
+    },
+    {
+      "run": 6,
+      "exitCode": 0,
+      "result": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.11s"
+    },
+    {
+      "run": 7,
+      "exitCode": 0,
+      "result": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.91s"
+    },
+    {
+      "run": 8,
+      "exitCode": 0,
+      "result": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.61s"
+    },
+    {
+      "run": 9,
+      "exitCode": 0,
+      "result": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.23s"
+    },
+    {
+      "run": 10,
+      "exitCode": 0,
+      "result": "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.53s"
+    }
+  ],
+  "finalBrowserChecks": [
+    {
+      "args": "",
+      "exitCode": 0,
+      "output": "WKWebView playback passed: 64x36, 20 decoded frames, 34080 audio samples; stop released media.\n"
+    },
+    {
+      "args": "--keyframe-recovery",
+      "exitCode": 0,
+      "output": "WKWebView playback passed: 64x36, 24 decoded frames, 44160 audio samples; stop released media. Browser RTCP keyframe recovery verified.\n"
+    },
+    {
+      "args": "--chrome",
+      "exitCode": 0,
+      "output": "Chrome playback passed: 64x36, 19 decoded frames, 32640 audio samples; stop released media.\n"
+    },
+    {
+      "args": "--chrome --keyframe-recovery",
+      "exitCode": 0,
+      "output": "Chrome playback passed: 64x36, 20 decoded frames, 36960 audio samples; stop released media. Browser RTCP keyframe recovery verified.\n"
+    }
+  ],
+  "cleanup": {
+    "root": {
+      "exitCode": 0,
+      "removedFiles": 8291,
+      "removedGiB": 1.9
+    },
+    "desktop": {
+      "exitCode": 0,
+      "removedFiles": 9581,
+      "removedGiB": 2.6
+    },
+    "targetsAbsent": true,
+    "savedGuiBundlesPreserved": true
+  }
+}

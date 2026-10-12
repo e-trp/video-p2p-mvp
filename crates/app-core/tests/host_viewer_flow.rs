@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, mpsc};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 type SharedRooms = Arc<Mutex<HashMap<String, TestRoom>>>;
 type SharedStream = Arc<Mutex<TcpStream>>;
 type QueuedWrite = (SharedStream, String);
+type RegistrationGate = Arc<Mutex<Option<mpsc::Receiver<()>>>>;
 
 #[derive(Clone)]
 struct TestParticipant {
@@ -39,12 +40,17 @@ struct TestTcpSignalingServer {
     addr: String,
     shutdown: Arc<AtomicBool>,
     accept_thread: Option<JoinHandle<()>>,
+    registration_release: Option<mpsc::Sender<()>>,
 }
 
 const CONFIG_DIR_OVERRIDE: &str = "VIDEO_P2P_MVP_CONFIG_DIR";
 
 impl TestTcpSignalingServer {
     fn start() -> Option<Self> {
+        Self::start_with_registration_gate(false)
+    }
+
+    fn start_with_registration_gate(gated: bool) -> Option<Self> {
         let listener = match TcpListener::bind("127.0.0.1:0") {
             Ok(listener) => listener,
             Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => return None,
@@ -58,6 +64,8 @@ impl TestTcpSignalingServer {
         let shutdown = Arc::new(AtomicBool::new(false));
         let shutdown_for_thread = Arc::clone(&shutdown);
         let rooms_for_thread = Arc::clone(&rooms);
+        let (registration_release, receiver) = mpsc::channel();
+        let registration_gate = Arc::new(Mutex::new(gated.then_some(receiver)));
 
         let accept_thread = thread::spawn(move || {
             while !shutdown_for_thread.load(Ordering::Relaxed) {
@@ -67,8 +75,9 @@ impl TestTcpSignalingServer {
                             .set_nonblocking(false)
                             .expect("set accepted stream blocking");
                         let rooms = Arc::clone(&rooms_for_thread);
+                        let registration_gate = Arc::clone(&registration_gate);
                         thread::spawn(move || {
-                            handle_test_client(stream, peer_addr, rooms);
+                            handle_test_client(stream, peer_addr, rooms, registration_gate);
                         });
                     }
                     Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
@@ -83,16 +92,25 @@ impl TestTcpSignalingServer {
             addr,
             shutdown,
             accept_thread: Some(accept_thread),
+            registration_release: gated.then_some(registration_release),
         })
     }
 
     fn addr(&self) -> &str {
         &self.addr
     }
+
+    fn release_registration(&mut self) {
+        if let Some(release) = self.registration_release.take() {
+            release.send(()).expect("release signaling registration");
+        }
+    }
 }
 
 impl Drop for TestTcpSignalingServer {
     fn drop(&mut self) {
+        // Dropping the sender also unblocks registration when an assertion panics.
+        drop(self.registration_release.take());
         self.shutdown.store(true, Ordering::Relaxed);
         let _ = TcpStream::connect(&self.addr);
         if let Some(handle) = self.accept_thread.take() {
@@ -168,24 +186,52 @@ fn host_and_viewer_negotiate_over_real_tcp_signaling() {
 
 #[test]
 fn late_viewer_join_replays_offer_over_real_tcp_signaling() {
+    assert_late_viewer_offer_replay(false);
+}
+
+#[test]
+fn late_viewer_join_waits_for_delayed_server_registration() {
+    assert_late_viewer_offer_replay(true);
+}
+
+fn assert_late_viewer_offer_replay(gated_registration: bool) {
     with_isolated_preferences("late-viewer-replay", || {
-        let Some(server) = TestTcpSignalingServer::start() else {
+        let Some(mut server) =
+            TestTcpSignalingServer::start_with_registration_gate(gated_registration)
+        else {
             return;
         };
 
         let mut host = SessionManager::new();
-        host.start_host(SessionIntent {
+        let host_start = host.start_host(SessionIntent {
             room: "demo".to_string(),
             signaling_addr: server.addr().to_string(),
             source_label: Some("runtime-source".to_string()),
             ice_servers: Vec::new(),
         });
 
+        if gated_registration {
+            assert!(host_start.local_offer_ready);
+            assert!(host_start.active_peer.is_none());
+            assert!(
+                !host_start.logs.iter().any(|line| {
+                    line.contains("signaling server is waiting for the second peer")
+                })
+            );
+        }
+        // Local offer creation and the server's waiting response arrive independently.
         let host_offer = wait_until(
             &mut host,
             Duration::from_secs(5),
-            |snapshot| snapshot.local_offer_ready,
-            "host local offer to be created before viewer joins",
+            |snapshot| {
+                // The first gated snapshot predates the response even if the server runs next.
+                server.release_registration();
+                snapshot.local_offer_ready
+                    && snapshot.logs.iter().any(|line| {
+                        line.contains("signaling server is waiting for the second peer")
+                    })
+            },
+            "host local offer and server waiting response before viewer joins",
         );
         assert_eq!(host_offer.local_description_kind.as_deref(), Some("offer"));
         assert!(host_offer.active_peer.is_none());
@@ -285,7 +331,7 @@ fn drive_sessions_until_negotiated(
 fn wait_until(
     manager: &mut SessionManager,
     timeout: Duration,
-    predicate: impl Fn(&SessionSnapshot) -> bool,
+    mut predicate: impl FnMut(&SessionSnapshot) -> bool,
     description: &str,
 ) -> SessionSnapshot {
     let started = Instant::now();
@@ -303,7 +349,12 @@ fn wait_until(
     }
 }
 
-fn handle_test_client(stream: TcpStream, peer_addr: SocketAddr, rooms: SharedRooms) {
+fn handle_test_client(
+    stream: TcpStream,
+    peer_addr: SocketAddr,
+    rooms: SharedRooms,
+    registration_gate: RegistrationGate,
+) {
     let writer = Arc::new(Mutex::new(
         stream.try_clone().expect("clone signaling stream"),
     ));
@@ -324,6 +375,14 @@ fn handle_test_client(stream: TcpStream, peer_addr: SocketAddr, rooms: SharedRoo
             return;
         }
     };
+
+    let gate = registration_gate
+        .lock()
+        .expect("registration gate poisoned")
+        .take();
+    if let Some(gate) = gate {
+        let _ = gate.recv();
+    }
 
     let room_name = request.room.clone();
     let participant = TestParticipant {

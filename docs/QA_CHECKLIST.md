@@ -47,6 +47,8 @@ node --test apps/desktop/tests/viewer-player.test.mjs
 
 Root CI runs the root Rust/Node checks on Linux/macOS, plus `sh scripts/test-macos-capture.sh` on macOS. It does not check/package Tauri or run native browser playback probes. Native extraction and codec tests use synthetic sample buffers/frames, not actual screen recording.
 
+The [BUG-010 record](qa/BUG-010-late-viewer-ordering.md) investigates Ubuntu CI's late-join assertion race and records controlled failing-before/passing-after local verification. A local fix does not establish a successful hosted Ubuntu run; that acceptance remains open until the fixing commit runs in Actions.
+
 For synthetic decoded playback/recovery in WKWebView and Chromium, follow [viewer verification](VIEWER_PLAYBACK.md#verification). These probes verify pixels, Opus PCM, RTCP recovery, and cleanup; they do not establish actual capture, audible devices, user gestures, or cross-network behavior.
 
 For production DOM handlers and IPC inside real Tauri windows, follow the [GUI runner](GUI_TAURI.md#real-tauri-gui-regression-runner). Preserve the runner's failed evidence and leave dependent media scenarios blocked when decoding never starts.
