@@ -4,6 +4,8 @@ The desktop viewer receives H.264 video and Opus audio directly in a WebView `RT
 
 The [current real Tauri run](qa/gui-client-0.1.0-6bd1a31.md) verifies decoded synthetic desktop video/audio after the BUG-008 ICE fix. Native peers advertise numeric candidates and use authenticated peer-reflexive browser checks; they do not resolve browser mDNS names into a competing transport path. Standalone browser results and real screen/audio/device acceptance remain separate.
 
+The [2026-10-19 actual-window run](qa/actual-window-0.1.0-0185449.md) additionally verifies real ScreenCaptureKit window video between two local debug bundles. Visible TextEdit changes reach the viewer, including with host diagnostic refresh disabled; capture stop/restart resumes decoding. This does not establish audible output or cross-machine acceptance.
+
 ## Using The Player
 
 1. Start `signaling-server`, then run two desktop instances with the same room/signaling address. Use a server address reachable by both; loopback only works on one machine.

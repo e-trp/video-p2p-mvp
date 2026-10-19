@@ -16,6 +16,7 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | Bug | Owning feature | Priority | Status | Kind | Next action |
 | --- | --- | --- | --- | --- | --- |
 | [BUG-010](#bug-010-late-viewer-test-races-the-server-waiting-response) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P2 | FIXED | Test fixture ordering | Await hosted Ubuntu acceptance on the fixing commit |
+| [BUG-011](#bug-011-source-menu-selection-mismatch-during-live-gui-automation) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | INVESTIGATING | GUI selection / automation, cause unconfirmed | Reproduce with a controlled native source-menu action while Auto Refresh is enabled |
 
 ### BUG-010: Late Viewer Test Races the Server Waiting Response
 
@@ -29,6 +30,17 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 - **Next action:** run the fixing commit in hosted Ubuntu Actions after publication is authorized, inspect any subsequent failure independently, and record successful acceptance. The local Docker daemon is unavailable; hosted Ubuntu acceptance has not run.
 - **Closure criteria:** controlled failing-before/passing-after response-order regression, ordinary and repeated integration runs, mandatory local checks, and a successful Ubuntu CI run on the fixing commit. Remote verification stays open while the local commit has not been published/run; a passing local retry alone is insufficient.
 - **Deferral:** none.
+
+### BUG-011: Source Menu Selection Mismatch During Live GUI Automation
+
+- **Affected version/components:** untagged `0.1.0`, debug bundle built from `0185449`, source picker and external Accessibility driver; ownership `BASE-DESKTOP-CONTROLS`.
+- **Priority/status/kind:** P2, INVESTIGATING; observed GUI/automation selection mismatch. Product versus driver responsibility is unconfirmed.
+- **Evidence/reproduction (2026-10-19):** during the [actual-window run](qa/actual-window-0.1.0-0185449.md), the native Accessibility helper reports pressing `TextEdit - VideoP2P Live Capture QA (window, audio)` while one-second Auto Refresh is enabled. The subsequent host preferences and UI instead show `macos-window-1011` (Deluge). Evidence: `/private/tmp/video-p2p-live-qa/host-current.txt` and the recorded command output. Observed once; automated foreground changes and asynchronous refresh overlap, so reliability is unknown.
+- **Expected/actual:** the chosen TextEdit entry should persist its native ID; a different source is selected. The incorrect source was noticed before the intended TextEdit playback check.
+- **Cause:** unknown. A stale native menu/index during catalog refresh is a hypothesis; a driver/focus race has not been excluded.
+- **Workaround/evidence:** disable host Auto Refresh, open the picker, select TextEdit, and verify the persisted ID (`macos-window-1081`) before starting capture. Actual TextEdit playback then passes. This workaround does not resolve the mismatch.
+- **Next action/closure:** reproduce with controlled menu lifetime and catalog changes, distinguish app behavior from driver behavior, then verify the same native selection with refresh enabled. If a product defect is established, add a regression before fixing it. No fixing commit or closure is claimed.
+- **Deferral:** none; this GUI verification task did not implement a source-picker fix.
 
 ## Closed Issues
 
@@ -52,6 +64,7 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 - **Expected/actual/reliability:** all supplied settings must reach the backend, invalid ICE must fail, and valid roles must start. Instead Save reports success without saving signaling/ICE, refresh preferences stay default, and source/role commands fail. Deterministic across controls and restart scenarios.
 - **Cause:** Tauri commands default to camelCase arguments; the production frontend sends snake_case. Installed `tauri-macros` command parsing confirms the default.
 - **Implementation/verification:** all production wrappers explicitly accept snake_case; string rejection reasons are displayed. Initial debug controls pass while decoded acceptance is blocked in the [original failed run](qa/tauri-gui-0.1.0-74a8e37.md). After BUG-008/BUG-009 fixes, debug and two complete bundled runs pass all 32 checks, including decoded media, Stop, preference restart, and role IPC; see the [follow-up](qa/gui-client-0.1.0-6bd1a31.md).
+- **Installed-build follow-up (2026-10-19):** the old `/Applications/VideoP2P.app` (binary dated October 11) still reports `join_room did not finish: undefined`. Rebuilding current commit `0185449` and running its debug bundle allows actual window playback; see the [actual-window record](qa/actual-window-0.1.0-0185449.md). The installed old copy was not replaced. This is old-artifact evidence, not a regression in the fixing code.
 - **Fixing commit/version:** `d53e11e14f499bfd76b739c6bea5f7484c5129c2`, untagged `0.1.0`. Regression/mandatory results are recorded in the GUI QA record; no release tag or version bump.
 - **Closure criteria/resolution:** explicit IPC arguments and useful rejection text, failing-before/passing-after configuration/invalid-input/source/refresh/restart/host/viewer checks including decoded playback and Stop. All focused criteria pass in debug and bundled runs; CLOSED on 2026-10-12. Actual capture/device QA remains separate.
 - **Deferral:** none.

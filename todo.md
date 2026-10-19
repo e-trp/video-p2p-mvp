@@ -81,7 +81,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 
 | Outcome | Existing implementation | Required completion |
 | --- | --- | --- |
-| macOS end-to-end streaming | Native capture, codecs, worker, viewer, and synthetic playback | Actual window/audio verification in the desktop and packaged app |
+| macOS end-to-end streaming | Native capture, codecs, worker, viewer, and synthetic playback | Actual audio, other source types, and release-bundle verification; local debug-bundle window video is verified |
 | Cross-platform capture/playback | Shared contracts, macOS backend, Linux metadata/scaffold | Linux media backend/encoder and WebView QA (M3/M4) |
 | Production GUI | Source/session/media controls and diagnostics | Media settings (M1), invite UX (M5), and platform QA |
 | Backpressure/weak-network handling | Bounded queues, latest-only diagnostics, write timeout, keyframe recovery | Network-aware pacing/drop policy and adaptive bitrate (M2) |
@@ -95,6 +95,8 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 Consult [current issues](docs/BUGS.md#current-issues) before feature work, then follow the baseline QA prerequisites below. Bug status and closure evidence live only in the register. The baseline `BASE-*` references identify existing behavior/tooling and do not count as new milestone features.
 
 ### Baseline QA Prerequisites
+
+The [2026-10-19 actual-window GUI run](docs/qa/actual-window-0.1.0-0185449.md) verifies a real TextEdit window between two local debug bundles, visible content changes, playback with host Auto Refresh disabled, and capture stop/restart. Audio output, other source kinds, permission transitions and distribution acceptance remain open.
 
 Run the [QA checklist](docs/QA_CHECKLIST.md) on real devices. These are verification tasks, not new feature IDs:
 

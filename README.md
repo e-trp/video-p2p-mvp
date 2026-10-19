@@ -2,7 +2,7 @@
 
 Rust + Tauri prototype for peer-to-peer window and audio streaming. The macOS host has native ScreenCaptureKit capture, H.264/Opus encoding, and WebRTC publication. The desktop viewer receives and plays media in its WebView.
 
-Capture/encoding and playback have automated coverage using synthetic media, including real WKWebView and Chromium decoding. Actual window/audio capture through the packaged app, cross-network streaming, and Linux playback still need manual validation. Linux capture and video encoding are not implemented.
+Capture/encoding and playback have automated coverage using synthetic media, including real WKWebView and Chromium decoding. [Actual TextEdit window transmission](docs/qa/actual-window-0.1.0-0185449.md) is verified between two local debug bundles, including visible content updates and capture restart. Actual audio, cross-network streaming, and Linux playback still need manual validation. Linux capture and video encoding are not implemented.
 
 The [current GUI verification](docs/qa/gui-client-0.1.0-6bd1a31.md) tests real Tauri controls, saved preferences, native window layout, and decoded synthetic video/audio in debug and bundled builds. Real screen/audio capture and device/network acceptance remain separate requirements.
 
