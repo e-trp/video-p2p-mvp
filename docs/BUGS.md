@@ -16,19 +16,7 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | Bug | Owning feature | Priority | Status | Kind | Next action |
 | --- | --- | --- | --- | --- | --- |
 | [BUG-010](#bug-010-late-viewer-test-races-the-server-waiting-response) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P2 | FIXED | Test fixture ordering | Await hosted Ubuntu acceptance on the fixing commit |
-| [BUG-013](#bug-013-command-line-window-capture-aborts-before-startup) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | INVESTIGATING | Native initialization | Record the fixing commit after passing before/after and mandatory checks |
 | [BUG-014](#bug-014-concurrent-audio-fixture-does-not-establish-source-isolation) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | INVESTIGATING | Audio filtering / fixture attribution | Test concurrent audio from independently identified applications |
-
-### BUG-013: Command-line Window Capture Aborts Before Startup
-
-- **Affected version/components:** untagged `0.1.0`, `capture-macos` ScreenCaptureKit window filter, reproduced by `capture_probe` on base `ba1e9e6` with PCM-observation-only probe changes. Ownership `BASE-MACOS-CAPTURE`.
-- **Priority/status/kind:** P2, INVESTIGATING, native process initialization defect; standalone window capture is affected, while prior Tauri window capture works.
-- **Evidence/reproduction (2026-10-22):** an external Cocoa fixture opens a real window. Run `capture_probe macos-window-WINDOW_ID` with no audio flag, `--include-audio`, or `--require-audio`. Four window attempts abort with SIGABRT (subprocess exit -6) after the Starting event: `Assertion failed: (did_initialize), function CGS_REQUIRE_INIT, file CGInitialization.c, line 44.` Application capture with audio and display capture without audio pass. Logs and exact native IDs are under `/private/tmp/video-p2p-native-audio-qa/`.
-- **Expected/actual/reliability:** a native window must produce frames or a contextual capture error. The process aborts instead; 4/4 window attempts fail, including the pre-existing audio-disabled mode.
-- **Cause:** the crash stack enters `SLSGetDisplaysWithRect` through `SCContentFilter initWithDesktopIndependentWindow:` on the capture queue before CoreGraphics initializes its display connection. A public `CGMainDisplayID()` query before filter creation prevents the abort; a null display returns a contextual capture error. No AppKit dependency or private API is added. The isolated original bridge still aborts in all five window scenarios, while application/display controls pass; see [verification](qa/BUG-013-command-line-capture.md).
-- **Verification:** the same final runner fails all five window cases with the original bridge and passes all seven cases with the fix, including window audio on/off/silence and application/display controls. Portable probe tests, both Rust workspaces, native lifecycle and all four browser playback/recovery modes pass. See the [record](qa/BUG-013-command-line-capture.md); concurrent audio isolation remains separate under BUG-014.
-- **Next action/closure:** record the fixing commit after verification and cleanup. Closure requires native startup without AppKit, window audio on/off/silence, application/display controls, native lifecycle and mandatory checks.
-- **Deferral:** none; found during baseline capture/audio QA and takes priority.
 
 ### BUG-010: Late Viewer Test Races the Server Waiting Response
 
@@ -68,6 +56,19 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | [BUG-009](#bug-009-packaged-gui-run-stalls-during-refresh-preference-checks) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Test fixture foreground lifecycle | Own QA window focus/native precondition; two complete bundled controls/restart runs pass |
 | [BUG-011](#bug-011-source-menu-selection-mismatch-during-live-gui-automation) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Source selection / refresh ordering | Stable focused/open menu, synchronous selection and stale-refresh isolation verified |
 | [BUG-012](#bug-012-unavailable-source-selection-reports-success) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | IPC result feedback | Missing-source errors preserve selection and recover on refresh |
+| [BUG-013](#bug-013-command-line-window-capture-aborts-before-startup) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | CLOSED | Native initialization | Public display query prevents standalone window abort; five before-fix crashes and seven after-fix scenarios verified |
+
+### BUG-013: Command-line Window Capture Aborts Before Startup
+
+- **Affected version/components:** untagged `0.1.0`, `capture-macos` ScreenCaptureKit window filter, reproduced by `capture_probe` on base `ba1e9e6` with PCM-observation-only probe changes. Ownership `BASE-MACOS-CAPTURE`.
+- **Priority/status/kind:** P2, CLOSED, native process initialization defect; standalone window capture is affected, while prior Tauri window capture works.
+- **Evidence/reproduction (2026-10-22):** an external Cocoa fixture opens a real window. Run `capture_probe macos-window-WINDOW_ID` with no audio flag, `--include-audio`, or `--require-audio`. Four window attempts abort with SIGABRT (subprocess exit -6) after the Starting event: `Assertion failed: (did_initialize), function CGS_REQUIRE_INIT, file CGInitialization.c, line 44.` Application capture with audio and display capture without audio pass. Logs and exact native IDs are under `/private/tmp/video-p2p-native-audio-qa/`.
+- **Expected/actual/reliability:** a native window must produce frames or a contextual capture error. The process aborts instead; 4/4 window attempts fail, including the pre-existing audio-disabled mode.
+- **Cause:** the crash stack enters `SLSGetDisplaysWithRect` through `SCContentFilter initWithDesktopIndependentWindow:` on the capture queue before CoreGraphics initializes its display connection. A public `CGMainDisplayID()` query before filter creation prevents the abort; a null display returns a contextual capture error. No AppKit dependency or private API is added. The isolated original bridge still aborts in all five window scenarios, while application/display controls pass; see [verification](qa/BUG-013-command-line-capture.md).
+- **Verification:** the same final runner fails all five window cases with the original bridge and passes all seven cases with the fix, including window audio on/off/silence and application/display controls. Portable probe tests, both Rust workspaces, native lifecycle and all four browser playback/recovery modes pass. See the [record](qa/BUG-013-command-line-capture.md); concurrent audio isolation remains separate under BUG-014.
+- **Fixing commit/version:** `1dae420d426536ce0b0e33e3a6076b6a4f0ac513`, untagged `0.1.0`.
+- **Resolution (2026-10-22):** CLOSED; controlled failing-before/passing-after startup, window audio on/off/silence, application/display controls, native lifecycle and mandatory checks pass. Both workspaces and the isolated control workspace were cleaned. Actual audio isolation and broader release QA remain open.
+- **Deferral:** none; fixed during baseline capture/audio QA.
 
 ### BUG-011: Source Menu Selection Mismatch During Live GUI Automation
 

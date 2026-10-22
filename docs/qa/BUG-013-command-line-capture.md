@@ -2,6 +2,7 @@
 
 ## Scope and Environment
 
+- Fixing commit: `1dae420d426536ce0b0e33e3a6076b6a4f0ac513`; BUG-013 is CLOSED after the regression and mandatory checks below. This closure edit changes no code or configuration.
 - Date: 2026-10-22; development version `0.1.0`, base `ba1e9e6` plus the capture initialization/probe changes in this task. No version bump or release tag.
 - macOS 27.0 (26A428), arm64, Apple clang 21.0.0, Rust 1.99.1, Node 26.12.1.
 - Screen Recording permission granted to the command-line capture process; main display ID `1`. The opt-in Cocoa fixture creates an animated 480×270 content window and plays a generated stereo 48 kHz, 440 Hz WAV with amplitude 0.05. This is real ScreenCaptureKit window/application/display sampling, not an injected media buffer.
