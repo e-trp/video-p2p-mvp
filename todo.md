@@ -40,9 +40,10 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 ### macOS Capture and Codec Implementation
 
 - [x] Shared `capture-core` contracts for sources/permissions, BGRA/PCM, and runtime configuration/status/events.
-- [x] Native Objective-C/C ABI ScreenCaptureKit bridge: window/application/display catalog using native IDs, asynchronous start, timeout, and stop/drop.
+- [x] **BASE-MACOS-CAPTURE:** Native Objective-C/C ABI ScreenCaptureKit bridge: window/application/display catalog using native IDs, asynchronous start, timeout, and stop/drop.
 - [x] Passive Screen Recording preflight, explicit requests at startup, and distinct permission-required/denied states.
 - [x] Packed BGRA with timestamps, incomplete-frame filtering, and aspect-ratio preservation; macOS 13+ PCM conversion to interleaved float32, 48 kHz/stereo.
+- [x] Standalone capture probe reports validated PCM peak/RMS, distinguishes required signal from permitted silence, and has portable tests plus an opt-in real-source regression runner; see [BUG-013 verification](docs/qa/BUG-013-command-line-capture.md).
 - [x] Native bounded queues: latest video frame and up to 32 audio buffers; permission-free extraction/lifecycle tests.
 - [x] VideoToolbox H.264 Constrained Baseline, SPS/PPS/IDR, Annex B, resize/odd-dimension handling, and PTS/buffer validation; actual encoder tests with synthetic frames.
 - [x] Vendored Opus, 20 ms packet aggregation, timestamp/discontinuity handling, and actual encode/decode tests.
@@ -97,7 +98,7 @@ Consult [current issues](docs/BUGS.md#current-issues) before feature work, then 
 
 ### Baseline QA Prerequisites
 
-The [2026-10-19 actual-window GUI run](docs/qa/actual-window-0.1.0-0185449.md) verifies a real TextEdit window between two local debug bundles, visible content changes, playback with host Auto Refresh disabled, and capture stop/restart. Audio output, other source kinds, permission transitions and distribution acceptance remain open.
+The [2026-10-19 actual-window GUI run](docs/qa/actual-window-0.1.0-0185449.md) verifies a real TextEdit window between two local debug bundles, visible content changes, playback with host Auto Refresh disabled, and capture stop/restart. The [BUG-013 regression](docs/qa/BUG-013-command-line-capture.md) additionally covers standalone window/application/display samples and audio opt-in/out. Audio isolation/output, permission transitions and distribution acceptance remain open.
 
 Run the [QA checklist](docs/QA_CHECKLIST.md) on real devices. These are verification tasks, not new feature IDs:
 

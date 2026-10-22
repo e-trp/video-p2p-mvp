@@ -216,6 +216,12 @@ void *vpp_sck_start(uint32_t kind, uint32_t identifier, uint32_t displayID,
                     SCContentFilter *filter = nil;
                     CGSize sourceSize = CGSizeZero;
                     if (kind == 0) {
+                        // Standalone callers may not have initialized CoreGraphics through AppKit.
+                        // The window filter queries WindowServer display geometry internally; establish
+                        // that connection with a public display query before constructing the filter.
+                        if (CGMainDisplayID() == kCGNullDirectDisplay) {
+                            [capture fail:@"Window capture requires an available desktop display"]; return;
+                        }
                         for (SCWindow *window in content.windows) {
                             if (window.windowID != identifier) continue;
                             filter = [[SCContentFilter alloc] initWithDesktopIndependentWindow:window];

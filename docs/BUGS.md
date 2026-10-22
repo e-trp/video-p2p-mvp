@@ -16,6 +16,19 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | Bug | Owning feature | Priority | Status | Kind | Next action |
 | --- | --- | --- | --- | --- | --- |
 | [BUG-010](#bug-010-late-viewer-test-races-the-server-waiting-response) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P2 | FIXED | Test fixture ordering | Await hosted Ubuntu acceptance on the fixing commit |
+| [BUG-013](#bug-013-command-line-window-capture-aborts-before-startup) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | INVESTIGATING | Native initialization | Record the fixing commit after passing before/after and mandatory checks |
+| [BUG-014](#bug-014-concurrent-audio-fixture-does-not-establish-source-isolation) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | INVESTIGATING | Audio filtering / fixture attribution | Test concurrent audio from independently identified applications |
+
+### BUG-013: Command-line Window Capture Aborts Before Startup
+
+- **Affected version/components:** untagged `0.1.0`, `capture-macos` ScreenCaptureKit window filter, reproduced by `capture_probe` on base `ba1e9e6` with PCM-observation-only probe changes. Ownership `BASE-MACOS-CAPTURE`.
+- **Priority/status/kind:** P2, INVESTIGATING, native process initialization defect; standalone window capture is affected, while prior Tauri window capture works.
+- **Evidence/reproduction (2026-10-22):** an external Cocoa fixture opens a real window. Run `capture_probe macos-window-WINDOW_ID` with no audio flag, `--include-audio`, or `--require-audio`. Four window attempts abort with SIGABRT (subprocess exit -6) after the Starting event: `Assertion failed: (did_initialize), function CGS_REQUIRE_INIT, file CGInitialization.c, line 44.` Application capture with audio and display capture without audio pass. Logs and exact native IDs are under `/private/tmp/video-p2p-native-audio-qa/`.
+- **Expected/actual/reliability:** a native window must produce frames or a contextual capture error. The process aborts instead; 4/4 window attempts fail, including the pre-existing audio-disabled mode.
+- **Cause:** the crash stack enters `SLSGetDisplaysWithRect` through `SCContentFilter initWithDesktopIndependentWindow:` on the capture queue before CoreGraphics initializes its display connection. A public `CGMainDisplayID()` query before filter creation prevents the abort; a null display returns a contextual capture error. No AppKit dependency or private API is added. The isolated original bridge still aborts in all five window scenarios, while application/display controls pass; see [verification](qa/BUG-013-command-line-capture.md).
+- **Verification:** the same final runner fails all five window cases with the original bridge and passes all seven cases with the fix, including window audio on/off/silence and application/display controls. Portable probe tests, both Rust workspaces, native lifecycle and all four browser playback/recovery modes pass. See the [record](qa/BUG-013-command-line-capture.md); concurrent audio isolation remains separate under BUG-014.
+- **Next action/closure:** record the fixing commit after verification and cleanup. Closure requires native startup without AppKit, window audio on/off/silence, application/display controls, native lifecycle and mandatory checks.
+- **Deferral:** none; found during baseline capture/audio QA and takes priority.
 
 ### BUG-010: Late Viewer Test Races the Server Waiting Response
 
@@ -29,6 +42,16 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 - **Next action:** run the fixing commit in hosted Ubuntu Actions after publication is authorized, inspect any subsequent failure independently, and record successful acceptance. The local Docker daemon is unavailable; hosted Ubuntu acceptance has not run.
 - **Closure criteria:** controlled failing-before/passing-after response-order regression, ordinary and repeated integration runs, mandatory local checks, and a successful Ubuntu CI run on the fixing commit. Remote verification stays open while the local commit has not been published/run; a passing local retry alone is insufficient.
 - **Deferral:** none.
+
+### BUG-014: Concurrent Audio Fixture Does Not Establish Source Isolation
+
+- **Affected version/components:** untagged `0.1.0`, baseline ScreenCaptureKit window audio and native QA fixture; ownership `BASE-MACOS-CAPTURE`, related future `M1-F3`.
+- **Priority/status/kind:** P2, INVESTIGATING, unexpected audio-filtering result; product versus fixture/OS cause is not established.
+- **Evidence/reproduction (2026-10-22):** the earlier `/private/tmp/video-p2p-native-audio-qa/after/results.json` and `distinct-apps/results.json` both report exit 0 for `silent-required` while a second fixture plays a tone. Both processes use the same compiled fixture executable; the second run wraps copies in distinct bundle IDs. Later cases in that second run also outlive fixture windows, so those failures do not establish a capture defect.
+- **Expected/actual:** a truly distinct silent application should not inherit another application's audio, but the observed window capture exceeds RMS `0.001`. Apple documents application-level, rather than per-window, audio filtering ([WWDC22](https://developer.apple.com/videos/play/wwdc2022/10155/)); distinct process IDs/bundle metadata alone do not establish how this fixture is attributed by the audio service.
+- **Cause/next action:** unresolved. Reproduce with independently identified applications and known audio routing, compare window/application filters, and measure PCM while only the other application emits sound. The BUG-013 runner uses sequential tone/silence cases and does not claim concurrent filtering acceptance.
+- **Closure criteria:** establish fixture/OS/product cause, correct the responsible behavior or test setup, retain a simultaneous-source regression and verify opted-in/opted-out capture. Keep actual audio isolation QA open until then.
+- **Deferral:** none; separate investigation from the command-line initialization fix.
 
 ## Closed Issues
 

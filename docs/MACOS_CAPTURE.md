@@ -1,6 +1,6 @@
 # Native macOS Capture
 
-`capture-macos` builds an Objective-C ScreenCaptureKit bridge on macOS and exposes native `CaptureStreamEvent` samples to Rust. Linux builds do not compile or link Apple frameworks. Native extraction/lifecycle checks use synthetic buffers. [Actual window video](qa/actual-window-0.1.0-0185449.md) is verified between local debug bundles; permission transitions, other source kinds, and actual audio still require validation.
+`capture-macos` builds an Objective-C ScreenCaptureKit bridge on macOS and exposes native `CaptureStreamEvent` samples to Rust. Linux builds do not compile or link Apple frameworks. Native extraction/lifecycle checks use synthetic buffers. [Actual window video](qa/actual-window-0.1.0-0185449.md) is verified between local debug bundles; standalone window/application/display capture and raw audio checks are recorded in [BUG-013 verification](qa/BUG-013-command-line-capture.md). Permission transitions, audio isolation, audible playback, and packaged capture still require validation.
 
 ## Requirements
 
@@ -18,7 +18,7 @@ The source catalog comes from `SCShareableContent`:
 - applications: `macos-application-PROCESS_ID-DISPLAY_ID`, all windows of that application on the indicated display
 - displays: `macos-display-DISPLAY_ID`, full display capture
 
-Window titles are labels; matching uses native IDs. These IDs can change after an application/system restart. Missing saved sources are rebound by the session manager. Blueprint fallback sources support demo/debug behavior and cannot start an SCStream.
+Window titles are labels; matching uses native IDs. These IDs can change after an application/system restart. Standalone callers initialize the CoreGraphics display connection before constructing a window filter; no AppKit application is required. Missing saved sources are rebound by the session manager. Blueprint fallback sources support demo/debug behavior and cannot start an SCStream.
 
 ## Samples And Lifecycle
 
@@ -42,6 +42,7 @@ Automated checks do not record the screen or prompt for permission:
 
 ```bash
 cargo test --all --all-features
+cargo test -p capture-macos --example capture_probe --all-features
 sh scripts/test-macos-capture.sh
 ```
 
@@ -52,10 +53,20 @@ For an explicit manual capture without signaling or WebRTC:
 ```bash
 cargo run -p capture-macos --example capture_probe -- --list
 cargo run -p capture-macos --example capture_probe -- macos-window-WINDOW_ID --include-audio
+cargo run -p capture-macos --example capture_probe -- macos-window-WINDOW_ID --require-audio
 ```
 
-Replace `WINDOW_ID` with an ID from the native catalog. The probe captures for ten seconds, reports first-sample metadata and counts, and stops. It saves no frames and opens no network connection. On an unchanged static window, frames may be sparse; change the window content during the check.
+Replace `WINDOW_ID` with an ID from the native catalog. The probe captures for ten seconds, reports first-sample metadata, counts, audio peak and sample-weighted RMS, and explicitly stops even after a polling error. No audio flag disables audio and rejects unexpected audio buffers. `--include-audio` permits silence; `--require-audio` fails unless RMS exceeds `0.001`. Both modes require video frames. Non-finite/empty audio buffers and invalid arguments are errors; an audio-signal check does not establish audible output or source isolation. It saves no frames and opens no network connection. On an unchanged static window, frames may be sparse; change the window content during the check.
 
-Manual permission/relaunch, window/application/display, multiple-monitor, actual audio filtering, capture-to-playback, and packaged stop/close checks remain outstanding. Their steps are maintained in the [QA checklist](QA_CHECKLIST.md#macos-actual-capture-and-publication--manual).
+For an opt-in regression using a visible animated Cocoa window and a generated low-amplitude 440 Hz tone:
+
+```bash
+cargo build -p capture-macos --example capture_probe
+python3 scripts/test-native-capture.py --output /tmp/video-p2p-native-capture-results
+```
+
+Use a new output directory for each run. This requires Python 3, Xcode Command Line Tools, a macOS desktop session, and Screen Recording permission. It opens test windows, plays the generated tone, and briefly captures a display from the native catalog; it saves only diagnostic logs, source catalog metadata and `results.json`, never captured video/audio. Temporary fixture binaries and the generated tone are removed and fixture processes stopped. The runner waits for native catalog visibility and gives every scenario a fresh fixture. It covers window audio modes, application audio, display opt-out, and silent-source success/failure. Silent cases run without the tone process; they do not test filtering between concurrent applications.
+
+Manual permission/relaunch, multiple-monitor, concurrent-application audio filtering, capture-to-playback audio, and packaged stop/close checks remain outstanding. Their steps are maintained in the [QA checklist](QA_CHECKLIST.md#macos-actual-capture-and-publication--manual).
 
 API reference: [Apple ScreenCaptureKit](https://developer.apple.com/documentation/screencapturekit) and [SCStreamOutput](https://developer.apple.com/documentation/screencapturekit/scstreamoutput).

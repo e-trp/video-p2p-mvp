@@ -30,6 +30,7 @@ jobs:
         run: |
           cargo test --all --all-features
           cargo test -p app-core --example playback_probe --all-features
+          cargo test -p capture-macos --example capture_probe --all-features
 
       - name: Install Node for viewer tests
         uses: actions/setup-node@v4
