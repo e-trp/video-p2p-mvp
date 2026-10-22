@@ -13,7 +13,7 @@ const binaryFlag = process.argv.indexOf("--binary");
 const outputFlag = process.argv.indexOf("--output");
 const scenarioFlag = process.argv.indexOf("--scenario");
 const selectedScenario = scenarioFlag < 0 ? null : process.argv[scenarioFlag + 1];
-assert(selectedScenario === null || ["controls", "restore", "viewer"].includes(selectedScenario), "Unknown --scenario");
+assert(selectedScenario === null || ["controls", "restore", "viewer", "source-picker"].includes(selectedScenario), "Unknown --scenario");
 const binary = binaryFlag < 0 ? join(root, "apps/desktop/src-tauri/target/debug/desktop-app")
   : resolve(process.argv[binaryFlag + 1]);
 const output = outputFlag < 0 ? await mkdtemp(join(tmpdir(), "video-p2p-tauri-qa-"))
@@ -100,6 +100,8 @@ try {
   await ready(port, server);
   const controlConfig = join(output, "controls-config");
   const results = [];
+  if (selectedScenario === null || selectedScenario === "source-picker")
+    results.push(await scenario("source-picker", join(output, "source-picker-config"), signaling));
   if (selectedScenario === null || selectedScenario === "controls")
     results.push(await scenario("controls", controlConfig, signaling));
   if (selectedScenario === null || selectedScenario === "restore")

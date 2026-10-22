@@ -11,6 +11,9 @@ let refreshTimerId = null;
 let refreshInFlight = null;
 let actionInFlight = false;
 let lastSession = null;
+let displayedCaptureCatalog = null;
+let pendingCaptureCatalog = null;
+let sourceOptionsHtml = null;
 const viewerPlayer = new ViewerPlayer({
   video: document.getElementById("viewer-video"),
   invoke: (command, args) => invokeWithTimeout(command, args, userActionTimeoutMs),
@@ -133,6 +136,12 @@ function setActionBusy(isBusy, message = null) {
   document.querySelectorAll("button").forEach((button) => {
     button.disabled = isBusy;
   });
+  document.getElementById("source-picker").disabled = isBusy || !displayedCaptureCatalog?.sources.length;
+  if (isBusy) {
+    document.getElementById("source-audio").disabled = true;
+  } else if (displayedCaptureCatalog) {
+    syncCaptureAudioState(displayedCaptureCatalog);
+  }
   if (message) {
     setCommandResult(message, "neutral");
   }
@@ -399,13 +408,30 @@ function setCaptureCatalog(catalog) {
     ["Notes", noteText],
   ]);
 
+  pendingCaptureCatalog = catalog;
+  syncCapturePicker();
+}
+
+function syncCapturePicker() {
   const picker = document.getElementById("source-picker");
-  picker.innerHTML = catalog.sources
+  // Accessibility can open the native popup without focusing the DOM element.
+  const popupOpen = CSS.supports("selector(select:open)") && picker.matches(":open");
+  // A native popup retains option indices; preserve its catalog throughout interaction.
+  if (actionInFlight || document.activeElement === picker || popupOpen || !pendingCaptureCatalog) {
+    return;
+  }
+  const catalog = pendingCaptureCatalog;
+  displayedCaptureCatalog = catalog;
+  const optionsHtml = catalog.sources
     .map(
       (source) =>
         `<option value="${escapeHtml(source.id)}">${escapeHtml(source.label)} (${escapeHtml(source.kind)}${source.has_audio ? ", audio" : ""})</option>`,
     )
     .join("");
+  if (sourceOptionsHtml !== optionsHtml) {
+    picker.innerHTML = optionsHtml;
+    sourceOptionsHtml = optionsHtml;
+  }
 
   if (catalog.selected_source_id) {
     picker.value = catalog.selected_source_id;
@@ -464,7 +490,7 @@ function formatPacketLoss(session) {
 function syncCaptureAudioState(catalog) {
   const picker = document.getElementById("source-picker");
   const audioToggle = document.getElementById("source-audio");
-  const selected = catalog.sources.find((source) => source.id === picker.value) ?? catalog.sources[0];
+  const selected = catalog.sources.find((source) => source.id === picker.value);
 
   audioToggle.disabled = !selected || !selected.has_audio;
   if (catalog.selected_source_id === picker.value) {
@@ -655,6 +681,10 @@ async function performRefresh() {
     invokeWithTimeout("session_snapshot"),
     invokeWithTimeout("capture_catalog"),
   ]);
+  // A refresh started before a user action must not overwrite that action's selection/state.
+  if (actionInFlight) {
+    return;
+  }
   const status = statusResult.status === "fulfilled" ? statusResult.value : null;
   const session = sessionResult.status === "fulfilled" ? sessionResult.value : null;
   const captureCatalog =
@@ -789,8 +819,8 @@ async function performRefresh() {
       <div><dt>Sources</dt><dd>0</dd></div>
       <div><dt>Notes</dt><dd>${isTauri ? "Capture catalog refresh timed out." : "Run inside Tauri to inspect capture catalog diagnostics."}</dd></div>
     `;
-    document.getElementById("source-picker").innerHTML = "";
-    document.getElementById("source-picker").disabled = true;
+    pendingCaptureCatalog = { sources: [], selected_source_id: null, selected_source_audio: false };
+    syncCapturePicker();
   }
 }
 
@@ -818,6 +848,8 @@ async function runUserAction(message, action) {
     const result = await action();
     return result;
   } finally {
+    // Drain the old refresh while busy, then request a fresh authoritative snapshot.
+    await refreshInFlight;
     setActionBusy(false);
     await refresh();
   }
@@ -1001,15 +1033,15 @@ async function load() {
   });
   document.getElementById("flow-refresh-btn").addEventListener("click", refresh);
 
-  document.getElementById("source-picker").addEventListener("change", async () => {
-    const catalog = await invokeWithTimeout("capture_catalog").catch((error) => {
-      console.warn(error);
-      return null;
-    });
-    if (catalog) {
-      syncCaptureAudioState(catalog);
+  document.getElementById("source-picker").addEventListener("blur", () => {
+    syncCapturePicker();
+  });
+  document.getElementById("source-picker").addEventListener("change", () => {
+    if (displayedCaptureCatalog) {
+      syncCaptureAudioState(displayedCaptureCatalog);
     }
-    await runUserAction("Selecting capture source...", applySelectedSource);
+    // Capture the chosen ID/audio synchronously, before any refresh or IPC can run.
+    void runUserAction("Selecting capture source...", applySelectedSource);
   });
 
   document

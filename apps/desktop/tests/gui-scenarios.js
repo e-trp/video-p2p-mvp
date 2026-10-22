@@ -1,4 +1,5 @@
 // DOM actions in the actual Tauri window. IPC, media, and session objects are never mocked.
+// The source-picker race check gates delivery of real IPC responses, without changing their data.
 (async () => {
   if (window.__videoP2pGuiQaStarted) return;
   window.__videoP2pGuiQaStarted = true;
@@ -262,6 +263,93 @@
           return { width: innerWidth, scrollWidth: document.documentElement.scrollWidth };
         });
       }
+    } else if (config.scenario === "source-picker") {
+      await change("refresh-interval", "1");
+      await check("Focused source options survive Auto Refresh", async () => {
+        const picker = el("source-picker");
+        picker.focus();
+        const options = [...picker.options];
+        assert(options.length > 1, "Two sources are required for selection regression");
+        const value = picker.value;
+        await sleep(2200);
+        assert(options.every((option, index) => picker.options[index] === option), "Auto Refresh replaced focused source options");
+        assert(picker.value === value, "Auto Refresh changed focused selection");
+        picker.blur();
+        return { sources: options.length, selected: value,
+          nativeOpenStateSupported: CSS.supports("selector(select:open)") };
+      });
+      el("source-picker").blur();
+      await change("auto-refresh-enabled", false);
+      await check("Source change survives an older refresh response", async () => {
+        const picker = el("source-picker");
+        const original = picker.value;
+        await change("source-picker", original);
+        const chosen = [...picker.options].find((option) => option.value !== original).value;
+        let releaseRefresh;
+        let releaseSelection;
+        const refreshGate = new Promise((resolve) => { releaseRefresh = resolve; });
+        const selectionGate = new Promise((resolve) => { releaseSelection = resolve; });
+        let catalogs = 0;
+        let refreshReady = false;
+        const submitted = [];
+        const tauri = window.__TAURI__;
+        const gatedInvoke = async (command, args) => {
+          if (command === "select_capture_source") submitted.push({ ...args });
+          const ordinal = command === "capture_catalog" ? ++catalogs : 0;
+          const result = await invoke(command, args);
+          if (ordinal === 1) { refreshReady = true; await refreshGate; }
+          if (ordinal === 2) await selectionGate;
+          return result;
+        };
+        window.__TAURI__ = { ...tauri, core: { ...tauri.core, invoke: gatedInvoke } };
+        try {
+          el("flow-refresh-btn").click();
+          await until(() => refreshReady, "older catalog response");
+          picker.value = chosen;
+          picker.dispatchEvent(new Event("change", { bubbles: true }));
+          releaseRefresh();
+          // Deliver the older refresh before the former handler's metadata request.
+          await sleep(150);
+          releaseSelection();
+          await until(() => submitted.length > 0, "source selection IPC");
+          await idle();
+          const state = await snapshot();
+          assert(submitted[0].source_id === chosen, `Selected ${chosen}, submitted ${submitted[0].source_id}`);
+          assert(state.selected_source_id === chosen && picker.value === chosen, "Selected source did not survive refresh");
+          return { original, chosen, submitted, persisted: state.selected_source_id };
+        } finally {
+          releaseRefresh(); releaseSelection();
+          window.__TAURI__ = tauri;
+        }
+      });
+      await check("Selected source and audio opt-out survive focused refresh and blur", async () => {
+        const picker = el("source-picker");
+        const chosen = picker.value;
+        assert(!el("source-audio").disabled, "An audio-capable source is required");
+        await change("source-audio", false);
+        picker.focus();
+        await refresh();
+        assert(picker.value === chosen && !el("source-audio").checked, "Focused refresh changed source/audio choice");
+        picker.blur();
+        await refresh();
+        const state = await snapshot();
+        assert(state.selected_source_id === chosen && !state.selected_source_audio, "Blur discarded persisted source/audio choice");
+        return { source: chosen, audio: state.selected_source_audio };
+      });
+      await check("Unavailable source is rejected without selecting a different source", async () => {
+        const picker = el("source-picker");
+        const previous = (await snapshot()).selected_source_id;
+        // A stale menu entry models a window disappearing before its selection reaches Rust.
+        const unavailable = new Option("Unavailable QA window", "qa-source-no-longer-present");
+        picker.add(unavailable);
+        await change("source-picker", unavailable.value);
+        assert(el("command-result").classList.contains("tone-bad"), "Missing source was accepted");
+        assert((await snapshot()).selected_source_id === previous, "Missing source silently selected another window");
+        unavailable.remove();
+        picker.blur();
+        await refresh();
+        assert(picker.value === previous, "Refresh did not restore the authoritative source");
+      });
     } else if (config.scenario === "restore") {
       await check("Preferences survive actual application restart", async () => {
         const state = await snapshot();

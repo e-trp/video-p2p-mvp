@@ -297,10 +297,17 @@ fn select_capture_source(
         .lock()
         .expect("session state poisoned")
         .select_capture_source(source_id.clone(), include_audio);
+    let selected = snapshot.selected_source_id.as_deref() == Some(source_id.as_str());
 
     CommandResult {
-        ok: true,
-        message: format!("capture source selected: {source_id}"),
+        ok: selected,
+        message: if selected {
+            format!("capture source selected: {source_id}")
+        } else {
+            format!(
+                "capture source is no longer available: {source_id}; refresh and choose a source"
+            )
+        },
         session: map_snapshot(snapshot),
     }
 }
