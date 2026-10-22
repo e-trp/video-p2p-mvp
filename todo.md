@@ -64,6 +64,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 ### UI, Preferences, and Tooling
 
 - [x] **BASE-DESKTOP-CONTROLS:** Host/viewer preparation, source picker, capture start/poll/stop, session stop/reset, and manual reconnect with recovery guidance. Real Tauri GUI defects are tracked in the bug register.
+- [x] Source selection survives Auto Refresh and native Accessibility menu interaction; unavailable-source errors preserve the prior selection. [BUG-011/BUG-012 verification](docs/qa/BUG-011-source-selection.md) records six focused checks, three native selections, and mandatory verification. Fixes do not advance the `0/5` feature counter.
 - [x] Transport/capture/playback diagnostics, selected ICE path, and available RTT/bitrate/bytes/loss metrics.
 - [x] Persisted room/signaling/ICE/source/audio selection and Auto Refresh preferences; polling preserves unsaved form edits.
 - [x] Custom STUN/TURN validation and configuration propagation to Rust/WebView peers through CLI/Tauri settings.

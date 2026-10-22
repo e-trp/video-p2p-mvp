@@ -1,0 +1,244 @@
+{
+  "baseCommit": "e45512d",
+  "version": "0.1.0",
+  "date": "2026-10-22",
+  "mandatoryChecks": [
+    {
+      "command": "cargo fmt --all",
+      "exit": 0,
+      "seconds": 0.5,
+      "log": "check-00.log"
+    },
+    {
+      "command": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml",
+      "exit": 0,
+      "seconds": 0.08,
+      "log": "check-01.log"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit": 0,
+      "seconds": 0.15,
+      "log": "check-02.log"
+    },
+    {
+      "command": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check",
+      "exit": 0,
+      "seconds": 0.08,
+      "log": "check-03.log"
+    },
+    {
+      "command": "cargo clippy --all-targets --all-features -- -D warnings",
+      "exit": 0,
+      "seconds": 0.71,
+      "log": "check-04.log"
+    },
+    {
+      "command": "cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings",
+      "exit": 0,
+      "seconds": 2.92,
+      "log": "check-05.log"
+    },
+    {
+      "command": "cargo test --all --all-features",
+      "exit": 0,
+      "seconds": 7.68,
+      "log": "check-06.log"
+    },
+    {
+      "command": "cargo test -p app-core --example playback_probe --all-features",
+      "exit": 0,
+      "seconds": 0.31,
+      "log": "check-07.log"
+    },
+    {
+      "command": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --all-features",
+      "exit": 0,
+      "seconds": 3.49,
+      "log": "check-08.log"
+    },
+    {
+      "command": "node --test apps/desktop/tests/viewer-player.test.mjs",
+      "exit": 0,
+      "seconds": 0.47,
+      "log": "check-09.log"
+    },
+    {
+      "command": "sh scripts/test-macos-capture.sh",
+      "exit": 0,
+      "seconds": 1.1,
+      "log": "check-10.log"
+    },
+    {
+      "command": "cargo build -p signaling-server",
+      "exit": 0,
+      "seconds": 0.34,
+      "log": "check-11.log"
+    },
+    {
+      "command": "cargo build -p app-core --example playback_probe",
+      "exit": 0,
+      "seconds": 0.12,
+      "log": "check-12.log"
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs",
+      "exit": 0,
+      "seconds": 4.9,
+      "log": "check-13.log"
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs --keyframe-recovery",
+      "exit": 0,
+      "seconds": 3.95,
+      "log": "check-14.log"
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs --chrome",
+      "exit": 0,
+      "seconds": 4.89,
+      "log": "check-15.log"
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs --chrome --keyframe-recovery",
+      "exit": 0,
+      "seconds": 3.67,
+      "log": "check-16.log"
+    }
+  ],
+  "sourcePicker": {
+    "scenario": "source-picker",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+    "results": [
+      {
+        "name": "Runtime and complete initial render",
+        "result": "PASS",
+        "durationMs": 2,
+        "details": {
+          "nativeWindow": {
+            "focused": true,
+            "visible": true
+          },
+          "permission": "granted",
+          "origin": "runtime",
+          "sources": 25,
+          "width": 1120,
+          "height": 728
+        }
+      },
+      {
+        "name": "Focused source options survive Auto Refresh",
+        "result": "PASS",
+        "durationMs": 2202,
+        "details": {
+          "sources": 25,
+          "selected": "macos-window-1044",
+          "nativeOpenStateSupported": true
+        }
+      },
+      {
+        "name": "Source change survives an older refresh response",
+        "result": "PASS",
+        "durationMs": 876,
+        "details": {
+          "original": "macos-window-1044",
+          "chosen": "macos-window-3510",
+          "submitted": [
+            {
+              "source_id": "macos-window-3510",
+              "include_audio": true
+            }
+          ],
+          "persisted": "macos-window-3510"
+        }
+      },
+      {
+        "name": "Selected source and audio opt-out survive focused refresh and blur",
+        "result": "PASS",
+        "durationMs": 795,
+        "details": {
+          "source": "macos-window-3510",
+          "audio": false
+        }
+      },
+      {
+        "name": "Unavailable source is rejected without selecting a different source",
+        "result": "PASS",
+        "durationMs": 605
+      },
+      {
+        "name": "No unhandled frontend errors",
+        "result": "PASS",
+        "durationMs": 0
+      }
+    ],
+    "errors": [],
+    "complete": true,
+    "success": true
+  },
+  "fullGui": [
+    {
+      "name": "source-picker",
+      "success": true,
+      "checks": 6,
+      "failed": [],
+      "blocked": []
+    },
+    {
+      "name": "controls",
+      "success": false,
+      "checks": 22,
+      "failed": [],
+      "blocked": [
+        "Start Native Capture and Host Prototype expose blocked permission"
+      ]
+    },
+    {
+      "name": "restore",
+      "success": true,
+      "checks": 3,
+      "failed": [],
+      "blocked": []
+    },
+    {
+      "name": "viewer",
+      "success": true,
+      "checks": 7,
+      "failed": [],
+      "blocked": []
+    }
+  ],
+  "nativeSelections": [
+    {
+      "source": "TextEdit",
+      "id": "macos-window-2678",
+      "result": "PASS"
+    },
+    {
+      "source": "System Settings",
+      "id": "macos-window-1044",
+      "result": "PASS"
+    },
+    {
+      "source": "TextEdit",
+      "id": "macos-window-2678",
+      "result": "PASS"
+    }
+  ],
+  "limitations": [
+    "Full GUI exit is nonzero: permission-denied startup is BLOCKED with Screen Recording granted.",
+    "Native selection does not establish capture/audio or release acceptance."
+  ],
+  "implementationCommit": "f450187aef31a9c5dcd5e9927d7f4f59d8315a4c",
+  "cleanup": {
+    "root": "PASS: 8299 files, 1.9 GiB",
+    "desktop": "PASS: 12182 files, 3.6 GiB"
+  },
+  "environment": {
+    "macOS": "27.0 (26A428)",
+    "Chrome": "156.0.8078.48",
+    "Node": "v26.12.1",
+    "Rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13) (Homebrew)",
+    "WKWebView": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+  }
+}

@@ -31,6 +31,8 @@ The IPC command argument contract is explicitly `snake_case`, matching the front
 
 Source/audio changes stop active capture; Start Native Capture starts the new selection. Reconnect rebuilds the current role but does not restart host capture automatically. Host signaling uses the refresh path during negotiation; viewer signaling and established media run independently of diagnostic refresh.
 
+Auto Refresh preserves source options while the picker has focus or its native popup is open (`:open`, when supported), including Accessibility opening without DOM focus. The open menu keeps the same source IDs and ordering. The latest catalog is applied after interaction ends; unchanged catalogs retain their option nodes. Selection uses the displayed source/audio values immediately. An older in-flight refresh cannot overwrite a user action, and source/audio controls are disabled until that action finishes. A source that disappears before selection is reported as unavailable, with guidance to refresh and choose again. See [source-selection verification](qa/BUG-011-source-selection.md).
+
 ## Backend Responsibilities
 
 - Tauri commands wrap `SessionManager`; snapshots are serialized as UI diagnostics.
@@ -61,6 +63,8 @@ node scripts/test-tauri-gui.mjs
 ```
 
 The runner starts actual Tauri windows, executes the production DOM event handlers and Rust IPC, restarts the application to check preferences, and attempts real native-codec/WebRTC decoding in the desktop viewer. It does not replace IPC, sessions, or media with mocks. A diagnostic constructor observer only records the actual browser peers. Window-width tests resize the native window to 1120, 800, and 600 logical pixels.
+
+Run `node scripts/test-tauri-gui.mjs --scenario source-picker` for the focused source regression (also included in the default run). It checks focused Auto Refresh, delays delivery of real catalog IPC responses to reproduce the selection race, checks audio opt-out, and submits a deliberately stale option to the real backend. Response data is unchanged. These DOM checks do not certify native menu gestures; the linked verification record records those separately.
 
 The `gui-qa` feature has no additional dependencies and is absent from default builds. Its driver activates only with the runner's environment variables and requires a separate `VIDEO_P2P_MVP_CONFIG_DIR`. QA commands require that test state. The plugin focuses its own window before automation, and the driver waits for actual native focus/visibility. Keep that window active during control checks: directly launching an inactive `.app` left timer-dependent steps pending under BUG-009. A foreground guard failure remains failed evidence rather than a product PASS. JSON evidence, process logs, and isolated test preferences are saved in a temporary directory printed by the runner. `--output PATH` selects that directory; use a new directory for a fresh run. Existing user preferences are preserved. All child processes are stopped on completion/failure; partial evidence survives timeouts. Exit status is nonzero if any scenario fails or remains blocked.
 

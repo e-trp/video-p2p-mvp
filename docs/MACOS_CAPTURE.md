@@ -1,6 +1,6 @@
 # Native macOS Capture
 
-`capture-macos` builds an Objective-C ScreenCaptureKit bridge on macOS and exposes native `CaptureStreamEvent` samples to Rust. Linux builds do not compile or link Apple frameworks. Native extraction/lifecycle checks use synthetic buffers; actual permission/source/audio behavior remains unvalidated in the app.
+`capture-macos` builds an Objective-C ScreenCaptureKit bridge on macOS and exposes native `CaptureStreamEvent` samples to Rust. Linux builds do not compile or link Apple frameworks. Native extraction/lifecycle checks use synthetic buffers. [Actual window video](qa/actual-window-0.1.0-0185449.md) is verified between local debug bundles; permission transitions, other source kinds, and actual audio still require validation.
 
 ## Requirements
 

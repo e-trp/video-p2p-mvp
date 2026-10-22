@@ -16,7 +16,6 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | Bug | Owning feature | Priority | Status | Kind | Next action |
 | --- | --- | --- | --- | --- | --- |
 | [BUG-010](#bug-010-late-viewer-test-races-the-server-waiting-response) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P2 | FIXED | Test fixture ordering | Await hosted Ubuntu acceptance on the fixing commit |
-| [BUG-011](#bug-011-source-menu-selection-mismatch-during-live-gui-automation) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | INVESTIGATING | GUI selection / automation, cause unconfirmed | Reproduce with a controlled native source-menu action while Auto Refresh is enabled |
 
 ### BUG-010: Late Viewer Test Races the Server Waiting Response
 
@@ -31,17 +30,6 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 - **Closure criteria:** controlled failing-before/passing-after response-order regression, ordinary and repeated integration runs, mandatory local checks, and a successful Ubuntu CI run on the fixing commit. Remote verification stays open while the local commit has not been published/run; a passing local retry alone is insufficient.
 - **Deferral:** none.
 
-### BUG-011: Source Menu Selection Mismatch During Live GUI Automation
-
-- **Affected version/components:** untagged `0.1.0`, debug bundle built from `0185449`, source picker and external Accessibility driver; ownership `BASE-DESKTOP-CONTROLS`.
-- **Priority/status/kind:** P2, INVESTIGATING; observed GUI/automation selection mismatch. Product versus driver responsibility is unconfirmed.
-- **Evidence/reproduction (2026-10-19):** during the [actual-window run](qa/actual-window-0.1.0-0185449.md), the native Accessibility helper reports pressing `TextEdit - VideoP2P Live Capture QA (window, audio)` while one-second Auto Refresh is enabled. The subsequent host preferences and UI instead show `macos-window-1011` (Deluge). Evidence: `/private/tmp/video-p2p-live-qa/host-current.txt` and the recorded command output. Observed once; automated foreground changes and asynchronous refresh overlap, so reliability is unknown.
-- **Expected/actual:** the chosen TextEdit entry should persist its native ID; a different source is selected. The incorrect source was noticed before the intended TextEdit playback check.
-- **Cause:** unknown. A stale native menu/index during catalog refresh is a hypothesis; a driver/focus race has not been excluded.
-- **Workaround/evidence:** disable host Auto Refresh, open the picker, select TextEdit, and verify the persisted ID (`macos-window-1081`) before starting capture. Actual TextEdit playback then passes. This workaround does not resolve the mismatch.
-- **Next action/closure:** reproduce with controlled menu lifetime and catalog changes, distinguish app behavior from driver behavior, then verify the same native selection with refresh enabled. If a product defect is established, add a regression before fixing it. No fixing commit or closure is claimed.
-- **Deferral:** none; this GUI verification task did not implement a source-picker fix.
-
 ## Closed Issues
 
 | Bug | Owning feature | Priority | Status | Kind | Resolution |
@@ -55,6 +43,32 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | [BUG-005](#bug-005-desktop-command-arguments-do-not-match-tauri-ipc) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P1 | CLOSED | Desktop IPC contract | Debug and two bundled runs pass configuration/restart/decoded media/Stop acceptance |
 | [BUG-008](#bug-008-tauri-viewer-stays-connecting-without-decoded-media) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P1 | CLOSED | Native ICE address path | Authenticated peer-reflexive checks replace remote mDNS queries; native/browser/Tauri regressions pass |
 | [BUG-009](#bug-009-packaged-gui-run-stalls-during-refresh-preference-checks) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Test fixture foreground lifecycle | Own QA window focus/native precondition; two complete bundled controls/restart runs pass |
+| [BUG-011](#bug-011-source-menu-selection-mismatch-during-live-gui-automation) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Source selection / refresh ordering | Stable focused/open menu, synchronous selection and stale-refresh isolation verified |
+| [BUG-012](#bug-012-unavailable-source-selection-reports-success) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | IPC result feedback | Missing-source errors preserve selection and recover on refresh |
+
+### BUG-011: Source Menu Selection Mismatch During Live GUI Automation
+
+- **Affected version/components:** untagged `0.1.0`, debug bundle built from `0185449`, source picker and external Accessibility driver; ownership `BASE-DESKTOP-CONTROLS`.
+- **Priority/status/kind:** P2, CLOSED; confirmed product source-selection/refresh ordering defect.
+- **Evidence/reproduction (2026-10-19):** during the [actual-window run](qa/actual-window-0.1.0-0185449.md), the native Accessibility helper reports pressing `TextEdit - VideoP2P Live Capture QA (window, audio)` while one-second Auto Refresh is enabled. The subsequent host preferences and UI instead show `macos-window-1011` (Deluge). Evidence: `/private/tmp/video-p2p-live-qa/host-current.txt` and the recorded command output. Observed once; automated foreground changes and asynchronous refresh overlap, so reliability is unknown.
+- **Expected/actual:** the chosen TextEdit entry should persist its native ID; a different source is selected. The incorrect source was noticed before the intended TextEdit playback check.
+- **Cause (2026-10-20):** every refresh replaces all source options, including while the picker is focused. The source-change handler also awaits a catalog IPC response before reading the selected ID; an older refresh can restore the previous ID in between. A real Tauri regression gates delivery of actual backend responses and deterministically selects `macos-window-1840` but submits `macos-window-1865` on the original code. The original Accessibility-driver incident cannot be attributed to either mechanism alone.
+- **Workaround/evidence:** disable host Auto Refresh, open the picker, select TextEdit, and verify the persisted ID (`macos-window-1081`) before starting capture. Actual TextEdit playback then passes. This workaround does not resolve the mismatch.
+- **Implementation/verification:** retain unchanged option nodes, defer catalog changes while the source picker is focused or its native popup matches `:open`, read source/audio synchronously from the displayed catalog, and discard/drain stale refresh responses during user actions. Both controlled original-code GUI regressions fail before and pass after. A 2026-10-22 Accessibility run also reproduces wrong-source persistence with the focus-only guard: TextEdit is pressed but Terminal is saved. The native-open guard subsequently preserves TextEdit through a three-second open menu with one-second Auto Refresh, with matching UI and persisted ID. Audio opt-out and stale-source error boundaries pass; see the verification record for failed/blocked attempts and scope.
+- **Closure/resolution (2026-10-22):** focused/delayed-refresh regressions, native selection with Auto Refresh (three sequential selections), source/audio persistence, missing-source rejection and all 17 mandatory commands pass. The broader GUI run records 37 PASS and permission-denied startup BLOCKED; that separate permission scenario does not affect these closure criteria. The historical 2026-10-19 driver incident still cannot be attributed to one mechanism alone. See the [verification record](qa/BUG-011-source-selection.md).
+- **Fixing commit/version:** `f450187aef31a9c5dcd5e9927d7f4f59d8315a4c`, untagged `0.1.0`; [verification and limitations](qa/BUG-011-source-selection.md).
+- **Deferral:** none; the source-picker fix is implemented and verified within the recorded macOS scope.
+
+### BUG-012: Unavailable Source Selection Reports Success
+
+- **Affected version/components:** untagged `0.1.0`, Tauri `select_capture_source` wrapper; ownership `BASE-DESKTOP-CONTROLS`.
+- **Priority/status/kind:** P2, CLOSED, product IPC feedback defect discovered while verifying BUG-011's stale-menu boundary.
+- **Evidence/reproduction (2026-10-20):** the real Tauri source-picker test submits the deliberately stale `qa-source-no-longer-present` option. Rust leaves the previously selected source unchanged and logs that the requested source is missing, but the wrapper unconditionally returns `ok: true` and claims the unavailable source was selected. Deterministic; see the [shared verification record](qa/BUG-011-source-selection.md).
+- **Expected/actual:** an unavailable source must produce an error and refresh/reselection guidance, rather than falsely confirming that source. This test does not establish actual source-window closure behavior during streaming.
+- **Cause/implementation:** the wrapper ignored the resulting selected source ID. It now compares that ID with the request and returns an error on mismatch; no core API or capture lifecycle changes are introduced.
+- **Closure/resolution (2026-10-22):** the same real-IPC missing-source scenario fails before and passes after, preserves the existing selection, and recovers on refresh. Normal selection/audio checks and all 17 mandatory commands pass.
+- **Fixing commit/version:** `f450187aef31a9c5dcd5e9927d7f4f59d8315a4c`, untagged `0.1.0`; [verification and limitations](qa/BUG-011-source-selection.md).
+- **Deferral:** none; corrected with the directly related source-selection task.
 
 ### BUG-005: Desktop Command Arguments Do Not Match Tauri IPC
 

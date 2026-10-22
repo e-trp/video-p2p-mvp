@@ -2,9 +2,9 @@
 
 ## Scope
 
-The desktop prototype has a macOS capture/encode/publish path and a WebView viewer. Synthetic media playback is verified in WKWebView and Chromium. Actual window/audio capture, packaged behavior, and different networks still require [manual QA](QA_CHECKLIST.md). Linux capture/video encoding are not implemented; Linux playback is unvalidated.
+The desktop prototype has a macOS capture/encode/publish path and a WebView viewer. Synthetic media playback is verified in WKWebView and Chromium. [Actual window video](qa/actual-window-0.1.0-0185449.md) is verified between local debug bundles. Audio, other source kinds, packaged capture, and different networks still require [manual QA](QA_CHECKLIST.md). Linux capture/video encoding are not implemented; Linux playback is unvalidated.
 
-The [current Tauri GUI QA](qa/gui-client-0.1.0-6bd1a31.md) verifies the controls and decoded synthetic playback in the desktop WebView, including the bundled app. Real screen/audio capture, trusted user gestures, audible devices, and different networks still require manual validation.
+The [current Tauri GUI QA](qa/gui-client-0.1.0-6bd1a31.md) verifies the controls and decoded synthetic playback in the desktop WebView, including the bundled app. Permission transitions, other source kinds, real audio, trusted user gestures, audible devices, and different networks still require manual validation.
 
 For dependencies, running/building the app, and troubleshooting, see [installation](INSTALLATION.md). For completion status, see [TODO](../todo.md).
 
@@ -61,6 +61,8 @@ Host signaling needs refresh during negotiation. Viewer signaling runs independe
 macOS sources come from SCShareableContent windows, applications, and displays. Matching uses native IDs, not labels. The first available source is selected if no explicit selection exists. Saved IDs may become invalid after an app/system restart; catalog refresh can rebind selection to the first available source and stops old capture.
 
 Linux may list X11 window metadata through `wmctrl`. This does not enable X11 capture. Blueprint/example sources appear when enumeration is unavailable; they support demo/debug selection and cannot start real macOS capture. Linux runtime status/permission hints do not mean Portal/PipeWire is implemented.
+
+Auto Refresh preserves the source menu during selection. If a selected source has disappeared, the command reports that it is unavailable; refresh and choose an available source again.
 
 Changing **Available Source** or **Include Audio** applies selection immediately and stops active capture. Click **Start Native Capture** for the new selection. **Stop Capture** leaves the peer session available. **Poll Capture** updates diagnostics; it does not drive the media worker.
 
