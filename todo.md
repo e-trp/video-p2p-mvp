@@ -44,7 +44,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 - [x] Passive Screen Recording preflight, explicit requests at startup, and distinct permission-required/denied states.
 - [x] Packed BGRA with timestamps, incomplete-frame filtering, and aspect-ratio preservation; macOS 13+ PCM conversion to interleaved float32, 48 kHz/stereo.
 - [x] Standalone capture probe reports validated PCM peak/RMS, distinguishes required signal from permitted silence, and has portable tests plus an opt-in real-source regression runner; see [BUG-013 verification](docs/qa/BUG-013-command-line-capture.md).
-- [x] Concurrent native audio isolation runner uses independently launched application bundles, checks window/application silence while another source plays a tone, and verifies audio opt-out; see [BUG-014 verification](docs/qa/BUG-014-audio-isolation.md).
+- [x] Concurrent native audio isolation runner uses independently launched application bundles, checks window/application silence while another source plays a tone, and verifies audio opt-out (BUG-014 closed; fixing commit `ec465a8`); see [BUG-014 verification](docs/qa/BUG-014-audio-isolation.md).
 - [x] Native bounded queues: latest video frame and up to 32 audio buffers; permission-free extraction/lifecycle tests.
 - [x] VideoToolbox H.264 Constrained Baseline, SPS/PPS/IDR, Annex B, resize/odd-dimension handling, and PTS/buffer validation; actual encoder tests with synthetic frames.
 - [x] Vendored Opus, 20 ms packet aggregation, timestamp/discontinuity handling, and actual encode/decode tests.
