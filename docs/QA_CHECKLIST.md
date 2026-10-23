@@ -62,6 +62,8 @@ cargo clean --manifest-path apps/desktop/src-tauri/Cargo.toml
 
 Clean removes built binaries, so run it after playback probes. Rebuild before another test/probe run; never clean while Cargo or test processes are active.
 
+The [native desktop playback record](qa/native-desktop-playback-0.1.0-c0d19af.md) verifies actual ScreenCaptureKit fixture pixels/PCM through two local Tauri clients, audio opt-out, programmatic mute controls and Stop cleanup. This focused run leaves physical output, trusted gestures, permission transitions and broader source/device scenarios open.
+
 ## Backend Negotiation Smoke Test
 
 Start signaling, then the host/viewer commands in separate terminals:

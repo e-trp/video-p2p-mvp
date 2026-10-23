@@ -2,9 +2,9 @@
 
 ## Scope
 
-The desktop prototype has a macOS capture/encode/publish path and a WebView viewer. Synthetic media playback is verified in WKWebView and Chromium. [Actual window video](qa/actual-window-0.1.0-0185449.md) is verified between local debug bundles. Audio, other source kinds, packaged capture, and different networks still require [manual QA](QA_CHECKLIST.md). Linux capture/video encoding are not implemented; Linux playback is unvalidated.
+The desktop prototype has a macOS capture/encode/publish path and a WebView viewer. Synthetic media playback is verified in WKWebView and Chromium. [Actual window video](qa/actual-window-0.1.0-0185449.md) is verified between local debug bundles. [Actual fixture audio/video](qa/native-desktop-playback-0.1.0-c0d19af.md) also reaches decoded pixels/PCM through two local Tauri clients. Audible output, other source kinds, packaged capture, and different networks still require [manual QA](QA_CHECKLIST.md). Linux capture/video encoding are not implemented; Linux playback is unvalidated.
 
-The [current Tauri GUI QA](qa/gui-client-0.1.0-6bd1a31.md) verifies the controls and decoded synthetic playback in the desktop WebView, including the bundled app. Permission transitions, other source kinds, real audio, trusted user gestures, audible devices, and different networks still require manual validation.
+The [current Tauri GUI QA](qa/gui-client-0.1.0-6bd1a31.md) verifies the controls and decoded synthetic playback in the desktop WebView, including the bundled app. Permission transitions, other source kinds, broader application audio, trusted user gestures, audible devices, and different networks still require manual validation.
 
 For dependencies, running/building the app, and troubleshooting, see [installation](INSTALLATION.md). For completion status, see [TODO](../todo.md).
 

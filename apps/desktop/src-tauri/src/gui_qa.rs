@@ -9,11 +9,14 @@ use tauri::{Manager, State, WebviewWindow, plugin::TauriPlugin, webview::PageLoa
 pub(crate) struct Configuration {
     scenario: String,
     signaling_addr: String,
+    native_source_id: Option<String>,
+    native_audio: bool,
 }
 
 pub(crate) struct QaState {
     configuration: Configuration,
     report_path: PathBuf,
+    stop_file: Option<PathBuf>,
 }
 
 #[derive(Serialize)]
@@ -36,6 +39,16 @@ pub(crate) fn gui_qa_window_state(
 #[tauri::command]
 pub(crate) fn gui_qa_configuration(state: State<'_, QaState>) -> Configuration {
     state.configuration.clone()
+}
+
+#[tauri::command]
+pub(crate) fn gui_qa_stop_requested(state: State<'_, QaState>) -> Result<bool, String> {
+    state
+        .stop_file
+        .as_ref()
+        .ok_or_else(|| "Native GUI QA requires a private stop file".to_owned())?
+        .try_exists()
+        .map_err(|error| format!("cannot inspect GUI QA stop file: {error}"))
 }
 
 #[tauri::command]
@@ -74,10 +87,14 @@ pub(crate) fn plugin() -> TauriPlugin<tauri::Wry> {
                 configuration: Configuration {
                     scenario: std::env::var("VIDEO_P2P_GUI_QA_SCENARIO")?,
                     signaling_addr: std::env::var("VIDEO_P2P_GUI_QA_SIGNALING")?,
+                    native_source_id: std::env::var("VIDEO_P2P_GUI_QA_NATIVE_SOURCE").ok(),
+                    native_audio: std::env::var("VIDEO_P2P_GUI_QA_NATIVE_AUDIO")
+                        .is_ok_and(|value| value == "true"),
                 },
                 report_path: std::env::var_os("VIDEO_P2P_GUI_QA_REPORT")
                     .ok_or("GUI QA requires VIDEO_P2P_GUI_QA_REPORT")?
                     .into(),
+                stop_file: std::env::var_os("VIDEO_P2P_GUI_QA_STOP_FILE").map(PathBuf::from),
             });
             Ok(())
         })

@@ -50,6 +50,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 - [x] Vendored Opus, 20 ms packet aggregation, timestamp/discontinuity handling, and actual encode/decode tests.
 - [x] Continuous capture/encode/publish worker independent of GUI refresh; source/audio validation, encoding only with a connected peer, and stop/join before replacing sources/sessions/runtimes.
 - [x] Synthetic capture → native H.264/Opus → local WebRTC/RTP tests, including stop/restart and audio opt-out.
+- [x] Opt-in real macOS fixture → Tauri host → Tauri viewer checks verify decoded pixels/PCM, audio opt-out, muted startup, programmatic sound controls and Stop cleanup; see [native desktop playback QA](docs/qa/native-desktop-playback-0.1.0-c0d19af.md). Physical output and trusted gestures remain separate.
 
 ### Desktop Viewer and Recovery
 
@@ -84,7 +85,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 
 | Outcome | Existing implementation | Required completion |
 | --- | --- | --- |
-| macOS end-to-end streaming | Native capture, codecs, worker, viewer, and synthetic playback | Actual audio, other source types, and release-bundle verification; local debug-bundle window video is verified |
+| macOS end-to-end streaming | Native capture, codecs, worker, viewer, and synthetic playback | Audible devices, other source types, and release-bundle verification; local window video and fixture audio-to-viewer PCM are verified |
 | Cross-platform capture/playback | Shared contracts, macOS backend, Linux metadata/scaffold | Linux media backend/encoder and WebView QA (M3/M4) |
 | Production GUI | Source/session/media controls and diagnostics | Media settings (M1), invite UX (M5), and platform QA |
 | Backpressure/weak-network handling | Bounded queues, latest-only diagnostics, write timeout, keyframe recovery | Network-aware pacing/drop policy and adaptive bitrate (M2) |
@@ -99,7 +100,7 @@ Consult [current issues](docs/BUGS.md#current-issues) before feature work, then 
 
 ### Baseline QA Prerequisites
 
-The [2026-10-19 actual-window GUI run](docs/qa/actual-window-0.1.0-0185449.md) verifies a real TextEdit window between two local debug bundles, visible content changes, playback with host Auto Refresh disabled, and capture stop/restart. The [BUG-013 regression](docs/qa/BUG-013-command-line-capture.md) additionally covers standalone window/application/display samples and audio opt-in/out. The [BUG-014 regression](docs/qa/BUG-014-audio-isolation.md) covers concurrent fixture audio isolation. Broader application/device audio behavior, audible output, permission transitions and distribution acceptance remain open.
+The [2026-10-19 actual-window GUI run](docs/qa/actual-window-0.1.0-0185449.md) verifies a real TextEdit window between two local debug bundles, visible content changes, playback with host Auto Refresh disabled, and capture stop/restart. The [BUG-013 regression](docs/qa/BUG-013-command-line-capture.md) additionally covers standalone window/application/display samples and audio opt-in/out. The [BUG-014 regression](docs/qa/BUG-014-audio-isolation.md) covers concurrent fixture audio isolation. The [native desktop playback run](docs/qa/native-desktop-playback-0.1.0-c0d19af.md) also verifies actual fixture pixels/PCM through two Tauri clients and audio opt-out. Broader application/device audio behavior, audible output, permission transitions and distribution acceptance remain open.
 
 Run the [QA checklist](docs/QA_CHECKLIST.md) on real devices. These are verification tasks, not new feature IDs:
 

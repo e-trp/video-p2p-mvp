@@ -1,6 +1,6 @@
 # Native macOS Capture
 
-`capture-macos` builds an Objective-C ScreenCaptureKit bridge on macOS and exposes native `CaptureStreamEvent` samples to Rust. Linux builds do not compile or link Apple frameworks. Native extraction/lifecycle checks use synthetic buffers. [Actual window video](qa/actual-window-0.1.0-0185449.md) is verified between local debug bundles; standalone window/application/display capture and raw audio checks are recorded in [BUG-013 verification](qa/BUG-013-command-line-capture.md). Concurrent fixture audio isolation is covered by the [BUG-014 regression](qa/BUG-014-audio-isolation.md); permission transitions, broader application/device audio behavior, audible playback, and packaged capture still require validation.
+`capture-macos` builds an Objective-C ScreenCaptureKit bridge on macOS and exposes native `CaptureStreamEvent` samples to Rust. Linux builds do not compile or link Apple frameworks. Native extraction/lifecycle checks use synthetic buffers. [Actual window video](qa/actual-window-0.1.0-0185449.md) is verified between local debug bundles; standalone window/application/display capture and raw audio checks are recorded in [BUG-013 verification](qa/BUG-013-command-line-capture.md). Concurrent fixture audio isolation is covered by the [BUG-014 regression](qa/BUG-014-audio-isolation.md), and actual captured fixture audio reaches decoded desktop PCM in the [native playback run](qa/native-desktop-playback-0.1.0-c0d19af.md); permission transitions, broader application/device audio behavior, audible playback, and packaged capture still require validation.
 
 ## Requirements
 
@@ -78,6 +78,6 @@ This runner creates two temporary application bundles with distinct identifiers 
 
 `--compare-direct-launch` first runs the same binaries directly, preserving the two expected failing isolation results before the LaunchServices checks. This diagnostic option reproduces BUG-014 on the recorded OS; it fails if the old condition no longer reproduces. The default mode tests correct isolation only. Direct execution from a common launcher is not a reliable way to model independent macOS audio applications, even with distinct bundle IDs/signatures. See the [controlled comparison](qa/BUG-014-audio-isolation.md).
 
-Manual permission/relaunch, multiple-monitor, broader application/device audio filtering, capture-to-playback audio, and packaged stop/close checks remain outstanding. Their steps are maintained in the [QA checklist](QA_CHECKLIST.md#macos-actual-capture-and-publication--manual).
+Manual permission/relaunch, multiple-monitor, broader application/device audio filtering, physical audio output, and packaged stop/close checks remain outstanding. Their steps are maintained in the [QA checklist](QA_CHECKLIST.md#macos-actual-capture-and-publication--manual).
 
 API reference: [Apple ScreenCaptureKit](https://developer.apple.com/documentation/screencapturekit) and [SCStreamOutput](https://developer.apple.com/documentation/screencapturekit/scstreamoutput).

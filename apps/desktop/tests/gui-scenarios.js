@@ -359,6 +359,118 @@
         assert(state.mode === "idle" && state.viewer_generation == null, "Restart restores an active session");
         return { source: state.selected_source_id, interval: state.ui_refresh_interval_secs };
       });
+    } else if (config.scenario === "native-host") {
+      await check("Native host ready", async () => {
+        assert(config.native_source_id, "Missing fixture source ID");
+        await change("auto-refresh-enabled", false);
+        await refresh();
+        assert([...el("source-picker").options].some((option) => option.value === config.native_source_id),
+          "Fixture is absent from native catalog; check Screen Recording permission");
+        await change("source-picker", config.native_source_id);
+        await change("source-audio", config.native_audio);
+        form("native-playback-qa"); await refresh(); await click("host-prototype-btn");
+        await until(async () => {
+          await refresh();
+          return (await snapshot()).capture_runtime_status === "running";
+        }, "native capture running");
+        const state = await snapshot();
+        assert(state.selected_source_id === config.native_source_id && state.selected_source_audio === config.native_audio,
+          "Host did not preserve fixture selection");
+        return state;
+      });
+      assert(results.at(-1).result === "PASS", "Native source startup failed");
+      await check("Native publication runs without host diagnostic polling", async () => {
+        await until(async () => {
+          await refresh();
+          return (await snapshot()).transport_state === "connected";
+        }, "native viewer connected", 30000);
+        const before = await snapshot();
+        await sleep(2200);
+        const after = await snapshot();
+        assert(!after.ui_auto_refresh_enabled, "Host polling is enabled");
+        assert(after.encoded_video_frame_count > before.encoded_video_frame_count + 5, "Native video publication stalled");
+        if (config.native_audio) assert(after.encoded_audio_packet_count > before.encoded_audio_packet_count + 20, "Native audio publication stalled");
+        else assert(after.encoded_audio_packet_count === 0, "Audio opt-out published encoded audio");
+        return { before, after };
+      });
+      await until(() => invoke("gui_qa_stop_requested"), "viewer completion", 45000);
+      await check("Native host Stop releases capture and publication", async () => {
+        await stopRemainsStopped();
+        const before = await snapshot(); await sleep(1200); const after = await snapshot();
+        assert(after.capture_runtime_status !== "running", "Stop retained capture");
+        assert(after.encoded_video_frame_count === before.encoded_video_frame_count
+          && after.encoded_audio_packet_count === before.encoded_audio_packet_count, "Publication continued after Stop");
+        return after;
+      });
+    } else if (config.scenario === "native-viewer") {
+      await change("auto-refresh-enabled", false);
+      let mediaReady = false;
+      let audio;
+      let source;
+      let analyser;
+      let gain;
+      try {
+        await check("Native window pixels decode in the desktop viewer", async () => {
+          form("native-playback-qa"); await refresh(); await click("viewer-prototype-btn");
+          const video = el("viewer-video");
+          await until(() => peers.at(-1)?.connectionState === "connected" && video.videoWidth > 100
+            && video.getVideoPlaybackQuality().totalVideoFrames > 3, "native decoded video", 20000);
+          assert(video.muted, "Native viewer did not start muted");
+          const canvas = document.createElement("canvas");
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+          const context = canvas.getContext("2d"); context.drawImage(video, 0, 0);
+          const pixel = [...context.getImageData(Math.floor(canvas.width * 0.8), Math.floor(canvas.height * 0.7), 1, 1).data];
+          assert(pixel[0] > 140 && pixel[1] > 30 && pixel[1] < 110 && pixel[2] < 80, `Unexpected native fixture pixel: ${pixel}`);
+          mediaReady = true;
+          return { width: canvas.width, height: canvas.height, pixel, state: await snapshot() };
+        });
+        await check(config.native_audio ? "Native audio reaches decoded PCM with viewer polling disabled"
+          : "Native audio opt-out retains video without audio", async () => {
+          assert(mediaReady, "Native video prerequisite failed");
+          const before = await snapshot();
+          let peak = 0;
+          let rms = 0;
+          if (config.native_audio) {
+            audio = new AudioContext();
+            await Promise.race([audio.resume(), sleep(5000).then(() => { throw new Error("Web Audio activation timed out"); })]);
+            source = audio.createMediaStreamSource(el("viewer-video").srcObject);
+            analyser = audio.createAnalyser();
+            gain = audio.createGain(); gain.gain.value = 0;
+            source.connect(analyser); analyser.connect(gain); gain.connect(audio.destination);
+            await until(() => {
+              const pcm = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(pcm);
+              peak = Math.max(...pcm.map(Math.abs));
+              rms = Math.sqrt(pcm.reduce((sum, value) => sum + value * value, 0) / pcm.length);
+              return rms > 0.001;
+            }, "nonzero decoded native PCM");
+          }
+          await sleep(2200);
+          const after = await snapshot();
+          assert(!after.ui_auto_refresh_enabled && after.decoded_video_frame_count > before.decoded_video_frame_count + 5, "Native video stalled without polling");
+          if (config.native_audio) assert(after.received_audio_sample_count > before.received_audio_sample_count + 48000, "Native audio samples stalled");
+          else assert(after.received_audio_sample_count === 0 && after.received_audio_packet_count === 0, "Audio opt-out reached the viewer");
+          return { peak, rms, audioContext: audio?.state, before, after, outputGain: 0 };
+        });
+        await check("Native viewer sound controls preserve mute state", async () => {
+          assert(mediaReady, "Native video prerequisite failed");
+          await click("viewer-sound-btn");
+          assert(!el("viewer-video").muted, "Enable Sound did not unmute native playback");
+          await click("viewer-sound-btn");
+          assert(el("viewer-video").muted, "Mute Sound did not mute native playback");
+          return { gesture: "programmatic DOM clicks; audible output is not certified" };
+        });
+        await check("Native viewer Stop ends tracks and prevents revival", async () => {
+          const peer = peers.at(-1);
+          const tracks = el("viewer-video").srcObject?.getTracks() ?? [];
+          assert(mediaReady && tracks.length > 0, "No native media tracks to stop");
+          await stopRemainsStopped();
+          assert(tracks.every((track) => track.readyState === "ended") && peer.signalingState === "closed", "Native viewer retained peer/tracks");
+          return { tracks: tracks.map((track) => ({ kind: track.kind, state: track.readyState })) };
+        });
+      } finally {
+        source?.disconnect(); analyser?.disconnect(); gain?.disconnect();
+        if (audio) await audio.close();
+      }
     } else if (config.scenario === "viewer") {
       await change("auto-refresh-enabled", false);
       let mediaReady = false;

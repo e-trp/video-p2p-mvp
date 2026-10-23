@@ -78,3 +78,20 @@ node scripts/test-tauri-gui.mjs --binary apps/desktop/src-tauri/target/release/b
 ```
 
 Keep a default `.app`/`.dmg` separate from the instrumented QA build. DOM `.click()`/input events are programmatic actions: they do not certify Accessibility clicks, trusted user gestures, audible devices, or Screen Recording grant/relaunch. The playback fixture is synthetic, while decoding and the Tauri/Rust path are real. A failing Tauri playback check remains a failure even when standalone WKWebView/Chrome probes pass. See the [current GUI QA record](qa/gui-client-0.1.0-6bd1a31.md) and the [original failed run](qa/tauri-gui-0.1.0-74a8e37.md).
+
+## Native Desktop Playback QA
+
+Run the opt-in actual-source test on macOS with a desktop session and Screen Recording access:
+
+```bash
+cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml --features gui-qa
+cargo build -p signaling-server
+cargo build -p capture-macos --example capture_probe
+python3 scripts/test-native-desktop-playback.py --output /tmp/video-p2p-native-desktop-results
+```
+
+Use a fresh output directory. The runner creates a signed, temporary Cocoa source application that animates a real window and plays a generated 440 Hz tone. It launches that source through LaunchServices, then two actual Tauri processes with isolated preferences. ScreenCaptureKit, the production host worker, H.264/Opus and the desktop WebView carry the media. No raw/encoded media crosses Tauri IPC.
+
+Separate audio-on/off sessions check decoded fixture pixels, advancing video, actual nonzero decoded PCM through a zero-gain Web Audio analyzer, muted startup, programmatic sound controls, and Stop/track/peer cleanup. The host negotiates with explicit refreshes, then publication and viewer decoding are checked with Auto Refresh disabled. Audio opt-out requires zero host encoded audio and zero viewer audio packets/samples while video continues. The QA-only private stop marker coordinates host shutdown after viewer completion. The runner saves JSON diagnostics and process logs, stops only its own processes and deletes temporary source binaries/WAV data.
+
+`--binary PATH` selects a `gui-qa` executable and `--probe PATH` selects the capture catalog probe. The default build has no QA driver. This checks actual captured media from a controlled source, not a microphone or unrelated user content. Physical speaker/headphone output, trusted user gestures, permission transitions and packaged distribution remain manual checks.

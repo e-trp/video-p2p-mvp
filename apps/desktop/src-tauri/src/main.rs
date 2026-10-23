@@ -466,6 +466,7 @@ fn main() {
                     gui_qa::gui_qa_configuration,
                     gui_qa::gui_qa_window_state,
                     gui_qa::gui_qa_report,
+                    gui_qa::gui_qa_stop_requested,
                     gui_qa::gui_qa_resize,
                     gui_qa::gui_qa_finish
                 ];
