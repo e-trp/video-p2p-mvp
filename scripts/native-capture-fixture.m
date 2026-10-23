@@ -20,10 +20,11 @@
 
 int main(int argc, const char **argv) {
     @autoreleasepool {
-        if (argc != 2) {
-            fprintf(stderr, "usage: native-capture-fixture WAV_PATH|--silent\n");
+        if (argc != 2 && !(argc == 4 && strcmp(argv[2], "--stop-file") == 0)) {
+            fprintf(stderr, "usage: native-capture-fixture WAV_PATH|--silent [--stop-file PATH]\n");
             return 2;
         }
+        NSString *stopFile = argc == 4 ? @(argv[3]) : nil;
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
         NSSound *sound = nil;
@@ -42,9 +43,15 @@ int main(int argc, const char **argv) {
         [NSApp activate];
         NSTimer *animation = [NSTimer scheduledTimerWithTimeInterval:0.1 repeats:YES block:^(NSTimer *timer) {
             (void)timer;
+            // LaunchServices owns these processes; the runner stops only its own fixture.
+            if (stopFile && [[NSFileManager defaultManager] fileExistsAtPath:stopFile]) {
+                [NSApp terminate:nil];
+                return;
+            }
             view.needsDisplay = YES;
         }];
         printf("window_id=%ld process_id=%d audio=%s\n", (long)window.windowNumber, getpid(), sound ? "wav" : "silent");
+        printf("bundle_id=%s\n", NSBundle.mainBundle.bundleIdentifier.UTF8String ?: "unbundled");
         fflush(stdout);
         // Bound accidental unattended runs; the QA runner normally terminates its own fixture sooner.
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 120 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{

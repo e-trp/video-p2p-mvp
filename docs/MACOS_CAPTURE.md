@@ -1,6 +1,6 @@
 # Native macOS Capture
 
-`capture-macos` builds an Objective-C ScreenCaptureKit bridge on macOS and exposes native `CaptureStreamEvent` samples to Rust. Linux builds do not compile or link Apple frameworks. Native extraction/lifecycle checks use synthetic buffers. [Actual window video](qa/actual-window-0.1.0-0185449.md) is verified between local debug bundles; standalone window/application/display capture and raw audio checks are recorded in [BUG-013 verification](qa/BUG-013-command-line-capture.md). Permission transitions, audio isolation, audible playback, and packaged capture still require validation.
+`capture-macos` builds an Objective-C ScreenCaptureKit bridge on macOS and exposes native `CaptureStreamEvent` samples to Rust. Linux builds do not compile or link Apple frameworks. Native extraction/lifecycle checks use synthetic buffers. [Actual window video](qa/actual-window-0.1.0-0185449.md) is verified between local debug bundles; standalone window/application/display capture and raw audio checks are recorded in [BUG-013 verification](qa/BUG-013-command-line-capture.md). Concurrent fixture audio isolation is covered by the [BUG-014 regression](qa/BUG-014-audio-isolation.md); permission transitions, broader application/device audio behavior, audible playback, and packaged capture still require validation.
 
 ## Requirements
 
@@ -24,7 +24,7 @@ Window titles are labels; matching uses native IDs. These IDs can change after a
 
 Video is packed BGRA8; the bridge removes pixel-buffer row padding and ignores non-complete frames. Dimensions preserve source aspect ratio within the configured bounds. The bridge can normalize settings to 1–120 fps and dimensions 1–4096, but the desktop worker uses 30 fps and 1280×720 bounds to fit the current H.264 encoder's 720p/30fps limits. The GUI has no quality/FPS controls yet.
 
-Audio is configured for 48 kHz stereo on macOS 13+. Both planar and interleaved float32 CoreMedia buffers are normalized to interleaved `AudioBuffer.samples`. The stream excludes the capturing process's audio. Actual audio availability and application filtering need manual testing; protected content may not be capturable. No microphone capture is performed.
+Audio is configured for 48 kHz stereo on macOS 13+. Both planar and interleaved float32 CoreMedia buffers are normalized to interleaved `AudioBuffer.samples`. The stream excludes the capturing process's audio. Audio filtering is application-level: selecting a window can include sound from other windows of its owning application ([Apple WWDC22](https://developer.apple.com/videos/play/wwdc2022/10155/)). The [concurrent fixture regression](qa/BUG-014-audio-isolation.md) checks window/application isolation on the recorded macOS build; other applications, routing and protected content still need manual testing. No microphone capture is performed.
 
 Both sample types preserve CoreMedia presentation timestamps in microseconds. The native queue retains the latest video frame and up to 32 audio buffers. A dedicated worker drains this queue roughly every 5 ms, encodes media, and publishes to WebRTC independently of GUI refresh. GUI diagnostics retain only the newest raw video/audio samples.
 
@@ -67,6 +67,17 @@ python3 scripts/test-native-capture.py --output /tmp/video-p2p-native-capture-re
 
 Use a new output directory for each run. This requires Python 3, Xcode Command Line Tools, a macOS desktop session, and Screen Recording permission. It opens test windows, plays the generated tone, and briefly captures a display from the native catalog; it saves only diagnostic logs, source catalog metadata and `results.json`, never captured video/audio. Temporary fixture binaries and the generated tone are removed and fixture processes stopped. The runner waits for native catalog visibility and gives every scenario a fresh fixture. It covers window audio modes, application audio, display opt-out, and silent-source success/failure. Silent cases run without the tone process; they do not test filtering between concurrent applications.
 
-Manual permission/relaunch, multiple-monitor, concurrent-application audio filtering, capture-to-playback audio, and packaged stop/close checks remain outstanding. Their steps are maintained in the [QA checklist](QA_CHECKLIST.md#macos-actual-capture-and-publication--manual).
+For concurrent application audio isolation:
+
+```bash
+cargo build -p capture-macos --example capture_probe
+python3 scripts/test-native-audio-isolation.py --output /tmp/video-p2p-audio-isolation-results
+```
+
+This runner creates two temporary application bundles with distinct identifiers and ad-hoc signatures, launches them through macOS LaunchServices, and keeps a tone playing in one while capturing the silent window/application in the other. Seven checks cover positive audio controls, delivered silent PCM, window/application opt-out, and a final tone control. The silent checks require actual audio buffers with peak/RMS at or below `0.000001`; missing streams do not count as silence. It saves only identities and diagnostic logs, stops its applications through private stop files and waits for `open -W`, then removes temporary binaries/WAV data. Screen Recording access and a desktop session are required; `open` and `codesign` ship with macOS.
+
+`--compare-direct-launch` first runs the same binaries directly, preserving the two expected failing isolation results before the LaunchServices checks. This diagnostic option reproduces BUG-014 on the recorded OS; it fails if the old condition no longer reproduces. The default mode tests correct isolation only. Direct execution from a common launcher is not a reliable way to model independent macOS audio applications, even with distinct bundle IDs/signatures. See the [controlled comparison](qa/BUG-014-audio-isolation.md).
+
+Manual permission/relaunch, multiple-monitor, broader application/device audio filtering, capture-to-playback audio, and packaged stop/close checks remain outstanding. Their steps are maintained in the [QA checklist](QA_CHECKLIST.md#macos-actual-capture-and-publication--manual).
 
 API reference: [Apple ScreenCaptureKit](https://developer.apple.com/documentation/screencapturekit) and [SCStreamOutput](https://developer.apple.com/documentation/screencapturekit/scstreamoutput).

@@ -16,7 +16,7 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | Bug | Owning feature | Priority | Status | Kind | Next action |
 | --- | --- | --- | --- | --- | --- |
 | [BUG-010](#bug-010-late-viewer-test-races-the-server-waiting-response) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P2 | FIXED | Test fixture ordering | Await hosted Ubuntu acceptance on the fixing commit |
-| [BUG-014](#bug-014-concurrent-audio-fixture-does-not-establish-source-isolation) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | INVESTIGATING | Audio filtering / fixture attribution | Test concurrent audio from independently identified applications |
+| [BUG-014](#bug-014-concurrent-audio-fixture-does-not-establish-source-isolation) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | INVESTIGATING | Audio filtering / fixture attribution | Record the fixing commit after passing verification and cleanup |
 
 ### BUG-010: Late Viewer Test Races the Server Waiting Response
 
@@ -34,10 +34,12 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 ### BUG-014: Concurrent Audio Fixture Does Not Establish Source Isolation
 
 - **Affected version/components:** untagged `0.1.0`, baseline ScreenCaptureKit window audio and native QA fixture; ownership `BASE-MACOS-CAPTURE`, related future `M1-F3`.
-- **Priority/status/kind:** P2, INVESTIGATING, unexpected audio-filtering result; product versus fixture/OS cause is not established.
+- **Priority/status/kind:** P2, INVESTIGATING, test-fixture launch attribution defect; the production capture bridge is unchanged.
 - **Evidence/reproduction (2026-10-22):** the earlier `/private/tmp/video-p2p-native-audio-qa/after/results.json` and `distinct-apps/results.json` both report exit 0 for `silent-required` while a second fixture plays a tone. Both processes use the same compiled fixture executable; the second run wraps copies in distinct bundle IDs. Later cases in that second run also outlive fixture windows, so those failures do not establish a capture defect.
 - **Expected/actual:** a truly distinct silent application should not inherit another application's audio, but the observed window capture exceeds RMS `0.001`. Apple documents application-level, rather than per-window, audio filtering ([WWDC22](https://developer.apple.com/videos/play/wwdc2022/10155/)); distinct process IDs/bundle metadata alone do not establish how this fixture is attributed by the audio service.
-- **Cause/next action:** unresolved. Reproduce with independently identified applications and known audio routing, compare window/application filters, and measure PCM while only the other application emits sound. The BUG-013 runner uses sequential tone/silence cases and does not claim concurrent filtering acceptance.
+- **Cause/implementation:** direct subprocess launch under a common launcher does not establish independent audio applications in the tested macOS environment. Distinct bundle IDs and ad-hoc signatures alone still fail; launching the same bundle binaries through LaunchServices isolates their audio. The internal OS attribution mechanism is not inferred beyond this controlled launch-path effect. A dedicated runner now uses `open -n -W`, validates native source/bundle identity, checks concurrent tone/silence and opt-out, and waits for fixture exit using private stop files. See the [verification record](qa/BUG-014-audio-isolation.md).
+- **Verification:** two controlled runs using identical binaries across both launch modes reproduce the direct-launch silent-window/application failures and pass all seven LaunchServices scenarios. Both window/application audio opt-out checks receive zero audio buffers; the final tone control stays nonzero. All four fixture exits in the final comparison are 0. The sequential BUG-013 runner remains a startup/signal check.
+- **Next action:** record the fixing commit; controlled isolation, original startup/signal scenarios, both workspace checks, native extraction, browser playback/recovery and cleanup all pass.
 - **Closure criteria:** establish fixture/OS/product cause, correct the responsible behavior or test setup, retain a simultaneous-source regression and verify opted-in/opted-out capture. Keep actual audio isolation QA open until then.
 - **Deferral:** none; separate investigation from the command-line initialization fix.
 
