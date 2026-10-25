@@ -28,7 +28,7 @@ The first backend-only native rerun (`/private/tmp/video-p2p-bug015-lifecycle-af
 
 The controlled GUI after-run passes all 7 checks, including error delivery, unchanged source/controls, stale indication and recovery. The final native run (`/private/tmp/video-p2p-bug015-lifecycle-final`) preserves the chosen source and enables Start, but replacement capture fails with `Failed during stream due to application connection being interrupted` (BUG-016). The old stream stops with 97 encoded frames / 176 Opus packets; the replacement enters `starting` then `failed`. Initial decoded red pixels/PCM pass. Silent replacement decoding, return to the original and final source disappearance are not verified. The command exits 1 and retains its failure; it is not recorded as a passing lifecycle run.
 
-BUG-015 has a verified state-retention implementation; its broader actual lifecycle closure criterion remains open under BUG-016.
+BUG-015 is FIXED in `1f665d7` (untagged `0.1.0`) with verified state retention; its broader actual lifecycle closure criterion remains open under BUG-016. The subsequent status-recording commit changes documentation only.
 
 ## Baseline Regression and Mandatory Checks
 
