@@ -16,6 +16,8 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | Bug | Owning feature | Priority | Status | Kind | Next action |
 | --- | --- | --- | --- | --- | --- |
 | [BUG-010](#bug-010-late-viewer-test-races-the-server-waiting-response) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P2 | FIXED | Test fixture ordering | Await hosted Ubuntu acceptance on the fixing commit |
+| [BUG-015](#bug-015-transient-catalog-failure-replaces-the-selected-source) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | INVESTIGATING | Catalog refresh / source selection | Preserve the last valid catalog on discovery failure; verify recovery and real source closure |
+| [BUG-016](#bug-016-native-capture-fails-when-starting-a-replacement-source) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | INVESTIGATING | Native capture restart | Isolate the ScreenCaptureKit connection interruption after source replacement |
 
 ### BUG-010: Late Viewer Test Races the Server Waiting Response
 
@@ -29,6 +31,28 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 - **Next action:** run the fixing commit in hosted Ubuntu Actions after publication is authorized, inspect any subsequent failure independently, and record successful acceptance. The local Docker daemon is unavailable; hosted Ubuntu acceptance has not run.
 - **Closure criteria:** controlled failing-before/passing-after response-order regression, ordinary and repeated integration runs, mandatory local checks, and a successful Ubuntu CI run on the fixing commit. Remote verification stays open while the local commit has not been published/run; a passing local retry alone is insufficient.
 - **Deferral:** none.
+
+### BUG-015: Transient Catalog Failure Replaces the Selected Source
+
+- **Affected version/components:** untagged `0.1.0`, `app-core` catalog reconciliation and desktop refresh/source controls; base `0d04b6f`. Ownership `BASE-DESKTOP-CONTROLS`, related `BASE-MACOS-CAPTURE`.
+- **Priority/status/kind:** P2, INVESTIGATING, product source-selection defect discovered during actual source-lifecycle QA.
+- **Evidence/reproduction:** `/private/tmp/video-p2p-source-lifecycle-first/source-lifecycle/host.json` records a successful change from tone window `macos-window-5699` to silent window `macos-window-5705`, followed by a temporary `blueprintfallback` catalog with permission still granted. The session removes the selected native ID, persists the example source `mac-window-vlc`, then switches to unrelated Terminal window `macos-window-4283` when runtime discovery recovers. The GUI command still says it selected `5705`. Observed once in native QA; timing/reliability of the OS enumeration failure remains unestablished.
+- **Expected/actual:** a failed enumeration is not proof that the selected window disappeared. It must not replace the user's source or preferences. Instead, catalog fallback is treated as an authoritative source removal, stopping capture and replacing the selection. No automatic capture of the replacement was observed.
+- **Cause:** `SessionManager::sync_capture_catalog` treats example fallback sources as authoritative removal. Separately, the desktop refresh error path discards confirmed session/catalog controls and renders idle/preview state when IPC times out. The exact transient ScreenCaptureKit failure is not recorded in the original session snapshot; do not infer its OS cause.
+- **Implementation/verification:** retain the last valid runtime source list as `cachedruntime`, expose the current error/permission diagnostics, and preserve selection/preferences. Lost/unknown permission stops capture; confirmed absence in a successful runtime catalog still stops/rebinds it. Two controlled tests fail before the fix by selecting `example-source` instead of `native-source`; all three focused tests pass after, including repeated failures, recovery/rename/removal, permission loss, no-cache fallback and successful empty catalog.
+- **Verification/next action:** controlled backend before/after and GUI error/recovery regressions pass. Native source replacement now retains the chosen ID and reaches Start, but subsequent ScreenCaptureKit startup fails under BUG-016. Both backend-only failed records and the final native failure are retained in the [QA record](qa/BUG-015-catalog-refresh.md). Record the fixing commit after mandatory checks; full lifecycle acceptance stays open under BUG-016.
+- **Closure criteria:** failing-before/passing-after catalog regression, repeated failures/recovery and permission-loss coverage, actual switch/restore/closure playback, mandatory checks and fixing commit.
+- **Deferral:** none; this defect takes priority over extending baseline QA.
+
+### BUG-016: Native Capture Fails When Starting a Replacement Source
+
+- **Affected version/components:** untagged `0.1.0`, macOS capture restart after switching a real source in the same host/viewer session; base `0d04b6f` plus BUG-015 state-retention fixes. Ownership `BASE-MACOS-CAPTURE`.
+- **Priority/status/kind:** P2, INVESTIGATING, native capture startup failure; product versus OS cause is not established.
+- **Evidence/reproduction (2026-10-25):** `python3 scripts/test-native-desktop-playback.py --source-lifecycle --output /private/tmp/video-p2p-bug015-lifecycle-final`. Initial red source `macos-window-6573` publishes decoded video/PCM. Selecting blue silent source `macos-window-6579` stops the old capture and preserves the new selection; explicit Start enters `starting`, then reports `Failed during stream due to application connection being interrupted`. Host remains connected with 97 encoded video frames / 176 Opus packets from the original source. Native fixtures retain their identities and exit normally during runner cleanup. See `source-lifecycle/host.json`; observed once after both BUG-015 fixes, reliability unknown.
+- **Expected/actual:** a valid replacement source should resume capture/publication on the established peer; instead its native runtime fails and no new media is published. Restore/closure checks are blocked by this startup failure.
+- **Cause/next action:** unknown. Isolate same-source versus different-source restart and audio on/off in one host process; inspect native stop/start completion and ScreenCaptureKit error diagnostics. Do not attribute the failure to permissions, the source fixture, or native handle lifetime without controlled evidence.
+- **Closure criteria:** establish and repair the responsible behavior/environment, retain a failing-before/passing-after regression, pass actual switch/restore/closure playback and mandatory checks.
+- **Deferral:** none; next actionable native defect after recording BUG-015's implementation and verification limits.
 
 ## Closed Issues
 

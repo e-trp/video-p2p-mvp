@@ -82,6 +82,12 @@
     }
     await persist();
   }
+  async function focusQaWindow() {
+    await invoke("gui_qa_focus");
+    await until(async () => (await invoke("gui_qa_window_state")).focused, "foreground QA controls");
+  }
+  const checkpoint = (name, publish = false) => invoke("gui_qa_checkpoint", { name, publish });
+  const checkpointWait = (name) => until(() => checkpoint(name), `native checkpoint ${name}`, 30000);
   async function refresh() { await click("flow-refresh-btn"); }
   async function stopRemainsStopped() {
     await click("stop-btn");
@@ -350,6 +356,44 @@
         await refresh();
         assert(picker.value === previous, "Refresh did not restore the authoritative source");
       });
+      await check("Failed catalog/session refresh preserves confirmed source controls", async () => {
+        form("catalog-refresh-qa"); await refresh(); await click("host-btn");
+        const before = await snapshot();
+        const picker = el("source-picker");
+        assert(before.selected_source_id && !el("start-capture-btn").disabled, "Prepared host source controls are unavailable");
+        const originalTauri = window.__TAURI__;
+        const originalInvoke = originalTauri.core.invoke;
+        const failures = [];
+        const failingInvoke = async (command, args) => {
+          const value = await originalInvoke(command, args);
+          if (["session_snapshot", "capture_catalog"].includes(command)) {
+            failures.push(command);
+            throw new Error("Controlled refresh delivery failure");
+          }
+          return value;
+        };
+        window.__TAURI__ = { ...originalTauri, core: { ...originalTauri.core, invoke: failingInvoke } };
+        try {
+          // The preceding action may still have its post-action refresh in flight.
+          await until(async () => {
+            await refresh();
+            return failures.includes("session_snapshot") && failures.includes("capture_catalog");
+          }, "controlled refresh failures");
+          await sleep(150);
+          assert(picker.value === before.selected_source_id && !picker.disabled,
+            "Failed refresh discarded the confirmed source options");
+          assert(!el("start-capture-btn").disabled && row("session", "Mode") === "host",
+            "Failed refresh replaced confirmed host controls with idle/preview state");
+          assert(el("runtime-badge").textContent.includes("incomplete"), "Stale diagnostics are not marked");
+        } finally {
+          window.__TAURI__ = originalTauri;
+        }
+        await refresh();
+        await until(() => el("runtime-badge").textContent === "Tauri runtime connected", "refresh recovery");
+        assert((await snapshot()).selected_source_id === before.selected_source_id, "Recovery changed the selected source");
+        await click("stop-btn");
+        return { failures, selectedSource: before.selected_source_id };
+      });
     } else if (config.scenario === "restore") {
       await check("Preferences survive actual application restart", async () => {
         const state = await snapshot();
@@ -393,8 +437,49 @@
         else assert(after.encoded_audio_packet_count === 0, "Audio opt-out published encoded audio");
         return { before, after };
       });
+      if (config.native_alternate_source_id) {
+        await checkpointWait("initial-viewer");
+        for (const [sourceId, label, published, observed] of [
+          [config.native_alternate_source_id, "silent alternate", "alternate-host", "alternate-viewer"],
+          [config.native_source_id, "original tone", "restored-host", "restored-viewer"],
+        ]) {
+          await check(`Source change stops capture before starting ${label}`, async () => {
+            await focusQaWindow();
+            await change("source-picker", sourceId);
+            const stopped = await snapshot();
+            assert(stopped.selected_source_id === sourceId && stopped.capture_runtime_status !== "running", "Source change retained old capture");
+            await sleep(1200); const settled = await snapshot();
+            assert(settled.encoded_video_frame_count === stopped.encoded_video_frame_count
+              && settled.encoded_audio_packet_count === stopped.encoded_audio_packet_count, "Old source published after selection completed");
+            await click("start-capture-btn");
+            await until(async () => (await snapshot()).encoded_video_frame_count > settled.encoded_video_frame_count + 5,
+              "new source publication");
+            return { stopped, running: await snapshot() };
+          });
+          assert(results.at(-1).result === "PASS", "Source switch failed");
+          await checkpoint(published, true);
+          await checkpointWait(observed);
+        }
+        await checkpointWait("source-closed");
+        await check("Closing the captured source and refreshing stops publication", async () => {
+          await focusQaWindow();
+          await until(async () => {
+            await refresh();
+            return ![...el("source-picker").options].some((option) => option.value === config.native_source_id);
+          }, "closed source leaves catalog");
+          const before = await snapshot();
+          assert(before.selected_source_id !== config.native_source_id && before.capture_runtime_status !== "running", "Closed source retained active capture");
+          await sleep(1500); const after = await snapshot();
+          assert(after.encoded_video_frame_count === before.encoded_video_frame_count
+            && after.encoded_audio_packet_count === before.encoded_audio_packet_count, "Closed source or fallback keeps publishing");
+          return { before, after };
+        });
+        assert(results.at(-1).result === "PASS", "Source closure failed");
+        await checkpoint("closure-host", true);
+      }
       await until(() => invoke("gui_qa_stop_requested"), "viewer completion", 45000);
       await check("Native host Stop releases capture and publication", async () => {
+        await focusQaWindow();
         await stopRemainsStopped();
         const before = await snapshot(); await sleep(1200); const after = await snapshot();
         assert(after.capture_runtime_status !== "running", "Stop retained capture");
@@ -451,6 +536,62 @@
           else assert(after.received_audio_sample_count === 0 && after.received_audio_packet_count === 0, "Audio opt-out reached the viewer");
           return { peak, rms, audioContext: audio?.state, before, after, outputGain: 0 };
         });
+        if (config.native_alternate_source_id) {
+          assert(mediaReady && audio?.state === "running", "Source lifecycle requires decoded native audio/video");
+          const originalPeer = peers.at(-1);
+          const originalGeneration = (await snapshot()).viewer_generation;
+          const readPcm = () => {
+            const pcm = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(pcm);
+            return Math.sqrt(pcm.reduce((sum, value) => sum + value * value, 0) / pcm.length);
+          };
+          const readPixel = () => {
+            const video = el("viewer-video");
+            const canvas = document.createElement("canvas"); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d"); ctx.drawImage(video, 0, 0);
+            return [...ctx.getImageData(Math.floor(canvas.width * 0.8), Math.floor(canvas.height * 0.7), 1, 1).data];
+          };
+          await checkpoint("initial-viewer", true);
+          for (const [silent, published, observed] of [
+            [true, "alternate-host", "alternate-viewer"],
+            [false, "restored-host", "restored-viewer"],
+          ]) {
+            await checkpointWait(published);
+            await focusQaWindow();
+            await check(silent ? "Viewer decodes the silent alternate source" : "Viewer resumes original pixels and PCM without reconnect", async () => {
+              const before = await snapshot();
+              await until(() => {
+                const pixel = readPixel();
+                return silent ? pixel[2] > 140 && pixel[0] < 80 : pixel[0] > 140 && pixel[2] < 80;
+              }, "replacement source pixels");
+              // Drain packets and decoder concealment from the preceding source before measuring.
+              await sleep(1500);
+              let rms = readPcm();
+              if (!silent) await until(() => { rms = readPcm(); return rms > 0.001; }, "restored tone PCM");
+              let maxRms = rms;
+              const end = Date.now() + 1200;
+              while (Date.now() < end) { maxRms = Math.max(maxRms, readPcm()); await sleep(50); }
+              const after = await snapshot();
+              assert(peers.at(-1) === originalPeer && after.viewer_generation === originalGeneration, "Source change recreated the viewer peer");
+              assert(after.decoded_video_frame_count > before.decoded_video_frame_count + 5
+                && after.received_audio_sample_count > before.received_audio_sample_count + 48000, "Replacement video/audio stream did not advance");
+              if (silent) assert(maxRms <= 0.0001, `Original tone leaked into silent source: ${maxRms}`);
+              return { pixel: readPixel(), rms, maxRms, before, after };
+            });
+            assert(results.at(-1).result === "PASS", "Replacement playback failed");
+            await checkpoint(observed, true);
+          }
+          await checkpointWait("closure-host");
+          await focusQaWindow();
+          await check("Source closure stops new decoded media without replacing the viewer", async () => {
+            await sleep(1500); const before = await snapshot();
+            await sleep(1500); const after = await snapshot();
+            assert(after.decoded_video_frame_count === before.decoded_video_frame_count, "Viewer continues decoding after source closure");
+            assert(peers.at(-1) === originalPeer && after.viewer_generation === originalGeneration, "Source closure replaced viewer peer");
+            const rms = readPcm();
+            assert(rms <= 0.0001, `Tone persists after source closure: ${rms}`);
+            return { before, after, rms };
+          });
+        }
         await check("Native viewer sound controls preserve mute state", async () => {
           assert(mediaReady, "Native video prerequisite failed");
           await click("viewer-sound-btn");

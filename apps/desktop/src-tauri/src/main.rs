@@ -465,8 +465,10 @@ fn main() {
                 let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
                     gui_qa::gui_qa_configuration,
                     gui_qa::gui_qa_window_state,
+                    gui_qa::gui_qa_focus,
                     gui_qa::gui_qa_report,
                     gui_qa::gui_qa_stop_requested,
+                    gui_qa::gui_qa_checkpoint,
                     gui_qa::gui_qa_resize,
                     gui_qa::gui_qa_finish
                 ];

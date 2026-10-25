@@ -58,7 +58,7 @@ Host signaling needs refresh during negotiation. Viewer signaling runs independe
 
 ## Capture Selection And Lifecycle
 
-macOS sources come from SCShareableContent windows, applications, and displays. Matching uses native IDs, not labels. The first available source is selected if no explicit selection exists. Saved IDs may become invalid after an app/system restart; catalog refresh can rebind selection to the first available source and stops old capture.
+macOS sources come from SCShareableContent windows, applications, and displays. Matching uses native IDs, not labels. The first available source is selected if no explicit selection exists. Saved IDs may become invalid after an app/system restart; a successful catalog refresh can rebind selection to the first available source and stops old capture. A failed discovery retains the last runtime catalog and selection, shows `cachedruntime` with error/permission notes, and requires refresh to verify availability. Permission loss stops capture. If a desktop refresh fails, the last confirmed controls remain available and the runtime badge/catalog notes identify stale diagnostics; refresh again to verify current state.
 
 Linux may list X11 window metadata through `wmctrl`. This does not enable X11 capture. Blueprint/example sources appear when enumeration is unavailable; they support demo/debug selection and cannot start real macOS capture. Linux runtime status/permission hints do not mean Portal/PipeWire is implemented.
 

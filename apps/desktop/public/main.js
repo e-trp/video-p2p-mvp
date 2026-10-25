@@ -696,14 +696,16 @@ async function performRefresh() {
 
   if (status) {
     setStatus(status);
-    document.getElementById("runtime-badge").textContent = "Tauri runtime connected";
-    document.getElementById("runtime-badge").className = "badge live";
+    const complete = Boolean(session && captureCatalog);
+    document.getElementById("runtime-badge").textContent = complete
+      ? "Tauri runtime connected" : "Tauri refresh incomplete";
+    document.getElementById("runtime-badge").className = complete ? "badge live" : "badge preview";
   } else {
     document.getElementById("runtime-badge").textContent = isTauri
       ? "Tauri command timeout"
       : "Browser preview";
     document.getElementById("runtime-badge").className = "badge preview";
-    setPreviewOverview();
+    if (!lastSession) setPreviewOverview();
   }
 
   if (session) {
@@ -713,7 +715,7 @@ async function performRefresh() {
       auto_refresh_enabled: session.ui_auto_refresh_enabled,
       refresh_interval_secs: session.ui_refresh_interval_secs,
     });
-  } else {
+  } else if (!lastSession) {
     const fallbackMode = isTauri ? "idle" : "preview";
     const fallbackNextAction = isTauri ? "refresh timed out; run local demo or try refresh" : "run inside Tauri";
     document.getElementById("session").innerHTML = `
@@ -811,6 +813,15 @@ async function performRefresh() {
 
   if (captureCatalog) {
     setCaptureCatalog(captureCatalog);
+  } else if (displayedCaptureCatalog) {
+    // A failed refresh cannot supersede a confirmed selection or prove source removal.
+    const note = "Catalog refresh failed; showing the last received source list. Refresh to verify availability.";
+    setCaptureCatalog({
+      ...displayedCaptureCatalog,
+      selected_source_id: lastSession ? lastSession.selected_source_id : displayedCaptureCatalog.selected_source_id,
+      selected_source_audio: lastSession ? lastSession.selected_source_audio : displayedCaptureCatalog.selected_source_audio,
+      notes: [...new Set([...(displayedCaptureCatalog.notes ?? []), note])],
+    });
   } else {
     document.getElementById("capture-catalog").innerHTML = `
       <div><dt>Backend</dt><dd>preview</dd></div>

@@ -10,6 +10,7 @@ pub(crate) struct Configuration {
     scenario: String,
     signaling_addr: String,
     native_source_id: Option<String>,
+    native_alternate_source_id: Option<String>,
     native_audio: bool,
 }
 
@@ -42,6 +43,14 @@ pub(crate) fn gui_qa_configuration(state: State<'_, QaState>) -> Configuration {
 }
 
 #[tauri::command]
+pub(crate) fn gui_qa_focus(
+    window: WebviewWindow,
+    _state: State<'_, QaState>,
+) -> Result<(), String> {
+    window.set_focus().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub(crate) fn gui_qa_stop_requested(state: State<'_, QaState>) -> Result<bool, String> {
     state
         .stop_file
@@ -49,6 +58,37 @@ pub(crate) fn gui_qa_stop_requested(state: State<'_, QaState>) -> Result<bool, S
         .ok_or_else(|| "Native GUI QA requires a private stop file".to_owned())?
         .try_exists()
         .map_err(|error| format!("cannot inspect GUI QA stop file: {error}"))
+}
+
+#[tauri::command]
+pub(crate) fn gui_qa_checkpoint(
+    name: String,
+    publish: bool,
+    state: State<'_, QaState>,
+) -> Result<bool, String> {
+    if !matches!(
+        name.as_str(),
+        "initial-viewer"
+            | "alternate-host"
+            | "alternate-viewer"
+            | "restored-host"
+            | "restored-viewer"
+            | "source-closed"
+            | "closure-host"
+    ) {
+        return Err("Unknown native GUI QA checkpoint".into());
+    }
+    let path = state
+        .stop_file
+        .as_ref()
+        .ok_or("Native GUI QA requires a private stop file")?
+        .with_file_name(name);
+    if publish {
+        std::fs::write(&path, [])
+            .map_err(|error| format!("cannot publish GUI QA checkpoint: {error}"))?;
+    }
+    path.try_exists()
+        .map_err(|error| format!("cannot inspect GUI QA checkpoint: {error}"))
 }
 
 #[tauri::command]
@@ -88,6 +128,8 @@ pub(crate) fn plugin() -> TauriPlugin<tauri::Wry> {
                     scenario: std::env::var("VIDEO_P2P_GUI_QA_SCENARIO")?,
                     signaling_addr: std::env::var("VIDEO_P2P_GUI_QA_SIGNALING")?,
                     native_source_id: std::env::var("VIDEO_P2P_GUI_QA_NATIVE_SOURCE").ok(),
+                    native_alternate_source_id: std::env::var("VIDEO_P2P_GUI_QA_ALTERNATE_SOURCE")
+                        .ok(),
                     native_audio: std::env::var("VIDEO_P2P_GUI_QA_NATIVE_AUDIO")
                         .is_ok_and(|value| value == "true"),
                 },

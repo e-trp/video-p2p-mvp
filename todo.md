@@ -68,6 +68,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 
 - [x] **BASE-DESKTOP-CONTROLS:** Host/viewer preparation, source picker, capture start/poll/stop, session stop/reset, and manual reconnect with recovery guidance. Real Tauri GUI defects are tracked in the bug register.
 - [x] Source selection survives Auto Refresh and native Accessibility menu interaction; unavailable-source errors preserve the prior selection. [BUG-011/BUG-012 verification](docs/qa/BUG-011-source-selection.md) records six focused checks, three native selections, and mandatory verification. Fixes do not advance the `0/5` feature counter.
+- [x] Catalog failure preserves the last runtime source list, selection/preferences and confirmed UI controls, with stale diagnostics and permission-loss handling; controlled backend and GUI regressions are recorded in [BUG-015 QA](docs/qa/BUG-015-catalog-refresh.md). Native replacement playback remains open in the bug register.
 - [x] Transport/capture/playback diagnostics, selected ICE path, and available RTT/bitrate/bytes/loss metrics.
 - [x] Persisted room/signaling/ICE/source/audio selection and Auto Refresh preferences; polling preserves unsaved form edits.
 - [x] Custom STUN/TURN validation and configuration propagation to Rust/WebView peers through CLI/Tauri settings.
@@ -99,6 +100,8 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 Consult [current issues](docs/BUGS.md#current-issues) before feature work, then follow the baseline QA prerequisites below. Bug status and closure evidence live only in the register. The baseline `BASE-*` references identify existing behavior/tooling and do not count as new milestone features.
 
 ### Baseline QA Prerequisites
+
+The [source lifecycle regression](docs/qa/BUG-015-catalog-refresh.md) verifies source-state retention during catalog failures; full switch/restore/closure playback is blocked by [BUG-016](docs/BUGS.md#bug-016-native-capture-fails-when-starting-a-replacement-source). Its opt-in runner retains failed evidence and does not establish lifecycle acceptance.
 
 The [2026-10-19 actual-window GUI run](docs/qa/actual-window-0.1.0-0185449.md) verifies a real TextEdit window between two local debug bundles, visible content changes, playback with host Auto Refresh disabled, and capture stop/restart. The [BUG-013 regression](docs/qa/BUG-013-command-line-capture.md) additionally covers standalone window/application/display samples and audio opt-in/out. The [BUG-014 regression](docs/qa/BUG-014-audio-isolation.md) covers concurrent fixture audio isolation. The [native desktop playback run](docs/qa/native-desktop-playback-0.1.0-c0d19af.md) also verifies actual fixture pixels/PCM through two Tauri clients and audio opt-out. Broader application/device audio behavior, audible output, permission transitions and distribution acceptance remain open.
 

@@ -1330,8 +1330,31 @@ impl SessionManager {
     }
 
     fn sync_capture_catalog(&mut self) {
+        self.apply_capture_catalog(current_capture_catalog());
+    }
+
+    fn apply_capture_catalog(&mut self, mut catalog: CaptureCatalogSnapshot) {
         let previous_catalog = self.state.capture_catalog.clone();
-        self.state.capture_catalog = current_capture_catalog();
+        // Example fallback sources cannot establish that a previously discovered window closed.
+        // Keep the last runtime identities, but expose the latest error and permission state.
+        if matches!(
+            previous_catalog.origin.as_str(),
+            "runtime" | "cachedruntime"
+        ) && catalog.origin != "runtime"
+        {
+            catalog.backend = "Cached runtime capture catalog".to_string();
+            catalog.origin = "cachedruntime".to_string();
+            catalog.sources.clone_from(&previous_catalog.sources);
+            catalog.notes.push(
+                "Source discovery is unavailable; showing the last runtime catalog. Refresh to verify source availability."
+                    .to_string(),
+            );
+            if catalog.permission_state != CapturePermissionState::Granted {
+                self.stop_capture_runtime_without_snapshot();
+                self.reset_native_capture_diagnostics();
+            }
+        }
+        self.state.capture_catalog = catalog;
         let mut persist_preferences = false;
 
         if previous_catalog.backend != self.state.capture_catalog.backend
@@ -2064,8 +2087,9 @@ mod tests {
     };
     use crate::signaling::SignalingConnection;
     use capture_core::{
-        CaptureSource, CaptureSourceKind, CaptureStreamConfig, CaptureStreamEvent,
-        CaptureStreamResult, CaptureStreamRuntime, CaptureStreamStatus,
+        CapturePermissionState, CaptureSelection, CaptureSource, CaptureSourceKind,
+        CaptureStreamConfig, CaptureStreamEvent, CaptureStreamResult, CaptureStreamRuntime,
+        CaptureStreamStatus,
     };
     use std::collections::HashMap;
     use std::fs;
@@ -2352,6 +2376,151 @@ mod tests {
         }));
 
         let _ = fs::remove_dir_all(config_dir);
+    }
+
+    fn catalog_regression_host() -> (SessionManager, PathBuf, Arc<AtomicUsize>) {
+        let (mut manager, directory) = new_test_manager("catalog-regression");
+        manager.state.mode = SessionMode::Host;
+        manager.state.capture_catalog = super::CaptureCatalogSnapshot {
+            backend: "test native catalog".into(),
+            permission_state: CapturePermissionState::Granted,
+            origin: "runtime".into(),
+            notes: vec![],
+            sources: vec![CaptureSource {
+                id: "native-source".into(),
+                kind: CaptureSourceKind::Window,
+                display_name: "Selected window".into(),
+                app_name: None,
+                has_audio: true,
+            }],
+        };
+        manager.state.capture_selection = Some(CaptureSelection {
+            source_id: "native-source".into(),
+            include_audio: false,
+        });
+        manager.state.source_label = Some("Selected window".into());
+        let stops = Arc::new(AtomicUsize::new(0));
+        manager.state.capture_runtime = Some(Box::new(TestCaptureRuntime {
+            status: CaptureStreamStatus::Running,
+            events: vec![],
+            stops: stops.clone(),
+        }));
+        manager.persist_preferences();
+        (manager, directory, stops)
+    }
+
+    fn failed_catalog(permission_state: CapturePermissionState) -> super::CaptureCatalogSnapshot {
+        super::CaptureCatalogSnapshot {
+            backend: "test blueprint fallback".into(),
+            permission_state,
+            origin: "blueprintfallback".into(),
+            notes: vec!["runtime enumeration timed out".into()],
+            sources: vec![CaptureSource {
+                id: "example-source".into(),
+                kind: CaptureSourceKind::Window,
+                display_name: "Example".into(),
+                app_name: None,
+                has_audio: true,
+            }],
+        }
+    }
+
+    #[test]
+    fn catalog_failure_preserves_source_capture_and_preferences_until_confirmed_removal() {
+        let (mut manager, directory, stops) = catalog_regression_host();
+        let saved = fs::read(directory.join("session.conf")).unwrap();
+        let mut recovered = manager.state.capture_catalog.clone();
+        for _ in 0..2 {
+            manager.apply_capture_catalog(failed_catalog(CapturePermissionState::Granted));
+            let state = manager.snapshot();
+            assert_eq!(state.selected_source_id.as_deref(), Some("native-source"));
+            assert!(!state.selected_source_audio);
+            assert_eq!(state.capture_runtime_status, "running");
+            assert_eq!(stops.load(Ordering::SeqCst), 0);
+            assert_eq!(fs::read(directory.join("session.conf")).unwrap(), saved);
+            assert_eq!(manager.state.capture_catalog.origin, "cachedruntime");
+            assert_eq!(manager.state.capture_catalog.sources, recovered.sources);
+            assert!(
+                manager
+                    .state
+                    .capture_catalog
+                    .notes
+                    .iter()
+                    .any(|note| note.contains("timed out"))
+            );
+        }
+        recovered.sources[0].display_name = "Renamed window".into();
+        manager.apply_capture_catalog(recovered.clone());
+        assert_eq!(
+            manager.snapshot().source_label.as_deref(),
+            Some("Renamed window")
+        );
+        assert_eq!(manager.state.capture_catalog.origin, "runtime");
+        assert_eq!(stops.load(Ordering::SeqCst), 0);
+        recovered.sources[0].id = "replacement-source".into();
+        manager.apply_capture_catalog(recovered);
+        let state = manager.snapshot();
+        assert_eq!(
+            state.selected_source_id.as_deref(),
+            Some("replacement-source")
+        );
+        assert!(!state.selected_source_audio);
+        assert_eq!(state.capture_runtime_status, "not_started");
+        assert_eq!(stops.load(Ordering::SeqCst), 1);
+        assert!(
+            fs::read_to_string(directory.join("session.conf"))
+                .unwrap()
+                .contains("selected_source_id=replacement-source")
+        );
+        drop(manager);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn catalog_failure_reports_permission_loss_and_stops_capture_without_rebinding() {
+        for permission in [
+            CapturePermissionState::Denied,
+            CapturePermissionState::Required,
+            CapturePermissionState::Unknown,
+        ] {
+            let (mut manager, directory, stops) = catalog_regression_host();
+            let saved = fs::read(directory.join("session.conf")).unwrap();
+            for _ in 0..2 {
+                manager.apply_capture_catalog(failed_catalog(permission));
+                assert_eq!(manager.state.capture_catalog.permission_state, permission);
+                assert_eq!(
+                    manager.snapshot().selected_source_id.as_deref(),
+                    Some("native-source")
+                );
+                assert_eq!(manager.snapshot().capture_runtime_status, "not_started");
+                assert_eq!(stops.load(Ordering::SeqCst), 1);
+                assert_eq!(fs::read(directory.join("session.conf")).unwrap(), saved);
+            }
+            drop(manager);
+            fs::remove_dir_all(directory).unwrap();
+        }
+    }
+
+    #[test]
+    fn catalog_failure_without_a_runtime_cache_keeps_fallback_and_empty_success_is_authoritative() {
+        let (mut manager, directory) = new_test_manager("catalog-no-cache");
+        let fallback = failed_catalog(CapturePermissionState::Granted);
+        manager.state.capture_catalog = fallback.clone();
+        manager.state.capture_selection = None;
+        manager.apply_capture_catalog(fallback.clone());
+        assert_eq!(manager.state.capture_catalog, fallback);
+        drop(manager);
+        fs::remove_dir_all(directory).unwrap();
+
+        let (mut manager, directory, stops) = catalog_regression_host();
+        let mut empty = manager.state.capture_catalog.clone();
+        empty.sources.clear();
+        manager.apply_capture_catalog(empty);
+        assert!(manager.snapshot().selected_source_id.is_none());
+        assert_eq!(stops.load(Ordering::SeqCst), 1);
+        assert_eq!(manager.snapshot().capture_runtime_status, "not_started");
+        drop(manager);
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

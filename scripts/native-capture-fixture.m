@@ -3,11 +3,15 @@
 #include <unistd.h>
 
 @interface CaptureFixtureView : NSView
+@property(nonatomic) BOOL silent;
 @end
 @implementation CaptureFixtureView
 - (void)drawRect:(NSRect)dirtyRect {
     (void)dirtyRect;
-    [[NSColor colorWithSRGBRed:0.75 green:0.25 blue:0.125 alpha:1] setFill];
+    NSColor *background = self.silent
+        ? [NSColor colorWithSRGBRed:0.125 green:0.25 blue:0.75 alpha:1]
+        : [NSColor colorWithSRGBRed:0.75 green:0.25 blue:0.125 alpha:1];
+    [background setFill];
     NSRectFill(self.bounds);
     double phase = fmod(NSProcessInfo.processInfo.systemUptime, 3.0) / 3.0;
     [[NSColor whiteColor] setFill];
@@ -38,6 +42,7 @@ int main(int argc, const char **argv) {
             styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
         window.title = @"VideoP2P Capture QA";
         CaptureFixtureView *view = [[CaptureFixtureView alloc] initWithFrame:window.contentView.bounds];
+        view.silent = sound == nil;
         window.contentView = view;
         [window makeKeyAndOrderFront:nil];
         [NSApp activate];

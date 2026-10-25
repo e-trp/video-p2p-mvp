@@ -64,6 +64,8 @@ Clean removes built binaries, so run it after playback probes. Rebuild before an
 
 The [native desktop playback record](qa/native-desktop-playback-0.1.0-c0d19af.md) verifies actual ScreenCaptureKit fixture pixels/PCM through two local Tauri clients, audio opt-out, programmatic mute controls and Stop cleanup. This focused run leaves physical output, trusted gestures, permission transitions and broader source/device scenarios open.
 
+The [BUG-015 record](qa/BUG-015-catalog-refresh.md) verifies failed-refresh state retention. Its actual switch/restore/closure scenario remains blocked by BUG-016; do not mark source lifecycle complete from initial playback or passing unit tests.
+
 ## Backend Negotiation Smoke Test
 
 Start signaling, then the host/viewer commands in separate terminals:

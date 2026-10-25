@@ -55,17 +55,25 @@ def await_host(child, path):
     raise RuntimeError("native host startup timed out; inspect " + str(path))
 
 
-def run_case(binary, probe, bundles, tone, signaling, output, audio):
-    directory = output / ("audio-on" if audio else "audio-off")
+def run_case(binary, probe, bundles, tone, signaling, output, audio, lifecycle=False):
+    directory = output / ("source-lifecycle" if lifecycle else "audio-on" if audio else "audio-off")
     directory.mkdir()
     stop = directory / "host.stop"
     fixture = fixtures.Fixture(bundles["Tone"], tone, directory, direct=False)
+    alternate = None
+    fixture_closed = False
     try:
         fixture.ready(probe)
         env = dict(os.environ, VIDEO_P2P_GUI_QA_SIGNALING=signaling,
                    VIDEO_P2P_GUI_QA_NATIVE_SOURCE=fixture.window,
                    VIDEO_P2P_GUI_QA_NATIVE_AUDIO=str(audio).lower(),
                    VIDEO_P2P_GUI_QA_STOP_FILE=str(stop))
+        if lifecycle:
+            alternate = fixtures.Fixture(bundles["Silent"], tone, directory, direct=False)
+            alternate.ready(probe)
+            env["VIDEO_P2P_GUI_QA_ALTERNATE_SOURCE"] = alternate.window
+        else:
+            env.pop("VIDEO_P2P_GUI_QA_ALTERNATE_SOURCE", None)
         host_env = dict(env, VIDEO_P2P_MVP_CONFIG_DIR=str(directory / "host-config"),
                         VIDEO_P2P_GUI_QA_REPORT=str(directory / "host.json"),
                         VIDEO_P2P_GUI_QA_SCENARIO="native-host")
@@ -76,6 +84,17 @@ def run_case(binary, probe, bundles, tone, signaling, output, audio):
             try:
                 await_host(host, directory / "host.json")
                 with process([str(binary)], directory / "viewer.log", viewer_env) as viewer:
+                    if lifecycle:
+                        deadline = time.monotonic() + 60
+                        while not (directory / "restored-viewer").exists():
+                            if viewer.poll() is not None or host.poll() is not None:
+                                raise RuntimeError("client exited before source closure; inspect GUI reports")
+                            if time.monotonic() >= deadline:
+                                raise RuntimeError("source lifecycle timed out before restored playback")
+                            time.sleep(0.1)
+                        fixture.close()
+                        fixture_closed = True
+                        (directory / "source-closed").touch()
                     viewer_code = viewer.wait(timeout=60)
             finally:
                 stop.touch()
@@ -89,7 +108,12 @@ def run_case(binary, probe, bundles, tone, signaling, output, audio):
         return {"audio": audio, "source": fixture.window, "success": success,
                 "host_exit": host_code, "viewer_exit": viewer_code}
     finally:
-        fixture.close()
+        try:
+            if alternate is not None:
+                alternate.close()
+        finally:
+            if not fixture_closed:
+                fixture.close()
 
 
 def main():
@@ -98,6 +122,8 @@ def main():
                         default=ROOT / "apps/desktop/src-tauri/target/debug/desktop-app")
     parser.add_argument("--probe", type=Path, default=ROOT / "target/debug/examples/capture_probe")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--source-lifecycle", action="store_true",
+                        help="switch between distinct sources, restore the original, then close it")
     args = parser.parse_args()
     if sys.platform != "darwin":
         parser.error("requires macOS, a desktop session and Screen Recording permission")
@@ -125,9 +151,9 @@ def main():
                     time.sleep(0.05)
             with tempfile.TemporaryDirectory(prefix="video-p2p-native-desktop-") as scratch:
                 bundles, tone = fixtures.build_fixtures(Path(scratch), output)
-                for audio in (True, False):
+                for audio in ((True,) if args.source_lifecycle else (True, False)):
                     results.append(run_case(args.binary.resolve(), args.probe.resolve(), bundles,
-                                            tone, signaling, output, audio))
+                                            tone, signaling, output, audio, args.source_lifecycle))
         summary["success"] = all(result["success"] for result in results)
     except Exception as error:
         summary["error"] = str(error)

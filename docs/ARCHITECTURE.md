@@ -44,7 +44,7 @@ The viewer signaling pump runs independently of diagnostic Auto Refresh. Host ne
 
 ## Capture And Worker Lifecycle
 
-The macOS catalog uses SCShareableContent native IDs, with example-source fallback when enumeration is unavailable. Linux discovers X11 metadata through `wmctrl` when possible. A fallback catalog or Linux permission/status scaffold does not imply working capture.
+The macOS catalog uses SCShareableContent native IDs, with example-source fallback when enumeration is unavailable. Linux discovers X11 metadata through `wmctrl` when possible. A fallback catalog or Linux permission/status scaffold does not imply working capture. After successful discovery, a failed refresh retains the last runtime source identities as `cachedruntime` with current permission/error diagnostics. It does not replace the selection with an example source. Lost/unknown permission stops capture; successful discovery that confirms source removal stops/rebinds the selection.
 
 The session manager owns a background capture worker. The worker validates source/audio selection, drains raw samples, encodes only with a connected peer, and publishes with a bounded write timeout. Native queues retain the newest video and at most 32 audio buffers. GUI polling receives only the latest raw samples for diagnostics.
 

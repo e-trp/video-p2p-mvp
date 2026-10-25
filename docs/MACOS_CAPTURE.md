@@ -18,6 +18,8 @@ The source catalog comes from `SCShareableContent`:
 - applications: `macos-application-PROCESS_ID-DISPLAY_ID`, all windows of that application on the indicated display
 - displays: `macos-display-DISPLAY_ID`, full display capture
 
+After successful discovery, the session manager retains the last runtime list on a discovery failure and labels it `cachedruntime`, with the latest error/permission notes. Failed discovery alone does not replace the chosen source; confirmed removal in a successful catalog still stops/rebinds it.
+
 Window titles are labels; matching uses native IDs. These IDs can change after an application/system restart. Standalone callers initialize the CoreGraphics display connection before constructing a window filter; no AppKit application is required. Missing saved sources are rebound by the session manager. Blueprint fallback sources support demo/debug behavior and cannot start an SCStream.
 
 ## Samples And Lifecycle
