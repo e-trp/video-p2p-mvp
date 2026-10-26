@@ -58,6 +58,8 @@ Desktop viewer generations reject stale signals/reports after stop, failure, rec
 
 Session snapshots combine role/stage, capture catalog/runtime, transport, playback, and recovery guidance. Raw diagnostic counts depend on GUI polling; encoded publication, received RTP, and decoded frame/sample counters describe different pipeline stages.
 
+Desktop production IPC dispatch uses Tauri's blocking task pool. The session mutex still serializes state access, while native window events remain free to run during discovery, worker shutdown, and mutex waits. Responses retain the generated argument/serialization contract, including explicit unknown-command rejection after deferred dispatch. Media continues on the independent capture worker and WebView player.
+
 Signaling polling detects graceful EOF after delivering complete final messages. Closure or an invalid/read-error response releases the session's signaling connection and marks it unavailable once, without tearing down the transport/capture worker or browser viewer. Reconnect explicitly replaces the session and its viewer generation. See [networking](NETWORKING.md).
 
 Room/signaling/ICE configuration, selected source metadata, and polling preferences persist in `session.conf`. Runtime logs are in memory. Media, SDP sessions, and active capture are not restored from preferences.

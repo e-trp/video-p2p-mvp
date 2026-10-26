@@ -465,6 +465,8 @@ fn main() {
                 let handler: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool = tauri::generate_handler![
                     gui_qa::gui_qa_configuration,
                     gui_qa::gui_qa_window_state,
+                    gui_qa::gui_qa_hold_session,
+                    gui_qa::gui_qa_session_held,
                     gui_qa::gui_qa_focus,
                     gui_qa::gui_qa_report,
                     gui_qa::gui_qa_stop_requested,
@@ -497,7 +499,18 @@ fn main() {
                 update_ui_preferences,
                 specification_markdown
             ];
-            handler(invoke)
+            // Session commands can wait for native discovery, worker shutdown, or the
+            // session mutex. Keep those waits off both the event loop and async workers.
+            tauri::async_runtime::spawn_blocking(move || {
+                let command = invoke.message.command().to_owned();
+                let resolver = invoke.resolver.clone();
+                if !handler(invoke) {
+                    // Dispatch is accepted before the generated handler resolves the
+                    // command, so preserve Tauri's unknown-command rejection here.
+                    resolver.reject(format!("Command {command} not found"));
+                }
+            });
+            true
         });
     #[cfg(feature = "gui-qa")]
     let builder = if std::env::var_os("VIDEO_P2P_GUI_QA_REPORT").is_some() {

@@ -21,7 +21,7 @@ Use `[x]` only for fully completed results. `[ ]` marks outstanding work. Runtim
 | Newly completed feature IDs since adopting this policy | None — `0/5`; the existing inventory is the baseline |
 | Last passing full-project QA checkpoint | None; automated checks alone do not satisfy manual QA |
 | Next feature milestone | M1, after actionable bugs; baseline macOS capture/playback QA is the first feature prerequisite |
-| Release gate | Open; [current Tauri GUI automation passes](docs/qa/gui-client-0.1.0-6bd1a31.md), but [the CI regression fix awaits Ubuntu verification](docs/BUGS.md#bug-010-late-viewer-test-races-the-server-waiting-response), and actual capture, OS/device/network and distribution QA remain outstanding |
+| Release gate | Open; [the latest GUI follow-up](docs/qa/BUG-017-command-dispatch.md) records passing contention/native baseline regressions and open GUI fixture failures; native source replacement, [Ubuntu CI acceptance](docs/BUGS.md#bug-010-late-viewer-test-races-the-server-waiting-response), OS/device/network and distribution QA remain outstanding |
 
 Update this checkpoint as feature IDs are completed. Keep ordinary task commits separate. Run full QA at each milestone, before any version tag, and at five newly completed features at the latest. Record the covered IDs and reset the counter only after a passing full QA run. Documentation, refactoring, and fixes do not count as features. Tag only a verified release commit; a docs-only update keeps `0.1.0`.
 
@@ -68,6 +68,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 
 - [x] **BASE-DESKTOP-CONTROLS:** Host/viewer preparation, source picker, capture start/poll/stop, session stop/reset, and manual reconnect with recovery guidance. Real Tauri GUI defects are tracked in the bug register.
 - [x] Source selection survives Auto Refresh and native Accessibility menu interaction; unavailable-source errors preserve the prior selection. [BUG-011/BUG-012 verification](docs/qa/BUG-011-source-selection.md) records six focused checks, three native selections, and mandatory verification. Fixes do not advance the `0/5` feature counter.
+- [x] Desktop session commands execute on blocking workers, preserving native window responsiveness during session mutex contention and returning actual IPC results/errors; see [BUG-017 verification](docs/qa/BUG-017-command-dispatch.md). Native source-replacement acceptance remains open under BUG-016.
 - [x] Catalog failure preserves the last runtime source list, selection/preferences and confirmed UI controls, with stale diagnostics and permission-loss handling; controlled backend and GUI regressions are recorded in [BUG-015 QA](docs/qa/BUG-015-catalog-refresh.md). Native replacement playback remains open in the bug register.
 - [x] Transport/capture/playback diagnostics, selected ICE path, and available RTT/bitrate/bytes/loss metrics.
 - [x] Persisted room/signaling/ICE/source/audio selection and Auto Refresh preferences; polling preserves unsaved form edits.

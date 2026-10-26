@@ -3,6 +3,10 @@
 
 use serde::Serialize;
 use std::path::PathBuf;
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
 use tauri::{Manager, State, WebviewWindow, plugin::TauriPlugin, webview::PageLoadEvent};
 
 #[derive(Clone, Serialize)]
@@ -18,6 +22,7 @@ pub(crate) struct QaState {
     configuration: Configuration,
     report_path: PathBuf,
     stop_file: Option<PathBuf>,
+    session_held: Arc<AtomicBool>,
 }
 
 #[derive(Serialize)]
@@ -40,6 +45,25 @@ pub(crate) fn gui_qa_window_state(
 #[tauri::command]
 pub(crate) fn gui_qa_configuration(state: State<'_, QaState>) -> Configuration {
     state.configuration.clone()
+}
+
+#[tauri::command]
+pub(crate) fn gui_qa_hold_session(app: tauri::AppHandle, state: State<'_, QaState>) {
+    let held = Arc::clone(&state.session_held);
+    tauri::async_runtime::spawn_blocking(move || {
+        let session = app.state::<Mutex<app_core::SessionManager>>();
+        let _guard = session.lock().expect("QA session state poisoned");
+        held.store(true, Ordering::SeqCst);
+        // Deliberate, bounded contention lets the WebView verify that native window
+        // commands still execute while a production session command waits here.
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        held.store(false, Ordering::SeqCst);
+    });
+}
+
+#[tauri::command]
+pub(crate) fn gui_qa_session_held(state: State<'_, QaState>) -> bool {
+    state.session_held.load(Ordering::SeqCst)
 }
 
 #[tauri::command]
@@ -137,6 +161,7 @@ pub(crate) fn plugin() -> TauriPlugin<tauri::Wry> {
                     .ok_or("GUI QA requires VIDEO_P2P_GUI_QA_REPORT")?
                     .into(),
                 stop_file: std::env::var_os("VIDEO_P2P_GUI_QA_STOP_FILE").map(PathBuf::from),
+                session_held: Arc::new(AtomicBool::new(false)),
             });
             Ok(())
         })

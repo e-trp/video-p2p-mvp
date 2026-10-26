@@ -38,6 +38,7 @@ Auto Refresh preserves source options while the picker has focus or its native p
 ## Backend Responsibilities
 
 - Tauri commands wrap `SessionManager`; snapshots are serialized as UI diagnostics.
+- Production command dispatch runs in Tauri's blocking task pool so session-lock waits, native discovery and capture-worker shutdown do not block the native window event loop or async executor. Session access remains serialized by its mutex; callers still await actual command results, including argument/unknown-command errors. This does not make slow session operations immediate or resolve native replacement capture failures.
 - `app-core` owns session/capture lifecycle and the background encode/publish worker.
 - `transport-webrtc` owns the Rust host and CLI diagnostic peers.
 - `viewer-player.mjs` owns the desktop viewer peer and decoding; Rust only bridges signaling/diagnostics.
@@ -67,6 +68,8 @@ node scripts/test-tauri-gui.mjs
 The runner starts actual Tauri windows, executes the production DOM event handlers and Rust IPC, restarts the application to check preferences, and attempts real native-codec/WebRTC decoding in the desktop viewer. It does not replace IPC, sessions, or media with mocks. A diagnostic constructor observer only records the actual browser peers. Window-width tests resize the native window to 1120, 800, and 600 logical pixels.
 
 Run `node scripts/test-tauri-gui.mjs --scenario source-picker` for the focused source regression (also included in the default run). It checks focused Auto Refresh, delays delivery of real catalog IPC responses to reproduce the selection race, checks audio opt-out, and submits a deliberately stale option to the real backend. Response data is unchanged. These DOM checks do not certify native menu gestures; the linked verification record records those separately.
+
+The same scenario holds the real session mutex on a QA worker for two seconds, submits a production snapshot command, and verifies that native window-state commands respond before the mutex is released. The queued snapshot must still return the stopped session, and unknown commands/missing arguments must reject. See [BUG-017 verification](qa/BUG-017-command-dispatch.md). This controlled contention check is independent of actual ScreenCaptureKit source-replacement acceptance.
 
 The `gui-qa` feature has no additional dependencies and is absent from default builds. Its driver activates only with the runner's environment variables and requires a separate `VIDEO_P2P_MVP_CONFIG_DIR`. QA commands require that test state. The plugin focuses its own window before automation, and the driver waits for actual native focus/visibility. Keep that window active during control checks: directly launching an inactive `.app` left timer-dependent steps pending under BUG-009. A foreground guard failure remains failed evidence rather than a product PASS. JSON evidence, process logs, and isolated test preferences are saved in a temporary directory printed by the runner. `--output PATH` selects that directory; use a new directory for a fresh run. Existing user preferences are preserved. All child processes are stopped on completion/failure; partial evidence survives timeouts. Exit status is nonzero if any scenario fails or remains blocked.
 

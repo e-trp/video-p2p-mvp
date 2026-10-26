@@ -4,7 +4,7 @@
 
 The desktop prototype has a macOS capture/encode/publish path and a WebView viewer. Synthetic media playback is verified in WKWebView and Chromium. [Actual window video](qa/actual-window-0.1.0-0185449.md) is verified between local debug bundles. [Actual fixture audio/video](qa/native-desktop-playback-0.1.0-c0d19af.md) also reaches decoded pixels/PCM through two local Tauri clients. Audible output, other source kinds, packaged capture, and different networks still require [manual QA](QA_CHECKLIST.md). Linux capture/video encoding are not implemented; Linux playback is unvalidated.
 
-The [current Tauri GUI QA](qa/gui-client-0.1.0-6bd1a31.md) verifies the controls and decoded synthetic playback in the desktop WebView, including the bundled app. Permission transitions, other source kinds, broader application audio, trusted user gestures, audible devices, and different networks still require manual validation.
+The [debug/bundled Tauri GUI QA](qa/gui-client-0.1.0-6bd1a31.md) verifies the controls and decoded synthetic playback in the desktop WebView. The [command-dispatch follow-up](qa/BUG-017-command-dispatch.md) records responsive windows, actual fixture playback and remaining GUI test failures. Permission transitions, other source kinds, broader application audio, trusted user gestures, audible devices, and different networks still require manual validation.
 
 For dependencies, running/building the app, and troubleshooting, see [installation](INSTALLATION.md). For completion status, see [TODO](../todo.md).
 
@@ -58,7 +58,7 @@ Host signaling needs refresh during negotiation. Viewer signaling runs independe
 
 ## Capture Selection And Lifecycle
 
-macOS sources come from SCShareableContent windows, applications, and displays. Matching uses native IDs, not labels. The first available source is selected if no explicit selection exists. Saved IDs may become invalid after an app/system restart; a successful catalog refresh can rebind selection to the first available source and stops old capture. A failed discovery retains the last runtime catalog and selection, shows `cachedruntime` with error/permission notes, and requires refresh to verify availability. Permission loss stops capture. If a desktop refresh fails, the last confirmed controls remain available and the runtime badge/catalog notes identify stale diagnostics; refresh again to verify current state.
+macOS sources come from SCShareableContent windows, applications, and displays. Matching uses native IDs, not labels. In host mode, the first available source is selected if no explicit selection exists. Saved IDs may become invalid after an app/system restart; successful catalog discovery clears a missing selection and stops old capture. Host mode can rebind to the first available source; idle mode leaves the selection empty. A failed discovery retains the last runtime catalog and selection, shows `cachedruntime` with error/permission notes, and requires refresh to verify availability. Permission loss stops capture. If a desktop refresh fails, the last confirmed controls remain available and the runtime badge/catalog notes identify stale diagnostics; refresh again to verify current state.
 
 Linux may list X11 window metadata through `wmctrl`. This does not enable X11 capture. Blueprint/example sources appear when enumeration is unavailable; they support demo/debug selection and cannot start real macOS capture. Linux runtime status/permission hints do not mean Portal/PipeWire is implemented.
 

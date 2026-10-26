@@ -66,6 +66,8 @@ The [native desktop playback record](qa/native-desktop-playback-0.1.0-c0d19af.md
 
 The [BUG-015 record](qa/BUG-015-catalog-refresh.md) verifies failed-refresh state retention. Its actual switch/restore/closure scenario remains blocked by BUG-016; do not mark source lifecycle complete from initial playback or passing unit tests.
 
+The [BUG-017 record](qa/BUG-017-command-dispatch.md) separates controlled native-window responsiveness during session-lock contention from actual source replacement. The contention regression passes after blocking-pool dispatch; the follow-up native lifecycle run still fails under BUG-016.
+
 ## Backend Negotiation Smoke Test
 
 Start signaling, then the host/viewer commands in separate terminals:

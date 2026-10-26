@@ -394,6 +394,22 @@
         await click("stop-btn");
         return { failures, selectedSource: before.selected_source_id };
       });
+      await check("Window commands remain responsive while a session command waits", async () => {
+        await invoke("gui_qa_hold_session");
+        await until(() => invoke("gui_qa_session_held"), "controlled session contention");
+        const pending = invoke("session_snapshot");
+        const windowState = await invoke("gui_qa_window_state");
+        const held = await invoke("gui_qa_session_held");
+        const session = await pending;
+        assert(windowState.visible && held, "Session command blocked the native main thread until the lock was released");
+        assert(session.stage === "stopped", "Queued session command did not return its real result");
+        for (const [command, args] of [["unknown_qa_command", {}], ["select_capture_source", {}]]) {
+          let rejected = false;
+          try { await invoke(command, args); } catch { rejected = true; }
+          assert(rejected, `Invalid IPC request did not reject: ${command}`);
+        }
+        return { windowState, held, stage: session.stage };
+      });
     } else if (config.scenario === "restore") {
       await check("Preferences survive actual application restart", async () => {
         const state = await snapshot();
