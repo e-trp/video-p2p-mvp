@@ -4,6 +4,8 @@
 
 2026-10-26, base `9d67fb8` plus the previously uncommitted contention fixture, untagged `0.1.0`. macOS 27.0 (26A428), arm64, native WKWebView, Node 26.12.1, local loopback signaling and isolated test preferences. This fixes existing `BASE-DESKTOP-CONTROLS`; the feature counter stays `0/5` and no release tag is created.
 
+Fixing commit: `ea2f564` (`Keep session command waits off the native window event loop`). The subsequent record-only commit adds this identity; no implementation, configuration or version change follows the verification and cleanup recorded here.
+
 The inherited changes add an opt-in QA worker that holds the real session mutex for two seconds and a WebView scenario that submits `session_snapshot` before querying the native window. The inherited assertion incorrectly checked `mode == stopped`; the stopped value belongs to `stage`, which the completed test now checks.
 
 Before the fix, the production synchronous Tauri handler blocks the native event loop while waiting for the mutex. The native window query only returns after the holder releases it. After dispatch through `tauri::async_runtime::spawn_blocking`, the window query returns while the lock is still held and the queued snapshot later returns the real stopped session. Both unknown-command and missing-required-argument requests reject. Tauri's generated argument/result handling remains unchanged; unknown-command rejection is explicitly preserved because dispatch now returns before the generated handler runs. Session access stays serialized, with no new dependencies, public APIs or media over IPC.
