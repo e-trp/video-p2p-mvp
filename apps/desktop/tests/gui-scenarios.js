@@ -75,7 +75,7 @@
         player: { width: video.videoWidth, height: video.videoHeight, paused: video.paused,
           muted: video.muted, currentTime: video.currentTime, readyState: video.readyState,
           status: el("viewer-playback-status").textContent, secure: isSecureContext,
-          visibility: document.visibilityState,
+          visibility: document.visibilityState, observation: await observePlayback(),
           tracks: video.srcObject?.getTracks().map((track) => ({ kind: track.kind, state: track.readyState })) },
         peer: peer ? { connection: peer.connectionState, ice: peer.iceConnectionState,
           gathering: peer.iceGatheringState, signaling: peer.signalingState, stats } : null });
@@ -85,6 +85,39 @@
   async function focusQaWindow() {
     await invoke("gui_qa_focus");
     await until(async () => (await invoke("gui_qa_window_state")).focused, "foreground QA controls");
+  }
+  async function observePlayback() {
+    const video = el("viewer-video");
+    const peer = peers.at(-1);
+    const stats = peer ? [...(await peer.getStats()).values()] : [];
+    return { time: Date.now(), window: await invoke("gui_qa_window_state"),
+      visibility: document.visibilityState, focused: document.hasFocus(),
+      connection: peer?.connectionState ?? null, width: video.videoWidth, height: video.videoHeight,
+      readyState: video.readyState, paused: video.paused, currentTime: video.currentTime,
+      elementFrames: video.getVideoPlaybackQuality?.().totalVideoFrames ?? null,
+      webkitFrames: video.webkitDecodedFrameCount ?? null,
+      rtcFrames: stats.filter((s) => s.type === "inbound-rtp" && (s.kind ?? s.mediaType) === "video")
+        .reduce((sum, s) => sum + (s.framesDecoded ?? 0), 0) };
+  }
+  async function visibleViewerPlayback() {
+    const observations = evidence.playbackObservations ??= [];
+    let observation;
+    await until(async () => {
+      observation = await observePlayback();
+      observations.push({ phase: evidence.running, ...observation });
+      if (observations.length > 120) observations.shift();
+      // The initial boot focus check cannot establish visibility later in the run.
+      // Keep the element-frame/pixel acceptance; WebRTC decode counters alone are insufficient.
+      const foreground = observation.window.visible && observation.window.focused
+        && observation.visibility === "visible";
+      if (!foreground) await invoke("gui_qa_visibility", { visible: true });
+      if (foreground && observation.connection === "connected" && observation.width === 64
+        && observation.height === 36 && observation.readyState >= 2 && !observation.paused
+        && observation.elementFrames > 3) return true;
+      await sleep(200);
+      return false;
+    }, "visible Tauri video readiness (see playbackObservations)", 20000);
+    return observation;
   }
   const checkpoint = (name, publish = false) => invoke("gui_qa_checkpoint", { name, publish });
   const checkpointWait = (name) => until(() => checkpoint(name), `native checkpoint ${name}`, 30000);
@@ -666,15 +699,28 @@
         source?.disconnect(); analyser?.disconnect(); gain?.disconnect();
         if (audio) await audio.close();
       }
-    } else if (config.scenario === "viewer") {
+    } else if (config.scenario === "viewer" || config.scenario === "viewer-visibility") {
       await change("auto-refresh-enabled", false);
       let mediaReady = false;
+      if (config.scenario === "viewer-visibility") {
+        await invoke("gui_qa_visibility", { visible: false });
+        await until(() => document.visibilityState === "hidden", "controlled hidden viewer");
+      }
       await check("Join Viewer with Auto Refresh disabled negotiates real media", async () => {
         form("playback-probe"); await refresh(); await click("viewer-prototype-btn");
-        await until(() => peers.at(-1)?.connectionState === "connected"
-          && el("viewer-video").videoWidth === 64
-          && el("viewer-video").getVideoPlaybackQuality().totalVideoFrames > 3,
-        "Tauri decoded video", 20000);
+        const peer = peers.at(-1);
+        const generation = (await snapshot()).viewer_generation;
+        if (config.scenario === "viewer-visibility") {
+          await until(async () => {
+            evidence.hiddenPlayback = await observePlayback();
+            return evidence.hiddenPlayback.connection === "connected" && evidence.hiddenPlayback.rtcFrames > 3;
+          }, "controlled hidden video decoding");
+          assert(!evidence.hiddenPlayback.window.visible && evidence.hiddenPlayback.visibility === "hidden",
+            "Visibility regression did not hide the real native window");
+        }
+        const visible = await visibleViewerPlayback();
+        assert(peers.at(-1) === peer && (await snapshot()).viewer_generation === generation,
+          "Restoring visibility replaced the viewer peer/generation");
         assert(!el("viewer-playback").hidden && el("viewer-video").muted, "Viewer absent or not muted at startup");
         assert(el("viewer-video").videoWidth === 64 && el("viewer-video").videoHeight === 36, "Incorrect decoded dimensions");
         const canvas = document.createElement("canvas"); canvas.width = 64; canvas.height = 36;
@@ -682,21 +728,66 @@
         const pixel = [...context.getImageData(32, 18, 1, 1).data];
         assert(pixel[0] > 140 && pixel[1] > 30 && pixel[1] < 100 && pixel[2] < 70, `Wrong decoded pixel: ${pixel}`);
         mediaReady = true;
-        return { pixel, state: await snapshot() };
+        return { pixel, visible, state: await snapshot() };
       });
+      if (config.scenario === "viewer-visibility") {
+        await check("Visible playback recovers after the window is hidden again", async () => {
+          assert(mediaReady, "Initial visible playback prerequisite failed");
+          const peer = peers.at(-1);
+          const generation = (await snapshot()).viewer_generation;
+          await invoke("gui_qa_visibility", { visible: false });
+          await until(() => document.visibilityState === "hidden", "second controlled hide");
+          const hidden = await observePlayback();
+          assert(!hidden.window.visible, "Second hide retained native visibility");
+          await sleep(1200);
+          const restored = await visibleViewerPlayback();
+          await until(() => el("viewer-video").getVideoPlaybackQuality().totalVideoFrames > hidden.elementFrames + 3,
+            "new visible frames after restoring window");
+          assert(peers.at(-1) === peer && (await snapshot()).viewer_generation === generation,
+            "Visibility change rebuilt the viewer");
+          return { hidden, restored, advanced: await observePlayback() };
+        });
+      }
       await check("Decoded video/audio continues without diagnostic polling", async () => {
-        if (!mediaReady) return { qaResult: "BLOCKED", reason: "BUG-008: no established decoded Tauri playback" };
-        const before = await snapshot();
-        await sleep(1800);
-        const after = await snapshot();
-        assert(after.decoded_video_frame_count > before.decoded_video_frame_count + 5, "Video does not advance");
-        assert(after.received_audio_sample_count > before.received_audio_sample_count + 48000, "Audio does not advance");
-        assert(!after.ui_auto_refresh_enabled, "Viewer enabled refresh to stream");
-        return { beforeFrames: before.decoded_video_frame_count, afterFrames: after.decoded_video_frame_count,
-          beforeSamples: before.received_audio_sample_count, afterSamples: after.received_audio_sample_count };
+        if (!mediaReady) return { qaResult: "BLOCKED", reason: "Visible decoded playback prerequisite failed; see readiness evidence" };
+        const visibleBefore = await visibleViewerPlayback();
+        const audio = new AudioContext();
+        let source;
+        let analyser;
+        let gain;
+        try {
+          source = audio.createMediaStreamSource(el("viewer-video").srcObject);
+          analyser = audio.createAnalyser();
+          gain = audio.createGain(); gain.gain.value = 0;
+          source.connect(analyser); analyser.connect(gain); gain.connect(audio.destination);
+          await Promise.race([audio.resume(), sleep(5000).then(() => { throw new Error("Web Audio activation timed out"); })]);
+          let peak = 0;
+          const sample = () => {
+            const pcm = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(pcm);
+            return Math.max(...pcm.map(Math.abs));
+          };
+          await until(() => { peak = sample(); return peak > 0.001; }, "nonzero decoded synthetic PCM");
+          const before = await snapshot();
+          await sleep(1800);
+          const after = await snapshot();
+          const visibleAfter = await visibleViewerPlayback();
+          const freshPeak = sample();
+          assert(after.decoded_video_frame_count > before.decoded_video_frame_count + 5, "Video does not advance");
+          assert(visibleAfter.elementFrames > visibleBefore.elementFrames + 5, "Visible video frames do not advance");
+          assert(after.received_audio_sample_count > before.received_audio_sample_count + 48000, "Audio does not advance");
+          assert(freshPeak > 0.001, "Fresh decoded PCM is silent");
+          assert(!after.ui_auto_refresh_enabled, "Viewer enabled refresh to stream");
+          return { beforeFrames: before.decoded_video_frame_count, afterFrames: after.decoded_video_frame_count,
+            beforeSamples: before.received_audio_sample_count, afterSamples: after.received_audio_sample_count,
+            visibleBefore, visibleAfter, peak, freshPeak, outputGain: 0 };
+        } finally {
+          source?.disconnect(); analyser?.disconnect(); gain?.disconnect();
+          await audio.close();
+        }
       });
       await check("Sound control state and pause/resume", async () => {
-        if (!mediaReady) return { qaResult: "BLOCKED", reason: "BUG-008: no established decoded Tauri playback; real user gestures also require Accessibility" };
+        if (!mediaReady) return { qaResult: "BLOCKED", reason: "Visible decoded playback prerequisite failed; trusted gestures remain separate QA" };
+        await visibleViewerPlayback();
         await click("viewer-sound-btn");
         assert(!el("viewer-video").muted && el("viewer-sound-btn").textContent === "Mute Sound", "Enable Sound did not update state");
         await click("viewer-sound-btn");

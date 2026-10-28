@@ -14,7 +14,7 @@ const binaryFlag = process.argv.indexOf("--binary");
 const outputFlag = process.argv.indexOf("--output");
 const scenarioFlag = process.argv.indexOf("--scenario");
 const selectedScenario = scenarioFlag < 0 ? null : process.argv[scenarioFlag + 1];
-assert(selectedScenario === null || ["controls", "preferences", "viewer", "source-picker"].includes(selectedScenario), "Unknown --scenario; use preferences for the complete save/restart/removal check");
+assert(selectedScenario === null || ["controls", "preferences", "viewer", "viewer-visibility", "source-picker"].includes(selectedScenario), "Unknown --scenario; use preferences for the complete save/restart/removal check");
 const binary = binaryFlag < 0 ? join(root, "apps/desktop/src-tauri/target/debug/desktop-app")
   : resolve(process.argv[binaryFlag + 1]);
 const output = outputFlag < 0 ? await mkdtemp(join(tmpdir(), "video-p2p-tauri-qa-"))
@@ -142,9 +142,9 @@ try {
     results.push(await scenario("source-picker", join(output, "source-picker-config"), signaling));
   if (selectedScenario === null || selectedScenario === "controls" || selectedScenario === "preferences")
     results.push(...await preferenceScenarios(selectedScenario === "preferences" ? "preferences" : "controls", controlConfig, signaling));
-  if (selectedScenario === null || selectedScenario === "viewer") {
+  if (selectedScenario === null || selectedScenario === "viewer" || selectedScenario === "viewer-visibility") {
     const host = launch(join(root, "target/debug/examples/playback_probe"), ["host", signaling]);
-    results.push(await scenario("viewer", join(output, "viewer-config"), signaling));
+    results.push(await scenario(selectedScenario === "viewer-visibility" ? selectedScenario : "viewer", join(output, "viewer-config"), signaling));
     await stop(host);
   }
   success = results.every((result) => result.success);

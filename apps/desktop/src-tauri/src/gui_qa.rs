@@ -76,6 +76,20 @@ pub(crate) fn gui_qa_focus(
 }
 
 #[tauri::command]
+pub(crate) fn gui_qa_visibility(
+    visible: bool,
+    window: WebviewWindow,
+    _state: State<'_, QaState>,
+) -> Result<(), String> {
+    if visible {
+        window.show().and_then(|()| window.set_focus())
+    } else {
+        window.hide()
+    }
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub(crate) fn gui_qa_stop_requested(state: State<'_, QaState>) -> Result<bool, String> {
     state
         .stop_file

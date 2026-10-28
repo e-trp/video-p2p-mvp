@@ -30,6 +30,8 @@ The WebView decoder sends RTCP keyframe feedback directly to the host. The host 
 
 ## Verification
 
+The [GUI visibility regression](qa/BUG-019-viewer-visibility.md) distinguishes WebRTC decoded frames from the element frame counter used to verify visible playback. In the controlled hidden-window failure, decoding continues while the element counter remains zero. The synthetic Tauri viewer test restores current window visibility before checking element frames/pixels and separately verifies decoded PCM. This changes test preparation, not production background playback or capture permissions.
+
 Unit/lifecycle checks:
 
 ```bash

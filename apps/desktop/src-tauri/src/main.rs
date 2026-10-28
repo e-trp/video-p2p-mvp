@@ -468,6 +468,7 @@ fn main() {
                     gui_qa::gui_qa_hold_session,
                     gui_qa::gui_qa_session_held,
                     gui_qa::gui_qa_focus,
+                    gui_qa::gui_qa_visibility,
                     gui_qa::gui_qa_report,
                     gui_qa::gui_qa_stop_requested,
                     gui_qa::gui_qa_checkpoint,
