@@ -14,6 +14,7 @@ pub(crate) struct Configuration {
     scenario: String,
     signaling_addr: String,
     native_source_id: Option<String>,
+    expected_source_id: Option<String>,
     native_alternate_source_id: Option<String>,
     native_audio: bool,
 }
@@ -152,6 +153,7 @@ pub(crate) fn plugin() -> TauriPlugin<tauri::Wry> {
                     scenario: std::env::var("VIDEO_P2P_GUI_QA_SCENARIO")?,
                     signaling_addr: std::env::var("VIDEO_P2P_GUI_QA_SIGNALING")?,
                     native_source_id: std::env::var("VIDEO_P2P_GUI_QA_NATIVE_SOURCE").ok(),
+                    expected_source_id: std::env::var("VIDEO_P2P_GUI_QA_EXPECTED_SOURCE").ok(),
                     native_alternate_source_id: std::env::var("VIDEO_P2P_GUI_QA_ALTERNATE_SOURCE")
                         .ok(),
                     native_audio: std::env::var("VIDEO_P2P_GUI_QA_NATIVE_AUDIO")

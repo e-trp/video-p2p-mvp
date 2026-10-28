@@ -82,6 +82,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 - [x] English project guidelines/documentation, stable milestone feature IDs, and a version/checkpoint policy with annotated-tag gates.
 - [x] Dedicated bug register with stable bug/feature IDs, evidence, priorities, lifecycle/closure rules, and a documented module-replacement exception.
 - [x] Opt-in real Tauri GUI regression runner for production DOM/IPC, preferences across application restarts, native window layout, and decoded synthetic playback. Foreground guards prevent inactive-bundle test suspension. Debug and bundled runs pass all 32 checks; see the [current GUI QA record](docs/qa/gui-client-0.1.0-6bd1a31.md).
+- [x] GUI preference regression retains a controlled native source across saving/restoring clients, checks its exact ID/audio choice, and separately verifies removal without idle rebinding. Focused checks pass 10/10; the full follow-up records 43 PASS / 0 FAIL / 1 permission-dependent BLOCKED. See [BUG-018 verification](docs/qa/BUG-018-preference-source.md); this test fix adds no feature ID.
 
 ## PARTIALLY COMPLETED — INCOMPLETE
 

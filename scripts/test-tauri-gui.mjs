@@ -1,11 +1,12 @@
 // Launch the real, opt-in Tauri GUI QA build with isolated preferences and local peers.
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { execFile, spawn } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { once } from "node:events";
+import { promisify } from "node:util";
 
 if (process.platform !== "darwin") throw new Error("This GUI QA run currently requires macOS");
 const root = resolve(import.meta.dirname, "..");
@@ -13,7 +14,7 @@ const binaryFlag = process.argv.indexOf("--binary");
 const outputFlag = process.argv.indexOf("--output");
 const scenarioFlag = process.argv.indexOf("--scenario");
 const selectedScenario = scenarioFlag < 0 ? null : process.argv[scenarioFlag + 1];
-assert(selectedScenario === null || ["controls", "restore", "viewer", "source-picker"].includes(selectedScenario), "Unknown --scenario");
+assert(selectedScenario === null || ["controls", "preferences", "viewer", "source-picker"].includes(selectedScenario), "Unknown --scenario; use preferences for the complete save/restart/removal check");
 const binary = binaryFlag < 0 ? join(root, "apps/desktop/src-tauri/target/debug/desktop-app")
   : resolve(process.argv[binaryFlag + 1]);
 const output = outputFlag < 0 ? await mkdtemp(join(tmpdir(), "video-p2p-tauri-qa-"))
@@ -67,7 +68,7 @@ async function ready(port, process) {
   }
   throw new Error("Signaling startup timed out");
 }
-async function scenario(name, configDir, signaling) {
+async function scenario(name, configDir, signaling, fixtureSource, expectedSource) {
   await mkdir(configDir, { recursive: true });
   const report = join(output, `${name}.json`);
   const app = launch(binary, [], { env: { ...process.env,
@@ -75,6 +76,8 @@ async function scenario(name, configDir, signaling) {
     VIDEO_P2P_GUI_QA_REPORT: report,
     VIDEO_P2P_GUI_QA_SCENARIO: name,
     VIDEO_P2P_GUI_QA_SIGNALING: signaling,
+    VIDEO_P2P_GUI_QA_NATIVE_SOURCE: fixtureSource ?? "",
+    VIDEO_P2P_GUI_QA_EXPECTED_SOURCE: expectedSource ?? "",
   } });
   let timedOut = false;
   const timeout = setTimeout(() => { timedOut = true; app.kill("SIGKILL"); }, 90000);
@@ -89,8 +92,43 @@ async function scenario(name, configDir, signaling) {
   if (result.fatal) console.log(result.fatal);
   if (timedOut) console.log(`FAIL: ${name} timed out; partial evidence preserved`);
   return { name, success: !timedOut && code === 0 && result.complete && result.success,
+    savedSource: result.saved?.selected_source_id,
     checks: result.results?.length ?? 0, failed: result.results?.filter((test) => test.result === "FAIL").map((test) => test.name),
     blocked: result.results?.filter((test) => test.result === "BLOCKED").map((test) => test.name) };
+}
+async function preferenceScenarios(initial, configDir, signaling) {
+  const scratch = await mkdtemp(join(tmpdir(), "video-p2p-preference-source-"));
+  let fixture;
+  try {
+    const executable = join(scratch, "fixture");
+    await promisify(execFile)("xcrun", ["clang", "-fobjc-arc", "-fblocks", "-Wall", "-Wextra", "-Werror",
+      join(root, "scripts/native-capture-fixture.m"), "-framework", "Cocoa", "-o", executable]);
+    // This silent window belongs to the runner and survives both desktop processes.
+    // No audio capture/isolation claim depends on its launch context.
+    fixture = launch(executable, ["--silent"]);
+    let identity = "";
+    fixture.stdout.on("data", (data) => { identity += data; });
+    const deadline = Date.now() + 10000;
+    while (!/window_id=(\d+) process_id=(\d+)/.test(identity)) {
+      assert(fixture.exitCode === null && fixture.signalCode === null, "Preference source exited before becoming ready");
+      assert(Date.now() < deadline, "Preference source did not report its window ID");
+      await delay(50);
+    }
+    const [, windowId, pid] = identity.match(/window_id=(\d+) process_id=(\d+)/);
+    const source = `macos-window-${windowId}`;
+    await writeFile(join(output, "preference-source.json"), JSON.stringify({ source, pid: Number(pid) }, null, 2));
+    const saved = await scenario(initial, configDir, signaling, source);
+    assert(fixture.exitCode === null && fixture.signalCode === null, "Preference source disappeared during save");
+    const restored = await scenario("restore", configDir, signaling, source, saved.savedSource);
+    assert(fixture.exitCode === null && fixture.signalCode === null, "Preference source disappeared during restart");
+    await writeFile(join(output, "saved-session.conf"), await readFile(join(configDir, "session.conf")));
+    await stop(fixture);
+    const removed = await scenario("removed-source", configDir, signaling, source, saved.savedSource);
+    return [saved, restored, removed];
+  } finally {
+    if (fixture) await stop(fixture);
+    await rm(scratch, { recursive: true, force: true });
+  }
 }
 let success = false;
 try {
@@ -102,10 +140,8 @@ try {
   const results = [];
   if (selectedScenario === null || selectedScenario === "source-picker")
     results.push(await scenario("source-picker", join(output, "source-picker-config"), signaling));
-  if (selectedScenario === null || selectedScenario === "controls")
-    results.push(await scenario("controls", controlConfig, signaling));
-  if (selectedScenario === null || selectedScenario === "restore")
-    results.push(await scenario("restore", controlConfig, signaling));
+  if (selectedScenario === null || selectedScenario === "controls" || selectedScenario === "preferences")
+    results.push(...await preferenceScenarios(selectedScenario === "preferences" ? "preferences" : "controls", controlConfig, signaling));
   if (selectedScenario === null || selectedScenario === "viewer") {
     const host = launch(join(root, "target/debug/examples/playback_probe"), ["host", signaling]);
     results.push(await scenario("viewer", join(output, "viewer-config"), signaling));

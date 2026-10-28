@@ -89,6 +89,19 @@
   const checkpoint = (name, publish = false) => invoke("gui_qa_checkpoint", { name, publish });
   const checkpointWait = (name) => until(() => checkpoint(name), `native checkpoint ${name}`, 30000);
   async function refresh() { await click("flow-refresh-btn"); }
+  async function selectPreferenceSource() {
+    const options = [...el("source-picker").options];
+    assert(options.length > 0, "No source/fallback options");
+    const native = row("capture-catalog", "Origin") !== "blueprintfallback";
+    const selected = native ? config.native_source_id : options[0].value;
+    assert(selected && options.some((option) => option.value === selected),
+      "Persistent QA fixture is absent from the source catalog");
+    await change("source-picker", selected);
+    if (!el("source-audio").disabled) await change("source-audio", false);
+    const state = await snapshot();
+    assert(state.selected_source_id === selected && !state.selected_source_audio, "Source/audio choice not applied");
+    return { source: selected, sourceLabel: state.source_label, native };
+  }
   async function stopRemainsStopped() {
     await click("stop-btn");
     for (let n = 0; n < 3; n++) await refresh();
@@ -182,16 +195,7 @@
         assert(el("host-prototype-btn").disabled && el("viewer-prototype-btn").disabled, "Cleared room leaves start enabled");
         form("tauri-gui-qa");
       });
-      await check("Source selection and audio opt-out persist", async () => {
-        const options = [...el("source-picker").options];
-        assert(options.length > 0, "No source/fallback options");
-        const selected = options[Math.min(1, options.length - 1)].value;
-        await change("source-picker", selected);
-        if (!el("source-audio").disabled) await change("source-audio", false);
-        const state = await snapshot();
-        assert(state.selected_source_id === selected && !state.selected_source_audio, "Source/audio choice not applied");
-        return { source: selected, sourceLabel: state.source_label };
-      });
+      await check("Source selection and audio opt-out persist", selectPreferenceSource);
       await check("Prepare Host signals without starting native capture", async () => {
         form("tauri-gui-qa"); await refresh(); await click("host-btn");
         const state = await snapshot();
@@ -410,15 +414,49 @@
         }
         return { windowState, held, stage: session.stage };
       });
-    } else if (config.scenario === "restore") {
+    } else if (config.scenario === "preferences") {
+      await check("Save preferences with a source owned by the runner", async () => {
+        await selectPreferenceSource();
+        await change("refresh-interval", "15");
+        await change("auto-refresh-enabled", false);
+        form("tauri-gui-saved", config.signaling_addr, "stun:127.0.0.1:3478");
+        await click("save-btn");
+        evidence.saved = await snapshot();
+        return evidence.saved;
+      });
+    } else if (config.scenario === "restore" || config.scenario === "removed-source") {
       await check("Preferences survive actual application restart", async () => {
         const state = await snapshot();
         assert(el("room").value === "tauri-gui-saved" && el("signaling").value === config.signaling_addr, "Session settings not restored");
         assert(state.ice_server_count === 1 && !state.ui_auto_refresh_enabled && state.ui_refresh_interval_secs === 15, "ICE/refresh preferences not restored");
-        assert(!state.selected_source_audio && state.selected_source_id != null, "Source/audio preferences not restored");
+        assert(config.expected_source_id, "Missing exact saved source ID from the preceding process");
+        if (config.scenario === "restore") {
+          assert(state.selected_source_id === config.expected_source_id && !state.selected_source_audio,
+            "Exact source/audio preferences not restored");
+        }
         assert(state.mode === "idle" && state.viewer_generation == null, "Restart restores an active session");
         return { source: state.selected_source_id, interval: state.ui_refresh_interval_secs };
       });
+      if (config.scenario === "removed-source") {
+        await check("Closed fixture is removed without silently selecting another source", async () => {
+          if (config.expected_source_id !== config.native_source_id) {
+            assert(!config.expected_source_id?.startsWith("macos-"),
+              "Saved native source is not the runner's controlled fixture");
+            return { qaResult: "BLOCKED", reason: "Native source removal requires Screen Recording permission" };
+          }
+          await until(async () => {
+            await refresh();
+            return row("capture-catalog", "Origin") === "runtime"
+              && ![...el("source-picker").options].some((option) => option.value === config.expected_source_id);
+          }, "closed fixture leaves native catalog");
+          const state = await snapshot();
+          assert(state.selected_source_id === null && state.mode === "idle",
+            "Missing source was retained or silently replaced in an idle session");
+          assert(state.logs.some((line) => line.includes(`capture source dropped from refreshed catalog: ${config.expected_source_id}`)),
+            "Missing-source cleanup was not observed");
+          return { removedSource: config.expected_source_id, state };
+        });
+      }
     } else if (config.scenario === "native-host") {
       await check("Native host ready", async () => {
         assert(config.native_source_id, "Missing fixture source ID");
