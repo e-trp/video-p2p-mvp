@@ -2352,13 +2352,45 @@ mod tests {
             select_source_with_retry(&mut manager, |source| {
                 Some((source.clone(), source.has_audio))
             });
-        let label = source.label();
+        // Selection refreshes the catalog. A live window can be renamed after the
+        // helper first discovers its ID, so compare against the catalog it applied.
+        let selected = manager
+            .state
+            .capture_catalog
+            .sources
+            .iter()
+            .find(|entry| entry.id == source.id)
+            .expect("selected source is in the applied catalog");
+        let label = selected.label();
         assert_eq!(
             snapshot.selected_source_id.as_deref(),
             Some(source.id.as_str())
         );
         assert_eq!(snapshot.selected_source_audio, source.has_audio);
         assert_eq!(snapshot.source_label.as_deref(), Some(label.as_str()));
+
+        let mut renamed_catalog = manager.state.capture_catalog.clone();
+        let renamed = renamed_catalog
+            .sources
+            .iter_mut()
+            .find(|entry| entry.id == source.id)
+            .unwrap();
+        renamed.display_name = "Renamed QA window".into();
+        renamed.app_name = Some("QA application".into());
+        manager.apply_capture_catalog(renamed_catalog);
+        let renamed_snapshot = manager.snapshot();
+        assert_eq!(
+            renamed_snapshot.selected_source_id,
+            snapshot.selected_source_id
+        );
+        assert_eq!(
+            renamed_snapshot.selected_source_audio,
+            snapshot.selected_source_audio
+        );
+        assert_eq!(
+            renamed_snapshot.source_label.as_deref(),
+            Some("QA application - Renamed QA window")
+        );
 
         let _ = fs::remove_dir_all(config_dir);
     }
