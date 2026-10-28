@@ -4,6 +4,8 @@ This is a set of checks to perform, not a record that manual QA has passed. Real
 
 For each manual run, record commit/build, OS/WebView version, source type, monitor/audio setup, network/ICE servers, steps, result, and logs for any failure. Mark a scenario complete only after recording its result.
 
+Before classifying a macOS capture failure as a product defect, identify the exact executable/bundle, bundle identifier/signature, launch method (direct executable or LaunchServices), and observed permission state for that launch context. An installed application's Screen Recording grant does not establish the permission state of a separately built or copied QA executable. Keep direct-build checks and installed-application acceptance separate. Classify confirmed permission failures as environment/permission blockers; when attribution is uncertain, record the observed failure and unknown cause rather than claiming a code defect. Do not create a product bug solely from a failure under a different, unverified permission context.
+
 Record observed defects and intermittent failures in the [bug register](BUGS.md), with their owning feature IDs. Link QA evidence to permanent bug IDs; a successful retry alone does not close a bug. Missing implementation and never-run QA remain in TODO/checklist.
 
 ## Full-Project QA and Version Gate

@@ -18,8 +18,7 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | [BUG-010](#bug-010-late-viewer-test-races-the-server-waiting-response) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P2 | FIXED | Test fixture ordering | Await hosted Ubuntu acceptance on the fixing commit |
 | [BUG-015](#bug-015-transient-catalog-failure-replaces-the-selected-source) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | FIXED | Catalog refresh / source selection | Complete actual switch/restore/closure acceptance after BUG-016 |
 | [BUG-016](#bug-016-native-capture-fails-when-starting-a-replacement-source) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | BLOCKED | Native capture restart | Grant Screen Recording to a retained QA bundle, then compare LaunchServices with direct launch |
-| [BUG-017](#bug-017-session-commands-block-the-native-window-event-loop) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | FIXED | Desktop command dispatch | Complete broader GUI acceptance after BUG-018/BUG-019 |
-| [BUG-018](#bug-018-gui-restart-test-selects-its-own-disappearing-window) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | OPEN | GUI fixture source lifetime | Use a source that survives the controls process and verify restart/removal separately |
+| [BUG-017](#bug-017-session-commands-block-the-native-window-event-loop) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | FIXED | Desktop command dispatch | Resolve BUG-019 before completing broader GUI acceptance |
 | [BUG-019](#bug-019-gui-viewer-frame-predicate-times-out-in-a-hidden-window) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | OPEN | GUI playback verification | Isolate visibility and frame-counter differences before changing the acceptance predicate |
 | [BUG-020](#bug-020-chrome-probe-profile-cleanup-fails-with-enotempty) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | OPEN | Probe cleanup | Reproduce late profile writes and verify bounded browser teardown/removal |
 
@@ -73,16 +72,6 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 - **Closure criteria:** controlled failing-before/passing-after contention regression, preserved command/error responses, broader desktop controls/preferences/playback verification, mandatory checks and fixing commit. BUG-016's source replacement criteria remain independent.
 - **Deferral:** none.
 
-### BUG-018: GUI Restart Test Selects Its Own Disappearing Window
-
-- **Affected version/components:** untagged `0.1.0`, `apps/desktop/tests/gui-scenarios.js` controls/restore scenarios; ownership `BASE-DESKTOP-CONTROLS`.
-- **Priority/status/kind:** P2, OPEN, GUI test fixture lifetime defect; this evidence does not establish broken preference persistence.
-- **Evidence/reproduction (2026-10-26):** run `node scripts/test-tauri-gui.mjs --output /private/tmp/video-p2p-bug017-full-gui` with native catalog permission. Controls chooses the second catalog option, its own `desktop-app - Video P2P MVP` window `macos-window-7554`, and saves audio off. On restart that window no longer exists; the idle manager logs `capture source dropped from refreshed catalog: macos-window-7554` and clears the missing selection as implemented. Restore incorrectly requires a non-null source. Room, ICE and refresh assertions pass. Observed once; option ordering makes the failure source-dependent.
-- **Expected/actual/cause:** restart acceptance must retain a valid source throughout the fixture. An arbitrary catalog index can select the process about to exit, so the test mistakes expected removal for persistence loss.
-- **Implementation/verification (2026-10-28):** the runner owns a separate silent native fixture throughout saving and restoration, asserts the exact saved source/audio choice, then closes the fixture and checks missing-source cleanup separately. A controlled old-selector run reproduces the original failure; final focused regression passes 10/10 and the full GUI run records 43 PASS / 0 FAIL / 1 BLOCKED for the independent denied-permission scenario. All 17 mandatory commands pass and both workspaces are cleaned. See [the verification record](qa/BUG-018-preference-source.md). Fixing-commit recording is the remaining closure step.
-- **Next action/closure:** introduce a controlled source surviving both processes; verify its exact ID/audio choice across restart and separately assert missing-source cleanup. Preserve this failure, run controls/restore and mandatory checks, then record the fixing commit.
-- **Deferral:** none; independent of BUG-017's command-dispatch fix.
-
 ### BUG-019: GUI Viewer Frame Predicate Times Out in a Hidden Window
 
 - **Affected version/components:** untagged `0.1.0`, real Tauri GUI viewer scenario and WKWebView frame observation; ownership `BASE-VIEWER-PROBES`.
@@ -119,6 +108,18 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | [BUG-012](#bug-012-unavailable-source-selection-reports-success) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | IPC result feedback | Missing-source errors preserve selection and recover on refresh |
 | [BUG-013](#bug-013-command-line-window-capture-aborts-before-startup) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | CLOSED | Native initialization | Public display query prevents standalone window abort; five before-fix crashes and seven after-fix scenarios verified |
 | [BUG-014](#bug-014-concurrent-audio-fixture-does-not-establish-source-isolation) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | CLOSED | Test fixture launch attribution | Same-binary launch comparison verifies concurrent isolation, opt-out and cleanup |
+| [BUG-018](#bug-018-gui-restart-test-selects-its-own-disappearing-window) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | GUI fixture source lifetime | Controlled source survives restart; exact restoration and separate removal checks pass |
+
+### BUG-018: GUI Restart Test Selects Its Own Disappearing Window
+
+- **Affected version/components:** untagged `0.1.0`, `apps/desktop/tests/gui-scenarios.js` controls/restore scenarios; ownership `BASE-DESKTOP-CONTROLS`.
+- **Priority/status/kind:** P2, CLOSED, GUI test fixture lifetime defect; this evidence does not establish broken preference persistence.
+- **Evidence/reproduction (2026-10-26):** run `node scripts/test-tauri-gui.mjs --output /private/tmp/video-p2p-bug017-full-gui` with native catalog permission. Controls chooses the second catalog option, its own `desktop-app - Video P2P MVP` window `macos-window-7554`, and saves audio off. On restart that window no longer exists; the idle manager logs `capture source dropped from refreshed catalog: macos-window-7554` and clears the missing selection as implemented. Restore incorrectly requires a non-null source. Room, ICE and refresh assertions pass. Observed once; option ordering makes the failure source-dependent.
+- **Expected/actual/cause:** restart acceptance must retain a valid source throughout the fixture. An arbitrary catalog index can select the process about to exit, so the test mistakes expected removal for persistence loss.
+- **Implementation/verification (2026-10-28):** the runner owns a separate silent native fixture throughout saving and restoration, asserts the exact saved source/audio choice, then closes the fixture and checks missing-source cleanup separately. A controlled old-selector run reproduces the original failure; final focused regression passes 10/10 and the full GUI run records 43 PASS / 0 FAIL / 1 BLOCKED for the independent denied-permission scenario. All 17 mandatory commands pass and both workspaces are cleaned. See [the verification record](qa/BUG-018-preference-source.md).
+- **Fixing commit/version:** `ca7786f` (`Keep GUI preference source alive across application restarts`), untagged `0.1.0`.
+- **Resolution (2026-10-28):** CLOSED; controlled failing-before/passing-after evidence, exact source/audio restoration, separate removal checks and mandatory verification meet the fixture closure criteria. Installed application, permission transitions and native capture replacement remain separate acceptance requirements.
+- **Deferral:** none; independent of BUG-017's command-dispatch fix.
 
 ### BUG-014: Concurrent Audio Fixture Does Not Establish Source Isolation
 

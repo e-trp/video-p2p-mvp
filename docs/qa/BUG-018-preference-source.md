@@ -59,3 +59,5 @@ All four browser probes verify Stop cleanup and both recovery modes verify brows
 `node --check` passes for both changed JavaScript files. Tracked text (including hidden configuration) contains no Cyrillic prose; local Markdown links/anchors and shell-block syntax pass. README, TODO, architecture, GUI guide, QA checklist and relevant bug entries were reviewed; architecture and checklist behavior remains accurate. `git diff --check` passes.
 
 Process inspection after the runners exited finds no remaining test/build processes. Both target paths are repository-local and `CARGO_TARGET_DIR` is unset. `cargo clean` exits 0, removing 9,167 files / 2.0 GiB; the separate desktop clean exits 0, removing 12,745 files / 3.7 GiB. Logs and failure evidence are retained outside the targets. No release bundle was produced or needed by this task. No version bump, release tag or full-project QA acceptance is claimed.
+
+Fixing commit: `ca7786f`, untagged `0.1.0`. BUG-018 is CLOSED after the controlled regression and final checks above. This follow-up records identity/status only; the tested implementation is unchanged.
