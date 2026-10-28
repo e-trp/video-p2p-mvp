@@ -116,6 +116,8 @@ Run the [QA checklist](docs/QA_CHECKLIST.md) on real devices. These are verifica
 
 The [2026-10-12 GUI record](docs/qa/gui-client-0.1.0-6bd1a31.md) verifies real Tauri controls, persisted settings and decoded synthetic playback in debug and bundled builds after the BUG-008/BUG-009 fixes. The [original failed run](docs/qa/tauri-gui-0.1.0-74a8e37.md) remains preserved. This prerequisite stays open: Screen Recording, Accessibility, actual screen/audio capture, audible devices, multiple monitors, installation/signing and cross-network QA are not verified. The runner and fixes advance no new feature ID.
 
+The [native restart investigation](docs/qa/BUG-016-restart-investigation.md) rules out worker-thread replacement alone and records the permission prerequisite for the next bundled-launch comparison. Native switch/restore/closure acceptance remains incomplete.
+
 Resolve discovered defects before extending the affected path. Where hardware/permissions are unavailable, keep the checks blocked and work on the next independent task; required blocked QA prevents a release tag.
 
 ### Ordered Feature Milestones
