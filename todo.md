@@ -21,7 +21,7 @@ Use `[x]` only for fully completed results. `[ ]` marks outstanding work. Runtim
 | Newly completed feature IDs since adopting this policy | None — `0/5`; the existing inventory is the baseline |
 | Last passing full-project QA checkpoint | None; automated checks alone do not satisfy manual QA |
 | Next feature milestone | M1, after actionable bugs; baseline macOS capture/playback QA is the first feature prerequisite |
-| Release gate | Open; [the latest GUI follow-up](docs/qa/BUG-019-viewer-visibility.md) records passing controlled visibility, pixels/PCM, preferences and contention regressions, with permission-denied coverage blocked; [browser cleanup](docs/qa/BUG-020-probe-cleanup.md) is verified; native source replacement, [Ubuntu CI acceptance](docs/BUGS.md#bug-010-late-viewer-test-races-the-server-waiting-response), OS/device/network and distribution QA remain outstanding |
+| Release gate | Open; [the latest GUI follow-up](docs/qa/BUG-019-viewer-visibility.md) records passing controlled visibility, pixels/PCM, preferences and contention regressions, with permission-denied coverage blocked; [browser cleanup](docs/qa/BUG-020-probe-cleanup.md) is verified; [Ubuntu CI acceptance](docs/BUGS.md#bug-010-late-viewer-test-races-the-server-waiting-response) passes; native source replacement, OS/device/network and distribution QA remain outstanding |
 
 Update this checkpoint as feature IDs are completed. Keep ordinary task commits separate. Run full QA at each milestone, before any version tag, and at five newly completed features at the latest. Record the covered IDs and reset the counter only after a passing full QA run. Documentation, refactoring, and fixes do not count as features. Tag only a verified release commit; a docs-only update keeps `0.1.0`.
 
@@ -77,7 +77,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 - [x] State-only local GUI demo and separate non-playable debug bursts.
 - [x] Linux `wmctrl` metadata catalog, example fallback, and runtime contract scaffold within that scope; media capture is absent.
 - [x] macOS `.app`/`.dmg` bundle configuration, icons/metadata, and generation/build helper scripts.
-- [x] Root CI: Rust format/Clippy/tests and Node viewer tests on Linux/macOS; native extraction tests on macOS. The [late-join response-order regression](docs/qa/BUG-010-late-viewer-ordering.md) records local verification and outstanding hosted Ubuntu acceptance.
+- [x] Root CI: Rust format/Clippy/tests and Node viewer tests on Linux/macOS; native extraction tests on macOS. The [late-join response-order regression](docs/qa/BUG-010-late-viewer-ordering.md) records local verification and successful hosted Ubuntu/macOS acceptance.
 - [x] Installation/user/networking/media/capture/playback guides and a manual QA checklist.
 - [x] **BASE-DEV-WORKFLOW:** Project `AGENTS.md`: Rust style, safe FFI, implementation order, tests, documentation maintenance, and build-artifact cleanup rules. This records the instructions artifact; local cleanup results are tracked separately.
 - [x] English project guidelines/documentation, stable milestone feature IDs, and a version/checkpoint policy with annotated-tag gates.

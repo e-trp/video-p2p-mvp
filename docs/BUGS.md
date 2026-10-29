@@ -15,22 +15,8 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 
 | Bug | Owning feature | Priority | Status | Kind | Next action |
 | --- | --- | --- | --- | --- | --- |
-| [BUG-010](#bug-010-late-viewer-test-races-the-server-waiting-response) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P2 | FIXED | Test fixture ordering | Await hosted Ubuntu acceptance on the fixing commit |
 | [BUG-015](#bug-015-transient-catalog-failure-replaces-the-selected-source) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | FIXED | Catalog refresh / source selection | Complete actual switch/restore/closure acceptance after BUG-016 |
 | [BUG-016](#bug-016-native-capture-fails-when-starting-a-replacement-source) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | BLOCKED | Native capture restart | Grant Screen Recording to a retained QA bundle, then compare LaunchServices with direct launch |
-
-### BUG-010: Late Viewer Test Races the Server Waiting Response
-
-- **Affected version/components:** untagged `0.1.0`, `crates/app-core/tests/host_viewer_flow.rs`, root Ubuntu Actions; present on current local base `70276b6`. Ownership `BASE-SIGNALING`, related `BASE-DEV-WORKFLOW`.
-- **Priority/status/kind:** P2, FIXED pending hosted Ubuntu acceptance, integration-test ordering defect; no product signaling failure is established by this assertion.
-- **Evidence/reproduction (2026-10-12):** the user supplies Ubuntu `late_viewer_join_replays_offer_over_real_tcp_signaling` failure at line 192: the expected server waiting log is absent, one of two integration tests fails, Cargo exits 101. GitHub API confirms the three latest runs fail Ubuntu `Run tests`; matrix fail-fast cancels macOS. Latest run: [38035966630](https://github.com/e-trp/video-p2p-mvp/actions/runs/38035966630), remote commit `615cb2a8`. Full job log download returns HTTP 403 without authenticated access; the supplied assertion is the detailed error evidence.
-- **Expected/actual/reliability:** a late viewer scenario must first establish a local offer and observed server waiting state, then join and receive the replayed offer. The original test waits only for `local_offer_ready` and immediately asserts an independently arriving TCP response. Local fast runs can pass; Ubuntu demonstrates the asynchronous ordering failure.
-- **Cause:** host startup creates the SDP offer after connecting without waiting for `WAITING`; nonblocking TCP polling can return before the server thread writes its response. Local offer readiness does not imply server acknowledgement.
-- **Implementation/verification:** a test-only channel gate withholds registration; the original predicate deterministically fails at the same missing-waiting-log assertion (exit 101). The corrected predicate waits for both offer and waiting acknowledgement within the unchanged five-second bound before joining the viewer. The gated scenario also asserts that the offer exists before acknowledgement; all replay/answer/peer checks are retained. Three integration tests pass, including ten repeated runs (30/30). Both workspaces pass mandatory format/lint/tests; native extraction, JS lifecycle and all four required browser modes pass. See the [verification record](qa/BUG-010-late-viewer-ordering.md).
-- **Fixing commit/version:** `72a9927c066c72d9727b8f670208dafa22746b7c`, untagged `0.1.0`. Local before/after verification passes; hosted Ubuntu acceptance remains open. Later commit/status recording changes documentation only.
-- **Next action:** run the fixing commit in hosted Ubuntu Actions after publication is authorized, inspect any subsequent failure independently, and record successful acceptance. The local Docker daemon is unavailable; hosted Ubuntu acceptance has not run.
-- **Closure criteria:** controlled failing-before/passing-after response-order regression, ordinary and repeated integration runs, mandatory local checks, and a successful Ubuntu CI run on the fixing commit. Remote verification stays open while the local commit has not been published/run; a passing local retry alone is insufficient.
-- **Deferral:** none.
 
 ### BUG-015: Transient Catalog Failure Replaces the Selected Source
 
@@ -79,6 +65,21 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | [BUG-017](#bug-017-session-commands-block-the-native-window-event-loop) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Desktop command dispatch | Controlled responsiveness and command errors pass; broader controls/preferences/playback acceptance completed |
 | [BUG-019](#bug-019-gui-viewer-frame-predicate-times-out-in-a-hidden-window) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | CLOSED | GUI playback verification | Restore current QA window visibility; hidden-start and repeated hide/restore pass with pixels/PCM |
 | [BUG-020](#bug-020-chrome-probe-profile-cleanup-fails-with-enotempty) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | CLOSED | Probe cleanup | Bounded process-group teardown and late-profile-write retries; failure boundaries and real browsers verified |
+| [BUG-010](#bug-010-late-viewer-test-races-the-server-waiting-response) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P2 | CLOSED | Test fixture ordering | Controlled regression and hosted Ubuntu/macOS acceptance on unchanged fix |
+
+### BUG-010: Late Viewer Test Races the Server Waiting Response
+
+- **Affected version/components:** untagged `0.1.0`, `crates/app-core/tests/host_viewer_flow.rs`, root Ubuntu Actions; present on current local base `70276b6`. Ownership `BASE-SIGNALING`, related `BASE-DEV-WORKFLOW`.
+- **Priority/status/kind:** P2, CLOSED, integration-test ordering defect; no product signaling failure is established by this assertion.
+- **Evidence/reproduction (2026-10-12):** the user supplies Ubuntu `late_viewer_join_replays_offer_over_real_tcp_signaling` failure at line 192: the expected server waiting log is absent, one of two integration tests fails, Cargo exits 101. GitHub API confirms the three latest runs fail Ubuntu `Run tests`; matrix fail-fast cancels macOS. Latest run: [38035966630](https://github.com/e-trp/video-p2p-mvp/actions/runs/38035966630), remote commit `615cb2a8`. Full job log download returns HTTP 403 without authenticated access; the supplied assertion is the detailed error evidence.
+- **Expected/actual/reliability:** a late viewer scenario must first establish a local offer and observed server waiting state, then join and receive the replayed offer. The original test waits only for `local_offer_ready` and immediately asserts an independently arriving TCP response. Local fast runs can pass; Ubuntu demonstrates the asynchronous ordering failure.
+- **Cause:** host startup creates the SDP offer after connecting without waiting for `WAITING`; nonblocking TCP polling can return before the server thread writes its response. Local offer readiness does not imply server acknowledgement.
+- **Implementation/verification:** a test-only channel gate withholds registration; the original predicate deterministically fails at the same missing-waiting-log assertion (exit 101). The corrected predicate waits for both offer and waiting acknowledgement within the unchanged five-second bound before joining the viewer. The gated scenario also asserts that the offer exists before acknowledgement; all replay/answer/peer checks are retained. Three integration tests pass, including ten repeated runs (30/30). Both workspaces pass mandatory format/lint/tests; native extraction, JS lifecycle and all four required browser modes pass. See the [verification record](qa/BUG-010-late-viewer-ordering.md).
+- **Fixing commit/version:** `72a9927c066c72d9727b8f670208dafa22746b7c`, untagged `0.1.0`. Local before/after verification and hosted Ubuntu acceptance pass. Later commit/status recording changes documentation only.
+- **Hosted acceptance/resolution (2026-10-29):** CLOSED after read-only API inspection confirms [run 40301710908](https://github.com/e-trp/video-p2p-mvp/actions/runs/40301710908) at `819a636` passes both Ubuntu and macOS jobs, including Rust tests. The fixing commit is an ancestor and the integration-test file is byte-identical (Git blob `098e5d8712ca2d148fc9b84e42ae20f6fb2c8cb5`). See [normalized evidence](qa/BUG-010-hosted-acceptance.json) and the QA follow-up. No new push or workflow dispatch is performed.
+- **Closure criteria:** controlled failing-before/passing-after response-order regression, ordinary and repeated integration runs, mandatory local checks, and a successful Ubuntu CI run containing the fixing implementation. All criteria are met; a passing local retry alone was insufficient.
+- **Deferral:** none.
+
 
 ### BUG-020: Chrome Probe Profile Cleanup Fails With ENOTEMPTY
 

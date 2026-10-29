@@ -32,7 +32,7 @@ cargo run -p signaling-server -- 127.0.0.1:7000
 
 Run the focused registration/relay tests with `cargo test -p signaling-server`. They cover both roles, rejected-client isolation over loopback TCP, normal relay/disconnect, initial announcement/replay write failures, role reuse, and late-join history. See the [BUG-003 verification record](qa/BUG-003-registration-lifecycle.md). This does not establish authenticated access or production resource bounds.
 
-Run `cargo test -p app-core --test host_viewer_flow` for session negotiation and late-viewer replay. Before joining the viewer, the test waits for both the local offer and the server's `WAITING` acknowledgement: local offer creation does not establish that an asynchronous TCP reply has arrived. A test-only registration gate also covers an offer created before the server responds, without fixed sleeps or larger timeouts. See [BUG-010 verification](qa/BUG-010-late-viewer-ordering.md); Ubuntu Actions acceptance remains pending.
+Run `cargo test -p app-core --test host_viewer_flow` for session negotiation and late-viewer replay. Before joining the viewer, the test waits for both the local offer and the server's `WAITING` acknowledgement: local offer creation does not establish that an asynchronous TCP reply has arrived. A test-only registration gate also covers an offer created before the server responds, without fixed sleeps or larger timeouts. See [BUG-010 verification](qa/BUG-010-late-viewer-ordering.md); the unchanged regression also passes hosted Ubuntu and macOS Actions.
 
 For different machines, use an address reachable by both clients and configure network access to the chosen TCP port. Loopback addresses only work on the server's own machine. Real cross-network streaming remains unvalidated.
 

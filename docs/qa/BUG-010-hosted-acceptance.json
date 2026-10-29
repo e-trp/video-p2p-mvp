@@ -1,0 +1,159 @@
+{
+  "observed_date": "2026-10-29",
+  "run": {
+    "id": 40301710908,
+    "head_sha": "819a636922159662b33421924fb79ee9f5e80fcc",
+    "html_url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/40301710908",
+    "created_at": "2026-10-26T09:43:06Z",
+    "updated_at": "2026-10-26T09:45:16Z",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "fixing_commit": "72a9927c066c72d9727b8f670208dafa22746b7c",
+  "fix_is_ancestor_of_run": true,
+  "unchanged_regression_blob": "098e5d8712ca2d148fc9b84e42ae20f6fb2c8cb5",
+  "jobs": [
+    {
+      "id": 121500925069,
+      "name": "check (ubuntu-latest)",
+      "html_url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/40301710908/job/121500925069",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-26T09:43:09Z",
+      "completed_at": "2026-10-26T09:44:38Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install Rust",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check formatting",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run Clippy",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run tests",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install Node for viewer tests",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test viewer signaling and playback lifecycle",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test native macOS sample extraction",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Install Node for viewer tests",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 121500925224,
+      "name": "check (macos-latest)",
+      "html_url": "https://github.com/e-trp/video-p2p-mvp/actions/runs/40301710908/job/121500925224",
+      "status": "completed",
+      "conclusion": "success",
+      "started_at": "2026-10-26T09:43:09Z",
+      "completed_at": "2026-10-26T09:45:15Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Checkout repository",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install Rust",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check formatting",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run Clippy",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run tests",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install Node for viewer tests",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test viewer signaling and playback lifecycle",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test native macOS sample extraction",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Install Node for viewer tests",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Checkout repository",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ]
+}

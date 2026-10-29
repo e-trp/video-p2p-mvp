@@ -1,6 +1,6 @@
 # BUG-010 — Late Viewer Response Ordering
 
-**Local regression verification: PASS. Hosted Ubuntu acceptance: NOT RUN.** The supplied Ubuntu Actions assertion is a test ordering race, reproduced deterministically on macOS before the fix. The integration test now waits for both local offer readiness and the asynchronous server waiting acknowledgement before joining the viewer. Required hosted verification keeps BUG-010 unresolved.
+**Local regression verification: PASS. Hosted Ubuntu acceptance: PASS (confirmed 2026-10-29).** The supplied Ubuntu Actions assertion is a test ordering race, reproduced deterministically on macOS before the fix. The integration test now waits for both local offer readiness and the asynchronous server waiting acknowledgement before joining the viewer. BUG-010 is CLOSED after confirming a successful hosted run containing the unchanged fix.
 
 ## Scope and Evidence
 
@@ -71,10 +71,22 @@ All checks are repeated after the final registration-gate refinement; both brows
 
 ## Status and Follow-up
 
-BUG-010 is FIXED in `72a9927c066c72d9727b8f670208dafa22746b7c`, pending a successful Ubuntu Actions run on that commit; inspect any subsequent failure independently. No push, release tag, version bump, or feature-counter change is part of this task.
+As of the original 2026-10-12 investigation, BUG-010 was FIXED in `72a9927c066c72d9727b8f670208dafa22746b7c`, pending hosted Ubuntu verification. The later acceptance below closes that requirement. No push, release tag, version bump, or feature-counter change is part of this task.
 
 README, architecture and installation guides were reviewed; their CI scope, component boundaries and commands remain accurate. Networking, TODO, QA checklist and bug register describe the corrected test ordering and separate remote acceptance. Cleanup is performed after all builds/tests/probes, preserving the previously saved GUI bundles, preferences, lockfiles and pre-existing `.python-version`.
 
 Documentation consistency passes: 171 relative links/anchors, 43 shell blocks, no Cyrillic authored prose across tracked/new text including hidden configuration, and normalized run/regression totals. `git diff --check` passes; the complete source/documentation diff and generated evidence are reviewed.
 
 All owned verification processes have finished. Final `cargo clean` exits 0 and removes 8,291 files / 1.9 GiB; `cargo clean --manifest-path apps/desktop/src-tauri/Cargo.toml` exits 0 and removes 9,581 files / 2.6 GiB. Both target directories are absent; previously saved GUI bundles remain outside them. Download caches, source files and user preferences are preserved.
+
+## Hosted Acceptance — Confirmed 2026-10-29
+
+The public GitHub Actions API reports [run 40301710908](https://github.com/e-trp/video-p2p-mvp/actions/runs/40301710908), created 2026-10-26, successful at commit `819a636922159662b33421924fb79ee9f5e80fcc`. Both [Ubuntu job 121500925069](https://github.com/e-trp/video-p2p-mvp/actions/runs/40301710908/job/121500925069) and [macOS job 121500925224](https://github.com/e-trp/video-p2p-mvp/actions/runs/40301710908/job/121500925224) completed successfully, including format, Clippy, Rust tests and Node lifecycle tests. Native extraction passed on macOS and was platform-skipped on Ubuntu. The retained [normalized API evidence](BUG-010-hosted-acceptance.json) records job/step conclusions and URLs; full job logs were not downloaded.
+
+`git merge-base --is-ancestor 72a9927c066c72d9727b8f670208dafa22746b7c 819a636922159662b33421924fb79ee9f5e80fcc` exits 0. `git diff` between those commits for `crates/app-core/tests/host_viewer_flow.rs` is empty; both blobs are `098e5d8712ca2d148fc9b84e42ae20f6fb2c8cb5`. The published run therefore includes the original fix and unchanged controlled delayed-registration regression. The existing workflow's root test command runs this integration target. This is acceptance on a descendant containing the fix, not an assertion that Actions ran at the fixing commit itself.
+
+No publication or workflow dispatch was needed: the user had already published the descendant. This check only reads remote refs and the public API. The prior local failing-before/passing-after evidence plus hosted Ubuntu success meet BUG-010's closure criteria. The project's remaining native-source and release QA stay open.
+
+The 2026-10-29 local per-change gate passes all 17 mandatory commands plus six cleanup regressions on macOS 27.2 / Node 26.13.0, base `045257d` with this documentation-only diff. Root tests pass 127 cases, probe lifetime tests 4, Node viewer/cleanup tests 8/6; both Clippy/format workspaces, Tauri tests, native extraction and all four WKWebView/Chrome playback/recovery modes pass. Exact commands, durations and logs are saved under `/private/tmp/video-p2p-bugs-remaining/bug010-checks/`. After process checks, `cargo clean` removes 8,129 files / 1.9 GiB and desktop `cargo clean` removes 10,109 files / 2.9 GiB, both exit 0; both repository-local targets are absent. The separately prepared BUG-016 QA bundle/probes remain outside target directories for its pending permission comparison.
+
+README and architecture were reviewed and remain accurate. Networking, TODO, QA checklist and bug register now distinguish completed hosted acceptance from outstanding native/release QA. Links/anchors, shell syntax, tracked-text language scanning, normalized JSON and `git diff --check` pass. Final result-recording edits change no tested code/configuration.
