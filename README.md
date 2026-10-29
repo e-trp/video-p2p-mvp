@@ -56,6 +56,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all --all-features
 cargo test -p app-core --example playback_probe --all-features
 node --test apps/desktop/tests/viewer-player.test.mjs
+node --test scripts/probe-cleanup.test.mjs
 ```
 
 The Tauri crate is a separate workspace; check it explicitly:

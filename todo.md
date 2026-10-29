@@ -60,6 +60,7 @@ Update this checkpoint as feature IDs are completed. Keep ordinary task commits 
 - [x] Rust bridge and Node lifecycle tests, including ICE ordering, autoplay, terminal failure, and transient disconnect/recovery.
 - [x] **BASE-VIEWER-PROBES:** Synthetic WKWebView/Chromium playback probes: decoded dimensions/pixels, nonzero Opus PCM, and media cleanup after stop/refresh.
 - [x] Bounded probe startup and connection-relative streaming lifetime, with four portable regression tests, slow-start verification under compilation load, and failure diagnostics; see [BUG-001 verification](docs/qa/BUG-001-startup-lifetime.md).
+- [x] Bounded browser-probe teardown and temporary-profile removal, with portable late-write, helper-lifetime and failure-boundary regressions; see [BUG-020 verification](docs/qa/BUG-020-probe-cleanup.md). Actual browser verification is recorded separately there; no new feature ID is counted.
 - [x] Video-SSRC RTCP PLI/FIR, FIR duplicate detection, coalescing, and a 500 ms cooldown; successful keyframe publication or disconnect/close clears pending state.
 - [x] Host keyframe request/publication/pending diagnostics, SRTCP/publication-race tests, and capture stop/restart recovery.
 - [x] WKWebView/Chromium recovery probes that drop the first keyframe and verify browser-originated RTCP refresh.

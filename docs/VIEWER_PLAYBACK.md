@@ -36,6 +36,7 @@ Unit/lifecycle checks:
 
 ```bash
 node --test apps/desktop/tests/viewer-player.test.mjs
+node --test scripts/probe-cleanup.test.mjs
 cargo test -p app-core viewer
 cargo test -p app-core --example playback_probe --all-features
 ```
@@ -65,6 +66,8 @@ Optional Chromium interoperability check with installed Chrome:
 ```bash
 node scripts/test-viewer-playback.mjs --chrome
 ```
+
+Probe cleanup requests Chrome's `Browser.close`, allows three seconds for graceful exit, then stops any remaining private process groups with SIGTERM (three seconds) and SIGKILL (three seconds). Other probe children skip the initial grace period. A failed spawn owns no group. Temporary files are removed only after all owned groups stop; transient removal errors receive at most five retries with 100–500 ms delays. Persistent errors fail the command with the scratch path and original cause, preserving remaining evidence. A passing playback message is followed by a separate cleanup confirmation; both must succeed. Portable regressions cover a controlled late profile write, helper shutdown and failure boundaries; see [BUG-020 verification](qa/BUG-020-probe-cleanup.md). These checks do not identify the writer in the historical Chrome failure.
 
 To omit the initial SPS/PPS/IDR and require browser-originated RTCP feedback plus a successfully decoded refresh frame:
 

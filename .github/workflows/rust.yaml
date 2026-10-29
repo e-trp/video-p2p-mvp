@@ -38,7 +38,7 @@ jobs:
           node-version: '22'
 
       - name: Test viewer signaling and playback lifecycle
-        run: node --test apps/desktop/tests/viewer-player.test.mjs
+        run: node --test apps/desktop/tests/viewer-player.test.mjs scripts/probe-cleanup.test.mjs
 
       - name: Test native macOS sample extraction
         if: runner.os == 'macOS'

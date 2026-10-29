@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createTcpServer, createConnection } from "node:net";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
+import { removeProbeScratch, stopProbeChild } from "./probe-cleanup.mjs";
 
 if (process.platform !== "darwin") throw new Error("The synthetic VideoToolbox host requires macOS");
 const root = resolve(import.meta.dirname, "..");
@@ -27,8 +28,11 @@ let proxyUpstream;
 let hostReport = null;
 let host;
 let result;
+let browser;
+let browserSocket;
+let closeBrowser;
 function child(program, args, options = {}) {
-  const process = spawn(program, args, { cwd: root, stdio: ["pipe", "pipe", "pipe"], ...options });
+  const process = spawn(program, args, { cwd: root, stdio: ["pipe", "pipe", "pipe"], detached: true, ...options });
   children.push(process);
   process.on("error", (error) => { logs += `${program}: ${error.message}\n`; });
   process.stderr.on("data", (data) => { logs = (logs + data).slice(-6000); });
@@ -210,17 +214,23 @@ try {
     assert.ok(result, `WKWebView did not return a result\n${logs}`);
   } else {
     const chrome = process.env.VIEWER_TEST_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-    const browser = child(chrome, ["--headless", "--remote-debugging-port=0", `--user-data-dir=${resolve(scratch, "chrome")}`, "--autoplay-policy=no-user-gesture-required", "--no-first-run", "--no-default-browser-check", "about:blank"]);
+    browser = child(chrome, ["--headless", "--remote-debugging-port=0", `--user-data-dir=${resolve(scratch, "chrome")}`, "--autoplay-policy=no-user-gesture-required", "--no-first-run", "--no-default-browser-check", "about:blank"]);
     let endpoint;
     browser.stderr.on("data", (data) => { endpoint ??= /DevTools listening on (ws:\/\/[^\s]+)/.exec(String(data))?.[1]; });
     await until(() => endpoint);
     const socket = new WebSocket(endpoint);
+    browserSocket = socket;
     await new Promise((resolve) => socket.addEventListener("open", resolve, { once: true }));
     let counter = 0;
+    // Browser.close is deliberately fire-and-forget: Chrome may close the socket
+    // before replying. Process/group exit below is the shutdown acknowledgement.
+    closeBrowser = () => {
+      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ id: ++counter, method: "Browser.close" }));
+    };
     const pending = new Map();
     socket.addEventListener("message", (event) => {
       const value = JSON.parse(event.data);
-      if (value.id) { const task = pending.get(value.id); pending.delete(value.id); if (value.error) task.reject(new Error(value.error.message)); else task.resolve(value.result); }
+      if (value.id) { const task = pending.get(value.id); pending.delete(value.id); if (value.error) task?.reject(new Error(value.error.message)); else task?.resolve(value.result); }
     });
     function cdp(method, params = {}, sessionId) {
       return new Promise((resolve, reject) => { const id = ++counter; pending.set(id, { resolve, reject }); socket.send(JSON.stringify({ id, method, params, sessionId })); });
@@ -233,7 +243,6 @@ try {
       result = value.result?.value;
       return result;
     }, 25000);
-    socket.close();
   }
   assert.equal(result.error, undefined, JSON.stringify(result));
   assert.equal(result.width, 64);
@@ -266,11 +275,23 @@ try {
     hostExitCode: host?.exitCode ?? null, hostSignal: host?.signalCode ?? null, result, logs }, null, 2));
   throw error;
 } finally {
-  const exits = children.map((process) => process.exitCode !== null || process.signalCode !== null ? undefined : new Promise((resolve) => process.once("exit", resolve)));
-  for (const process of children) if (process.exitCode === null && process.signalCode === null) process.kill();
+  const cleanupErrors = [];
+  try { closeBrowser?.(); } catch (error) { cleanupErrors.push(error); }
+  const stops = children.map((process) => stopProbeChild(process, {
+    processGroup: true, graceMs: process === browser ? 3000 : 0,
+  }));
+  // Register rejection handlers immediately while server cleanup runs.
+  const stopped = Promise.allSettled(stops);
   if (httpServer) { httpServer.closeAllConnections(); await new Promise((resolve) => httpServer.close(resolve)); }
   proxyClient?.destroy(); proxyUpstream?.destroy();
   if (signalingProxy) await new Promise((resolve) => signalingProxy.close(resolve));
-  await Promise.all(exits);
-  await rm(scratch, { recursive: true, force: true });
+  const outcomes = await stopped;
+  browserSocket?.close();
+  for (const outcome of outcomes) if (outcome.status === "rejected") cleanupErrors.push(outcome.reason);
+  // Preserve the profile if a writer could still be alive.
+  if (outcomes.every((outcome) => outcome.status === "fulfilled")) {
+    try { await removeProbeScratch(scratch); } catch (error) { cleanupErrors.push(error); }
+  }
+  if (cleanupErrors.length) throw new AggregateError(cleanupErrors, `Probe cleanup failed; scratch: ${scratch}`);
+  console.log("Probe cleanup passed: owned process groups stopped and scratch directory removed.");
 }
