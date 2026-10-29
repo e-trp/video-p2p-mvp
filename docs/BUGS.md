@@ -18,7 +18,6 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | [BUG-010](#bug-010-late-viewer-test-races-the-server-waiting-response) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P2 | FIXED | Test fixture ordering | Await hosted Ubuntu acceptance on the fixing commit |
 | [BUG-015](#bug-015-transient-catalog-failure-replaces-the-selected-source) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | FIXED | Catalog refresh / source selection | Complete actual switch/restore/closure acceptance after BUG-016 |
 | [BUG-016](#bug-016-native-capture-fails-when-starting-a-replacement-source) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | BLOCKED | Native capture restart | Grant Screen Recording to a retained QA bundle, then compare LaunchServices with direct launch |
-| [BUG-020](#bug-020-chrome-probe-profile-cleanup-fails-with-enotempty) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | INVESTIGATING | Probe cleanup | Verification passed; record the fixing commit and close the entry |
 
 ### BUG-010: Late Viewer Test Races the Server Waiting Response
 
@@ -58,18 +57,6 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 - **Closure criteria:** establish and repair the responsible behavior/environment, retain a failing-before/passing-after regression, pass actual switch/restore/closure playback and mandatory checks.
 - **Deferral:** none; next actionable native defect after recording BUG-015's implementation and verification limits.
 
-### BUG-020: Chrome Probe Profile Cleanup Fails With ENOTEMPTY
-
-- **Affected version/components:** untagged `0.1.0`, `scripts/test-viewer-playback.mjs` final temporary-profile removal, macOS 27.0 / Node 26.12.1; ownership `BASE-VIEWER-PROBES`.
-- **Priority/status/kind:** P2, INVESTIGATING, intermittent test cleanup failure, not a decoded-media failure.
-- **Evidence/reproduction (2026-10-26):** the second mandatory verification run's `node scripts/test-viewer-playback.mjs --chrome` reports passing 64×36 playback, 20 frames, 33,600 audio samples and media Stop cleanup, then exits 1 with `ENOTEMPTY` removing `video-p2p-playback-OYAAOD/chrome/Default`. Log: `/private/tmp/video-p2p-bug017-checks/16.log`. The first identical run passed. Inspection found only `Network Persistent State` remaining and no associated browser/probe/server processes; the leftover scratch directory was subsequently removed with `shutil.rmtree` and confirmed absent.
-- **Original expected/actual/cause:** temporary browser profiles should be removed after shutdown. The original runner waits for direct child exit then calls recursive `rm` without retries. A late Chrome helper/profile write is suspected, but the historical writer and exact ordering have not been captured.
-- **Follow-up:** ordinary Chrome and keyframe recovery both subsequently exit 0 and remove their temporary profiles (`16-retry.log`, `17-final.log` in the same evidence directory). The original failure remains retained and the issue stays OPEN.
-- **Controlled investigation (2026-10-29):** inserting a real `Network Persistent State` write between empty-directory enumeration and removal reproduces filesystem `ENOTEMPTY`; bounded retry removes that same fixture. The original Chrome writer is still unknown, and its historical `/private/tmp` log is no longer available in this environment. The runner now requests `Browser.close`, waits for its private process group, escalates TERM to KILL within finite bounds, and retries transient removal failures at most five times. Persistent failures report the scratch path and underlying error. Six portable regressions cover late writes, helper shutdown, ignored TERM, graceful/failed startup and permanent errors; see [verification](qa/BUG-020-probe-cleanup.md).
-- **Verification (2026-10-29):** all 17 mandatory commands and six cleanup regressions pass outside the socket-restricted sandbox. All four required browser modes confirm media and process/profile cleanup; both signaling-EOF modes and a failed Chrome launch also clean up correctly. The combined CI test invocation passes 14/14. See the verification record for the original sandbox failure and complete results. The implementation is ready for its fixing commit; no product media/permission behavior changes.
-- **Next action/closure:** reproduce a profile write during teardown, confirm all owned processes stop, and implement/test bounded cleanup that still reports persistent errors. Verify ordinary/recovery Chrome runs plus mandatory checks and retain original failure evidence. Removal of this one directory or a passing retry does not close the defect.
-- **Deferral:** none; separate from the desktop command-dispatch implementation.
-
 ## Closed Issues
 
 | Bug | Owning feature | Priority | Status | Kind | Resolution |
@@ -91,6 +78,22 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | [BUG-021](#bug-021-source-label-test-compares-stale-window-metadata) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Test expectation / live catalog | Compare the applied catalog; controlled rename retains identity/audio |
 | [BUG-017](#bug-017-session-commands-block-the-native-window-event-loop) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Desktop command dispatch | Controlled responsiveness and command errors pass; broader controls/preferences/playback acceptance completed |
 | [BUG-019](#bug-019-gui-viewer-frame-predicate-times-out-in-a-hidden-window) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | CLOSED | GUI playback verification | Restore current QA window visibility; hidden-start and repeated hide/restore pass with pixels/PCM |
+| [BUG-020](#bug-020-chrome-probe-profile-cleanup-fails-with-enotempty) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | CLOSED | Probe cleanup | Bounded process-group teardown and late-profile-write retries; failure boundaries and real browsers verified |
+
+### BUG-020: Chrome Probe Profile Cleanup Fails With ENOTEMPTY
+
+- **Affected version/components:** untagged `0.1.0`, `scripts/test-viewer-playback.mjs` final temporary-profile removal, macOS 27.0 / Node 26.12.1; ownership `BASE-VIEWER-PROBES`.
+- **Priority/status/kind:** P2, CLOSED, intermittent test cleanup failure, not a decoded-media failure.
+- **Evidence/reproduction (2026-10-26):** the second mandatory verification run's `node scripts/test-viewer-playback.mjs --chrome` reports passing 64×36 playback, 20 frames, 33,600 audio samples and media Stop cleanup, then exits 1 with `ENOTEMPTY` removing `video-p2p-playback-OYAAOD/chrome/Default`. Log: `/private/tmp/video-p2p-bug017-checks/16.log`. The first identical run passed. Inspection found only `Network Persistent State` remaining and no associated browser/probe/server processes; the leftover scratch directory was subsequently removed with `shutil.rmtree` and confirmed absent.
+- **Original expected/actual/cause:** temporary browser profiles should be removed after shutdown. The original runner waits for direct child exit then calls recursive `rm` without retries. A late Chrome helper/profile write is suspected, but the historical writer and exact ordering have not been captured.
+- **Initial follow-up (2026-10-26):** ordinary Chrome and keyframe recovery both subsequently exit 0 and remove their temporary profiles (`16-retry.log`, `17-final.log` in the same evidence directory). The original failure was retained and the issue remained OPEN at that stage.
+- **Controlled investigation (2026-10-29):** inserting a real `Network Persistent State` write between empty-directory enumeration and removal reproduces filesystem `ENOTEMPTY`; bounded retry removes that same fixture. The original Chrome writer is still unknown, and its historical `/private/tmp` log is no longer available in this environment. The runner now requests `Browser.close`, waits for its private process group, escalates TERM to KILL within finite bounds, and retries transient removal failures at most five times. Persistent failures report the scratch path and underlying error. Six portable regressions cover late writes, helper shutdown, ignored TERM, graceful/failed startup and permanent errors; see [verification](qa/BUG-020-probe-cleanup.md).
+- **Verification (2026-10-29):** all 17 mandatory commands and six cleanup regressions pass outside the socket-restricted sandbox. All four required browser modes confirm media and process/profile cleanup; both signaling-EOF modes and a failed Chrome launch also clean up correctly. The combined CI test invocation passes 14/14. See the verification record for the original sandbox failure and complete results. No product media/permission behavior changes.
+- **Closure criteria:** reproduce a profile write during teardown, confirm all owned processes stop, and implement/test bounded cleanup that still reports persistent errors. Verify ordinary/recovery Chrome runs plus mandatory checks and retain original failure evidence. Removal of this one directory or a passing retry does not close the defect.
+- **Fixing commit/version:** `ff8bf66` (`Bound browser probe shutdown and retry transient profile cleanup`), untagged `0.1.0`.
+- **Resolution (2026-10-29):** CLOSED; controlled late-write failure/repair, bounded process-group lifecycle, persistent-error reporting, real ordinary/recovery/EOF browser checks and mandatory verification meet the tooling closure criteria. Both workspaces are cleaned. The historical Chrome writer remains unidentified; this closure relies on the retained controlled regression and verified teardown behavior, not a passing retry alone.
+- **Deferral:** none; separate from the desktop command-dispatch implementation.
+
 
 ### BUG-017: Session Commands Block the Native Window Event Loop
 

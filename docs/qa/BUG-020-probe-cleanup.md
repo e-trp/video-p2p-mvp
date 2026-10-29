@@ -45,3 +45,5 @@ The three extra browser scenarios each leave no new scratch directory. Post-run 
 All three changed/new JavaScript files pass `node --check`. Tracked-text Cyrillic scanning, relative Markdown links/anchors, shell-block syntax and `git diff --check` pass. README, TODO, viewer guide, QA checklist and bug register are updated; architecture remains accurate. Final documentation edits record verification only and change no tested code/configuration.
 
 No release tag, version bump or new feature ID is claimed. Native replacement acceptance (BUG-016), dependent source-lifecycle acceptance (BUG-015), hosted Ubuntu acceptance (BUG-010), physical device/network and other release checks remain open.
+
+Fixing commit: `ff8bf66`, untagged `0.1.0`. BUG-020 is CLOSED. This final identity/status update changes documentation only; the tested code/configuration and verification results are unchanged.

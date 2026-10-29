@@ -21,7 +21,7 @@ Use `[x]` only for fully completed results. `[ ]` marks outstanding work. Runtim
 | Newly completed feature IDs since adopting this policy | None — `0/5`; the existing inventory is the baseline |
 | Last passing full-project QA checkpoint | None; automated checks alone do not satisfy manual QA |
 | Next feature milestone | M1, after actionable bugs; baseline macOS capture/playback QA is the first feature prerequisite |
-| Release gate | Open; [the latest GUI follow-up](docs/qa/BUG-019-viewer-visibility.md) records passing controlled visibility, pixels/PCM, preferences and contention regressions, with permission-denied coverage blocked and BUG-020 unresolved; native source replacement, [Ubuntu CI acceptance](docs/BUGS.md#bug-010-late-viewer-test-races-the-server-waiting-response), OS/device/network and distribution QA remain outstanding |
+| Release gate | Open; [the latest GUI follow-up](docs/qa/BUG-019-viewer-visibility.md) records passing controlled visibility, pixels/PCM, preferences and contention regressions, with permission-denied coverage blocked; [browser cleanup](docs/qa/BUG-020-probe-cleanup.md) is verified; native source replacement, [Ubuntu CI acceptance](docs/BUGS.md#bug-010-late-viewer-test-races-the-server-waiting-response), OS/device/network and distribution QA remain outstanding |
 
 Update this checkpoint as feature IDs are completed. Keep ordinary task commits separate. Run full QA at each milestone, before any version tag, and at five newly completed features at the latest. Record the covered IDs and reset the counter only after a passing full QA run. Documentation, refactoring, and fixes do not count as features. Tag only a verified release commit; a docs-only update keeps `0.1.0`.
 
