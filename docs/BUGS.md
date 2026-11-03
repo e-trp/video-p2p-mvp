@@ -16,7 +16,6 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | Bug | Owning feature | Priority | Status | Kind | Next action |
 | --- | --- | --- | --- | --- | --- |
 | [BUG-016](#bug-016-native-capture-fails-when-starting-a-replacement-source) | [BASE-MACOS-CAPTURE](../todo.md#macos-capture-and-codec-implementation) | P2 | INVESTIGATING | Native capture restart / launch context | Explain why the same executable fails outside `.app`; bundled lifecycle now passes |
-| [BUG-022](#bug-022-native-lifecycle-qa-cannot-restore-hidden-windows) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | INVESTIGATING | GUI QA visibility | Reproduce with a deliberately hidden window, then restore visibility before native QA controls |
 | [BUG-023](#bug-023-retained-qa-launchservices-viewer-fails-initial-negotiation) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | OPEN | Negotiation failure; cause unknown | Preserve host and viewer negotiation diagnostics on the next reproduction |
 
 ### BUG-016: Native Capture Fails When Starting a Replacement Source
@@ -33,14 +32,6 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 - **Follow-up (2026-11-03):** the user grants the retained QA app Screen Recording; fresh processes report `granted`. The same signed executable passes all 17 native lifecycle checks when launched directly inside its `.app`, and with a LaunchServices host/direct viewer. An identical standalone copy outside the bundle reproduces the replacement startup failure after initial pixels/PCM pass, with permission still granted. This localizes a launch-context dependency but does not establish its internal cause or repair unbundled operation. Two all-LaunchServices attempts expose separate initial-negotiation and hidden-QA-window failures, tracked as BUG-023 and BUG-022. See [the controlled comparison](qa/native-lifecycle-2026-11-03.md). The permission blocker is resolved; BUG-016 remains unresolved rather than being closed on a bundled workaround.
 - **Closure criteria:** establish and repair the responsible behavior/environment, retain a failing-before/passing-after regression, pass actual switch/restore/closure playback and mandatory checks.
 - **Deferral:** none; next actionable native defect after recording BUG-015's implementation and verification limits.
-
-### BUG-022: Native Lifecycle QA Cannot Restore Hidden Windows
-
-- **Affected version/components:** untagged `0.1.0`, `apps/desktop/tests/gui-scenarios.js`, base `4cc9e26`; ownership `BASE-DESKTOP-CONTROLS`.
-- **Priority/status/kind:** P2, INVESTIGATING, QA fixture visibility defect. No production capture fix is implied.
-- **Evidence/reproduction:** `/private/tmp/video-p2p-bug016-nov03-launchservices-repeat/source-lifecycle/` passes initial native pixels/PCM, alternate-source playback, restoration and host source-closure checks. Viewer then times out in `focusQaWindow`; host Stop also times out there, with `visible=false`, `focused=false`, document `hidden`. Why the uncontrolled run's windows became hidden is unknown.
-- **Expected/actual/cause:** native QA must show its own test window before requiring foreground controls. The original `focusQaWindow` only invokes `gui_qa_focus` and cannot establish visibility; synthetic viewer QA already has a separate visibility guard. A controlled hide/restore regression reproduces this failure before the repair. The helper now shows/focuses its own window and checks native/document visibility; no capture or playback acceptance threshold changes. The focused after-run passes 3/3 and actual bundled lifecycle/Stop passes 17/17; all mandatory checks and cleanup pass. See [the verification record](qa/BUG-022-native-window-visibility.md).
-- **Closure criteria:** retained failing-before/passing-after hidden-window regression, actual lifecycle/Stop acceptance, mandatory checks and fixing commit.
 
 ### BUG-023: Retained QA LaunchServices Viewer Fails Initial Negotiation
 
@@ -75,6 +66,16 @@ Track observed failures here, linked to their owning feature. [AGENTS.md](../AGE
 | [BUG-020](#bug-020-chrome-probe-profile-cleanup-fails-with-enotempty) | [BASE-VIEWER-PROBES](../todo.md#desktop-viewer-and-recovery) | P2 | CLOSED | Probe cleanup | Bounded process-group teardown and late-profile-write retries; failure boundaries and real browsers verified |
 | [BUG-010](#bug-010-late-viewer-test-races-the-server-waiting-response) | [BASE-SIGNALING](../todo.md#webrtc-and-signaling) | P2 | CLOSED | Test fixture ordering | Controlled regression and hosted Ubuntu/macOS acceptance on unchanged fix |
 | [BUG-015](#bug-015-transient-catalog-failure-replaces-the-selected-source) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Catalog retention | Controlled error/recovery regression and actual bundled switch/restore/closure pass |
+| [BUG-022](#bug-022-native-lifecycle-qa-cannot-restore-hidden-windows) | [BASE-DESKTOP-CONTROLS](../todo.md#ui-preferences-and-tooling) | P2 | CLOSED | Native GUI QA visibility | Controlled hidden-window restoration and actual bundled lifecycle/Stop pass |
+
+### BUG-022: Native Lifecycle QA Cannot Restore Hidden Windows
+
+- **Affected version/components:** untagged `0.1.0`, `apps/desktop/tests/gui-scenarios.js`, base `4cc9e26`; ownership `BASE-DESKTOP-CONTROLS`.
+- **Priority/status/kind:** P2, CLOSED, QA fixture visibility defect. No production capture fix is implied.
+- **Evidence/reproduction:** `/private/tmp/video-p2p-bug016-nov03-launchservices-repeat/source-lifecycle/` passes initial native pixels/PCM, alternate-source playback, restoration and host source-closure checks. Viewer then times out in `focusQaWindow`; host Stop also times out there, with `visible=false`, `focused=false`, document `hidden`. Why the uncontrolled run's windows became hidden is unknown.
+- **Expected/actual/cause:** native QA must show its own test window before requiring foreground controls. The original `focusQaWindow` only invokes `gui_qa_focus` and cannot establish visibility; synthetic viewer QA already has a separate visibility guard. A controlled hide/restore regression reproduces this failure before the repair. The helper now shows/focuses its own window and checks native/document visibility; no capture or playback acceptance threshold changes. The focused after-run passes 3/3 and actual bundled lifecycle/Stop passes 17/17; all mandatory checks and cleanup pass. See [the verification record](qa/BUG-022-native-window-visibility.md).
+- **Fixing commit/version:** `e73a1d3`, untagged `0.1.0`. CLOSED on 2026-11-03 after the controlled before/after transition, 17/17 actual native lifecycle checks, 29 applicable controls/preferences checks, all 18 mandatory commands and both workspace cleanups pass. Required-permission coverage remains scoped to the separately recorded pre-grant run; no broader permission or release acceptance is claimed.
+- **Closure criteria:** retained failing-before/passing-after hidden-window regression, actual lifecycle/Stop acceptance, mandatory checks and fixing commit; met for this QA visibility defect.
 
 ### BUG-010: Late Viewer Test Races the Server Waiting Response
 
