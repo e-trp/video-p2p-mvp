@@ -61,3 +61,9 @@ No verification fixture/client/server/probe processes remain. Both target direct
 ## Remaining Scope
 
 The lifecycle scenario switches source, restores the original on the same viewer peer, and terminates its owning fixture application before refreshing the catalog. It does not certify closing only one window of a multi-window application. Physical output devices, trusted gestures, permission transitions on real OS settings, other applications/protected content, multiple monitors, packaged distribution, Linux and cross-network QA remain open. The existing BUG-010 hosted Ubuntu acceptance remains separate. No version/tag or release checkpoint is created.
+
+## Actual Source Lifecycle Acceptance — 2026-11-03
+
+The [retained-bundle comparison](native-lifecycle-2026-11-03.md) completes the outstanding actual switch/restore/closure criterion on unchanged production code. Two launch combinations each pass all 17 host/viewer checks: actual red/tone media, silent blue replacement, restored red/tone media on the same viewer peer/generation, source disappearance without automatic fallback capture, and Stop/track cleanup. The original controlled catalog regression and fixing commit `1f665d7` remain the basis of the code fix. Mandatory checks and cleanup are recorded with [BUG-022](BUG-022-native-window-visibility.md).
+
+BUG-016's standalone launch-context failure and BUG-023's intermittent initial negotiation remain separate unresolved issues. This focused acceptance does not claim broader manual source/device/permission coverage or a passing release gate.

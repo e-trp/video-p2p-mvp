@@ -67,7 +67,7 @@ Clean removes built binaries, so run it after playback probes. Rebuild before an
 
 The [native desktop playback record](qa/native-desktop-playback-0.1.0-c0d19af.md) verifies actual ScreenCaptureKit fixture pixels/PCM through two local Tauri clients, audio opt-out, programmatic mute controls and Stop cleanup. This focused run leaves physical output, trusted gestures, permission transitions and broader source/device scenarios open.
 
-The [BUG-015 record](qa/BUG-015-catalog-refresh.md) verifies failed-refresh state retention. Its actual switch/restore/closure scenario remains blocked by BUG-016; do not mark source lifecycle complete from initial playback or passing unit tests.
+The [BUG-015 record](qa/BUG-015-catalog-refresh.md) verifies failed-refresh state retention. The [2026-11-03 bundle comparison](qa/native-lifecycle-2026-11-03.md) additionally passes actual switch/restore/closure with pixels/PCM on the same viewer peer, and verifies the permission-required UI path before the user's grant. Standalone restart (BUG-016), intermittent initial LaunchServices negotiation (BUG-023), explicit denial/regrant transitions and wider source/device coverage remain open. [BUG-022](qa/BUG-022-native-window-visibility.md) tracks the native QA visibility repair.
 
 The [BUG-017 record](qa/BUG-017-command-dispatch.md) separates controlled native-window responsiveness during session-lock contention from actual source replacement. The contention regression passes after blocking-pool dispatch; the follow-up native lifecycle run still fails under BUG-016.
 

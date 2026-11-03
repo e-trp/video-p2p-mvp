@@ -83,8 +83,12 @@
     await persist();
   }
   async function focusQaWindow() {
-    await invoke("gui_qa_focus");
-    await until(async () => (await invoke("gui_qa_window_state")).focused, "foreground QA controls");
+    // Focus alone cannot restore a window hidden since the preceding QA phase.
+    await invoke("gui_qa_visibility", { visible: true });
+    await until(async () => {
+      const state = await invoke("gui_qa_window_state");
+      return state.visible && state.focused && document.visibilityState === "visible";
+    }, "visible foreground QA controls");
   }
   async function observePlayback() {
     const video = el("viewer-video");
@@ -166,6 +170,22 @@
         sources: el("source-picker").options.length, width: innerWidth, height: innerHeight };
     });
 
+    if (config.scenario === "controls" || config.scenario === "window-visibility") {
+      await check("QA controls restore a hidden native window", async () => {
+        const before = await snapshot();
+        await invoke("gui_qa_visibility", { visible: false });
+        await until(async () => !(await invoke("gui_qa_window_state")).visible
+          && document.visibilityState === "hidden", "controlled hidden QA window");
+        await focusQaWindow();
+        const windowState = await invoke("gui_qa_window_state");
+        assert(windowState.visible && windowState.focused && document.visibilityState === "visible",
+          "QA controls did not restore native/document visibility and focus");
+        const after = await snapshot();
+        assert(after.mode === before.mode && after.viewer_generation === before.viewer_generation,
+          "Restoring the QA window changed the session");
+        return { windowState, visibility: document.visibilityState };
+      });
+    }
     if (config.scenario === "controls") {
       await check("Idle capture and reconnect guards", async () => {
         for (const id of ["start-capture-btn", "stop-capture-btn", "publish-media-btn", "host-debug-btn", "reconnect-btn"])
@@ -817,7 +837,7 @@
         await click("reset-btn");
         assert(el("viewer-video").srcObject === null && (await snapshot()).mode === "idle", "Reset retains player");
       });
-    } else {
+    } else if (config.scenario !== "window-visibility") {
       throw new Error(`Unknown GUI QA scenario: ${config.scenario}`);
     }
     await check("No unhandled frontend errors", () => assert(errors.length === 0, errors.join("\n")));

@@ -1,0 +1,535 @@
+{
+  "before": {
+    "complete": true,
+    "success": false,
+    "results": [
+      {
+        "name": "Runtime and complete initial render",
+        "result": "PASS",
+        "durationMs": 2,
+        "details": {
+          "nativeWindow": {
+            "focused": true,
+            "visible": true
+          },
+          "permission": "granted",
+          "origin": "runtime",
+          "sources": 30,
+          "width": 1120,
+          "height": 728
+        }
+      },
+      {
+        "name": "QA controls restore a hidden native window",
+        "result": "FAIL",
+        "durationMs": 10182,
+        "error": "Timed out: foreground QA controls\nuntil@tauri://localhost:32:50\nasync focusQaWindow@tauri://localhost:87:16\n@tauri://localhost:175:28\nasync check@tauri://localhost:65:35\n@tauri://localhost:170:18",
+        "visibility": {
+          "time": 1793704253602,
+          "window": {
+            "focused": false,
+            "visible": false
+          },
+          "visibility": "hidden",
+          "focused": false,
+          "connection": null,
+          "width": 0,
+          "height": 0,
+          "readyState": 0,
+          "paused": true,
+          "currentTime": 0,
+          "elementFrames": 0,
+          "webkitFrames": null,
+          "rtcFrames": 0
+        }
+      },
+      {
+        "name": "No unhandled frontend errors",
+        "result": "PASS",
+        "durationMs": 0
+      }
+    ]
+  },
+  "after": {
+    "complete": true,
+    "success": true,
+    "results": [
+      {
+        "name": "Runtime and complete initial render",
+        "result": "PASS",
+        "durationMs": 2,
+        "details": {
+          "nativeWindow": {
+            "focused": true,
+            "visible": true
+          },
+          "permission": "granted",
+          "origin": "runtime",
+          "sources": 30,
+          "width": 1120,
+          "height": 728
+        }
+      },
+      {
+        "name": "QA controls restore a hidden native window",
+        "result": "PASS",
+        "durationMs": 203,
+        "details": {
+          "windowState": {
+            "focused": true,
+            "visible": true
+          },
+          "visibility": "visible"
+        }
+      },
+      {
+        "name": "No unhandled frontend errors",
+        "result": "PASS",
+        "durationMs": 0
+      }
+    ]
+  },
+  "native": {
+    "host": {
+      "complete": true,
+      "success": true,
+      "results": [
+        {
+          "name": "Runtime and complete initial render",
+          "result": "PASS",
+          "durationMs": 3,
+          "details": {
+            "width": 1120,
+            "height": 728
+          }
+        },
+        {
+          "name": "Native host ready",
+          "result": "PASS",
+          "durationMs": 1942,
+          "details": {}
+        },
+        {
+          "name": "Native publication runs without host diagnostic polling",
+          "result": "PASS",
+          "durationMs": 6151,
+          "details": {
+            "before": {
+              "transport_state": "connected",
+              "selected_source_id": "macos-window-3902",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "running",
+              "encoded_video_frame_count": 6,
+              "encoded_audio_packet_count": 20,
+              "viewer_generation": null,
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            },
+            "after": {
+              "transport_state": "connected",
+              "selected_source_id": "macos-window-3902",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "running",
+              "encoded_video_frame_count": 73,
+              "encoded_audio_packet_count": 134,
+              "viewer_generation": null,
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            }
+          }
+        },
+        {
+          "name": "Source change stops capture before starting silent alternate",
+          "result": "PASS",
+          "durationMs": 2291,
+          "details": {
+            "stopped": {
+              "transport_state": "connected",
+              "selected_source_id": "macos-window-3908",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 96,
+              "encoded_audio_packet_count": 173,
+              "viewer_generation": null,
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            },
+            "running": {
+              "transport_state": "connected",
+              "selected_source_id": "macos-window-3908",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "running",
+              "encoded_video_frame_count": 106,
+              "encoded_audio_packet_count": 190,
+              "viewer_generation": null,
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            }
+          }
+        },
+        {
+          "name": "Source change stops capture before starting original tone",
+          "result": "PASS",
+          "durationMs": 2212,
+          "details": {
+            "stopped": {
+              "transport_state": "connected",
+              "selected_source_id": "macos-window-3902",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 197,
+              "encoded_audio_packet_count": 343,
+              "viewer_generation": null,
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            },
+            "running": {
+              "transport_state": "connected",
+              "selected_source_id": "macos-window-3902",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "running",
+              "encoded_video_frame_count": 206,
+              "encoded_audio_packet_count": 357,
+              "viewer_generation": null,
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            }
+          }
+        },
+        {
+          "name": "Closing the captured source and refreshing stops publication",
+          "result": "PASS",
+          "durationMs": 1973,
+          "details": {
+            "before": {
+              "transport_state": "connected",
+              "selected_source_id": "macos-window-1403",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 297,
+              "encoded_audio_packet_count": 513,
+              "viewer_generation": null,
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            },
+            "after": {
+              "transport_state": "connected",
+              "selected_source_id": "macos-window-1403",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 297,
+              "encoded_audio_packet_count": 513,
+              "viewer_generation": null,
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            }
+          }
+        },
+        {
+          "name": "Native host Stop releases capture and publication",
+          "result": "PASS",
+          "durationMs": 2386,
+          "details": {}
+        },
+        {
+          "name": "No unhandled frontend errors",
+          "result": "PASS",
+          "durationMs": 0
+        }
+      ]
+    },
+    "viewer": {
+      "complete": true,
+      "success": true,
+      "results": [
+        {
+          "name": "Runtime and complete initial render",
+          "result": "PASS",
+          "durationMs": 1,
+          "details": {
+            "width": 1120,
+            "height": 728
+          }
+        },
+        {
+          "name": "Native window pixels decode in the desktop viewer",
+          "result": "PASS",
+          "durationMs": 2498,
+          "details": {
+            "width": 1144,
+            "height": 720,
+            "pixel": [
+              176,
+              73,
+              45,
+              255
+            ]
+          }
+        },
+        {
+          "name": "Native audio reaches decoded PCM with viewer polling disabled",
+          "result": "PASS",
+          "durationMs": 2465,
+          "details": {
+            "peak": 0.050445556640625,
+            "rms": 0.012239600092752307,
+            "before": {
+              "transport_state": "connected",
+              "selected_source_id": null,
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 0,
+              "encoded_audio_packet_count": 0,
+              "viewer_generation": 1,
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 1440
+            },
+            "after": {
+              "transport_state": "connected",
+              "selected_source_id": null,
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 0,
+              "encoded_audio_packet_count": 0,
+              "viewer_generation": 1,
+              "decoded_video_frame_count": 86,
+              "received_audio_sample_count": 149280
+            }
+          }
+        },
+        {
+          "name": "Viewer decodes the silent alternate source",
+          "result": "PASS",
+          "durationMs": 2894,
+          "details": {
+            "pixel": [
+              39,
+              62,
+              184,
+              255
+            ],
+            "rms": 0,
+            "maxRms": 0,
+            "before": {
+              "transport_state": "connected",
+              "selected_source_id": null,
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 0,
+              "encoded_audio_packet_count": 0,
+              "viewer_generation": 1,
+              "decoded_video_frame_count": 96,
+              "received_audio_sample_count": 249600
+            },
+            "after": {
+              "transport_state": "connected",
+              "selected_source_id": null,
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 0,
+              "encoded_audio_packet_count": 0,
+              "viewer_generation": 1,
+              "decoded_video_frame_count": 174,
+              "received_audio_sample_count": 398880
+            }
+          }
+        },
+        {
+          "name": "Viewer resumes original pixels and PCM without reconnect",
+          "result": "PASS",
+          "durationMs": 2888,
+          "details": {
+            "pixel": [
+              176,
+              73,
+              45,
+              255
+            ],
+            "rms": 0.035674476307916106,
+            "maxRms": 0.03577346057554548,
+            "before": {
+              "transport_state": "connected",
+              "selected_source_id": null,
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 0,
+              "encoded_audio_packet_count": 0,
+              "viewer_generation": 1,
+              "decoded_video_frame_count": 197,
+              "received_audio_sample_count": 499680
+            },
+            "after": {
+              "transport_state": "connected",
+              "selected_source_id": null,
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 0,
+              "encoded_audio_packet_count": 0,
+              "viewer_generation": 1,
+              "decoded_video_frame_count": 271,
+              "received_audio_sample_count": 648480
+            }
+          }
+        },
+        {
+          "name": "Source closure stops new decoded media without replacing the viewer",
+          "result": "PASS",
+          "durationMs": 3178,
+          "details": {
+            "rms": 0,
+            "before": {
+              "transport_state": "connected",
+              "selected_source_id": null,
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 0,
+              "encoded_audio_packet_count": 0,
+              "viewer_generation": 1,
+              "decoded_video_frame_count": 297,
+              "received_audio_sample_count": 801600
+            },
+            "after": {
+              "transport_state": "connected",
+              "selected_source_id": null,
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 0,
+              "encoded_audio_packet_count": 0,
+              "viewer_generation": 1,
+              "decoded_video_frame_count": 297,
+              "received_audio_sample_count": 903840
+            }
+          }
+        },
+        {
+          "name": "Native viewer sound controls preserve mute state",
+          "result": "PASS",
+          "durationMs": 499,
+          "details": {
+            "gesture": "programmatic DOM clicks; audible output is not certified"
+          }
+        },
+        {
+          "name": "Native viewer Stop ends tracks and prevents revival",
+          "result": "PASS",
+          "durationMs": 1039,
+          "details": {
+            "tracks": [
+              {
+                "kind": "video",
+                "state": "ended"
+              },
+              {
+                "kind": "audio",
+                "state": "ended"
+              }
+            ]
+          }
+        },
+        {
+          "name": "No unhandled frontend errors",
+          "result": "PASS",
+          "durationMs": 0
+        }
+      ]
+    }
+  },
+  "identity": {
+    "bundle": "/private/tmp/video-p2p-bug022/VideoP2P Source Lifecycle QA.app",
+    "binary_sha256": "9dc1294c2d1a5dfebe54e50c58f421259f8040171d0aac0799fba40cf03c5fab",
+    "base": "4cc9e26",
+    "changes": "BUG-022 QA visibility helper and regression only"
+  },
+  "mandatory_checks": [
+    {
+      "command": "cargo fmt --all",
+      "exit_code": 0,
+      "seconds": 0.47
+    },
+    {
+      "command": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml",
+      "exit_code": 0,
+      "seconds": 0.07
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "seconds": 0.14
+    },
+    {
+      "command": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check",
+      "exit_code": 0,
+      "seconds": 0.07
+    },
+    {
+      "command": "cargo clippy --all-targets --all-features -- -D warnings",
+      "exit_code": 0,
+      "seconds": 0.71
+    },
+    {
+      "command": "cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings",
+      "exit_code": 0,
+      "seconds": 2.57
+    },
+    {
+      "command": "cargo test --all --all-features",
+      "exit_code": 0,
+      "seconds": 7.67
+    },
+    {
+      "command": "cargo test -p app-core --example playback_probe --all-features",
+      "exit_code": 0,
+      "seconds": 0.15
+    },
+    {
+      "command": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --all-features",
+      "exit_code": 0,
+      "seconds": 3.41
+    },
+    {
+      "command": "node --test apps/desktop/tests/viewer-player.test.mjs",
+      "exit_code": 0,
+      "seconds": 0.42
+    },
+    {
+      "command": "sh scripts/test-macos-capture.sh",
+      "exit_code": 0,
+      "seconds": 1.41
+    },
+    {
+      "command": "cargo build -p signaling-server",
+      "exit_code": 0,
+      "seconds": 0.38
+    },
+    {
+      "command": "cargo build -p app-core --example playback_probe",
+      "exit_code": 0,
+      "seconds": 0.12
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs",
+      "exit_code": 0,
+      "seconds": 5.51
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs --keyframe-recovery",
+      "exit_code": 0,
+      "seconds": 3.89
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs --chrome",
+      "exit_code": 0,
+      "seconds": 6.02
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs --chrome --keyframe-recovery",
+      "exit_code": 0,
+      "seconds": 4.5
+    },
+    {
+      "command": "node --test scripts/probe-cleanup.test.mjs",
+      "exit_code": 0,
+      "seconds": 1.25
+    }
+  ]
+}
