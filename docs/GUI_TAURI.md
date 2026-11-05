@@ -105,7 +105,7 @@ Use a fresh output directory. The runner creates a signed, temporary Cocoa sourc
 
 Separate audio-on/off sessions check decoded fixture pixels, advancing video, actual nonzero decoded PCM through a zero-gain Web Audio analyzer, muted startup, programmatic sound controls, and Stop/track/peer cleanup. The host negotiates with explicit refreshes, then publication and viewer decoding are checked with Auto Refresh disabled. Audio opt-out requires zero host encoded audio and zero viewer audio packets/samples while video continues. The QA-only private stop marker coordinates host shutdown after viewer completion. The runner saves JSON diagnostics and process logs, stops only its own processes and deletes temporary source binaries/WAV data.
 
-`--binary PATH` selects a `gui-qa` executable and `--probe PATH` selects the capture catalog probe. The default build has no QA driver. This checks actual captured media from a controlled source, not a microphone or unrelated user content. Physical speaker/headphone output, trusted user gestures, permission transitions and packaged distribution remain manual checks.
+`--binary PATH` selects the host `gui-qa` executable and, by default, the viewer executable. `--viewer-binary PATH` selects a different viewer executable for controlled comparisons; both clients still launch directly. `--probe PATH` selects the capture catalog probe. Missing/non-executable clients are rejected before fixtures start. `summary.json` records each resolved executable path, SHA-256 and enclosing bundle identifier/path (when present); `processes.json` in each case records the launched host/viewer PIDs and paths, including the host when startup fails. These identities do not establish Screen Recording permission; use each client report for its observed state. The default build has no QA driver. This checks actual captured media from a controlled source, not a microphone or unrelated user content. Physical speaker/headphone output, trusted user gestures, permission transitions and packaged distribution remain manual checks.
 
 To exercise source replacement and disappearance in one established peer session:
 
@@ -116,3 +116,15 @@ python3 scripts/test-native-desktop-playback.py --source-lifecycle --output /tmp
 This mode launches a red tone source and a blue silent source. It verifies that selecting another source stops publication until **Start Native Capture**, then checks replacement pixels and delivered silent audio while the original tone continues playing. Returning to the original source must restore pixels/nonzero PCM without recreating the viewer peer or generation. The runner then terminates its original source application, waits for catalog refresh to remove its window, and checks that rebinding does not automatically capture another source. The viewer must stop decoding new frames and the tone must drain away. The driver focuses its own host/viewer window before control actions and phase observations. Private checkpoints coordinate observations before each change; saved reports identify the source IDs and transitions. The test closes the owning fixture application, not just one window of a multi-window application.
 
 Current acceptance: the [retained-bundle comparison](qa/native-lifecycle-2026-11-03.md) passes actual source switch/restore/closure and Stop, completing BUG-015 acceptance. Use `--binary` to select the executable inside the specific signed `.app` being tested and record its observed permission state. The identical executable outside a bundle still reproduces [BUG-016](BUGS.md#bug-016-native-capture-fails-when-starting-a-replacement-source); the runner default is a standalone debug build and must not be treated as bundled acceptance. Initial LaunchServices negotiation reliability remains open under BUG-023. No general release or distribution acceptance is implied.
+
+For BUG-016 launch-context comparisons, keep the host binary fixed and select a viewer inside a retained QA bundle or an identical standalone copy at a different path:
+
+```bash
+python3 scripts/test-native-desktop-playback.py --source-lifecycle \
+  --binary /path/to/standalone/desktop-app \
+  --viewer-binary /path/to/other/desktop-app \
+  --output /tmp/video-p2p-client-identity-results
+python3 -B -m unittest discover -s scripts -p test_native_desktop_runner.py
+```
+
+Use actual executable paths with their own verified permission context. The [2026-11-05 comparison](qa/BUG-016-client-identity.md) narrows the reproduced failure to two standalone clients at the same executable path. The default deliberately keeps that setup so the unresolved failure stays visible. Passing isolated-client checks do not close BUG-016 or verify LaunchServices negotiation (BUG-023). Portable runner tests cover role selection, executable validation, identity evidence and failure cleanup; they do not run capture.

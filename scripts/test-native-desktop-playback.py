@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import plistlib
 import socket
 import subprocess
 import sys
@@ -55,7 +56,23 @@ def await_host(child, path):
     raise RuntimeError("native host startup timed out; inspect " + str(path))
 
 
-def run_case(binary, probe, bundles, tone, signaling, output, audio, lifecycle=False):
+def binary_identity(binary):
+    """Record executable bytes and bundle context without inferring permission."""
+    binary = binary.resolve()
+    identity = {"path": str(binary), "sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
+                "bundle": None}
+    for parent in binary.parents:
+        plist = parent / "Contents/Info.plist"
+        if parent.suffix == ".app" and plist.is_file():
+            metadata = plistlib.loads(plist.read_bytes())
+            identity["bundle"] = {"path": str(parent),
+                                  "identifier": metadata.get("CFBundleIdentifier")}
+            break
+    return identity
+
+
+def run_case(binary, probe, bundles, tone, signaling, output, audio, lifecycle=False,
+             viewer_binary=None):
     directory = output / ("source-lifecycle" if lifecycle else "audio-on" if audio else "audio-off")
     directory.mkdir()
     stop = directory / "host.stop"
@@ -81,9 +98,14 @@ def run_case(binary, probe, bundles, tone, signaling, output, audio, lifecycle=F
                           VIDEO_P2P_GUI_QA_REPORT=str(directory / "viewer.json"),
                           VIDEO_P2P_GUI_QA_SCENARIO="native-viewer")
         with process([str(binary)], directory / "host.log", host_env) as host:
+            processes = {"host": {"pid": host.pid, "binary": str(binary)}}
+            process_record = directory / "processes.json"
+            process_record.write_text(json.dumps(processes, indent=2) + "\n")
             try:
                 await_host(host, directory / "host.json")
-                with process([str(binary)], directory / "viewer.log", viewer_env) as viewer:
+                with process([str(viewer_binary or binary)], directory / "viewer.log", viewer_env) as viewer:
+                    processes["viewer"] = {"pid": viewer.pid, "binary": str(viewer_binary or binary)}
+                    process_record.write_text(json.dumps(processes, indent=2) + "\n")
                     if lifecycle:
                         deadline = time.monotonic() + 60
                         while not (directory / "restored-viewer").exists():
@@ -116,25 +138,40 @@ def run_case(binary, probe, bundles, tone, signaling, output, audio, lifecycle=F
                 fixture.close()
 
 
-def main():
+def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path,
-                        default=ROOT / "apps/desktop/src-tauri/target/debug/desktop-app")
+                        default=ROOT / "apps/desktop/src-tauri/target/debug/desktop-app",
+                        help="host executable; also used for the viewer unless --viewer-binary is set")
+    parser.add_argument("--viewer-binary", type=Path,
+                        help="separate viewer executable for controlled launch-context comparisons")
     parser.add_argument("--probe", type=Path, default=ROOT / "target/debug/examples/capture_probe")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-lifecycle", action="store_true",
                         help="switch between distinct sources, restore the original, then close it")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if sys.platform != "darwin":
         parser.error("requires macOS, a desktop session and Screen Recording permission")
+    args.binary = args.binary.resolve()
+    args.viewer_binary = (args.viewer_binary or args.binary).resolve()
+    for label, binary in (("host", args.binary), ("viewer", args.viewer_binary)):
+        if not binary.is_file() or not os.access(binary, os.X_OK):
+            parser.error(f"{label} executable is missing or not executable: {binary}")
+    return args
+
+
+def main():
+    args = arguments()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     results = []
     summary = {"success": False, "results": results, "binary": str(args.binary.resolve()),
                "os": subprocess.check_output(["sw_vers"], text=True)}
-    if args.binary.is_file():
-        summary["binary_sha256"] = hashlib.sha256(args.binary.read_bytes()).hexdigest()
     try:
+        summary["clients"] = {role: {**binary_identity(binary), "launch": "direct"}
+                              for role, binary in (("host", args.binary),
+                                                   ("viewer", args.viewer_binary))}
+        summary["binary_sha256"] = summary["clients"]["host"]["sha256"]
         with socket.socket() as reservation:
             reservation.bind(("127.0.0.1", 0))
             port = reservation.getsockname()[1]
@@ -153,7 +190,8 @@ def main():
                 bundles, tone = fixtures.build_fixtures(Path(scratch), output)
                 for audio in ((True,) if args.source_lifecycle else (True, False)):
                     results.append(run_case(args.binary.resolve(), args.probe.resolve(), bundles,
-                                            tone, signaling, output, audio, args.source_lifecycle))
+                                            tone, signaling, output, audio, args.source_lifecycle,
+                                            args.viewer_binary))
         summary["success"] = all(result["success"] for result in results)
     except Exception as error:
         summary["error"] = str(error)

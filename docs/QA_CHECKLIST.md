@@ -46,6 +46,7 @@ cargo test -p app-core --example playback_probe --all-features
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --all-features
 node --test apps/desktop/tests/viewer-player.test.mjs
 node --test scripts/probe-cleanup.test.mjs
+python3 -B -m unittest discover -s scripts -p test_native_desktop_runner.py
 ```
 
 Root CI runs the root Rust/Node checks on Linux/macOS, plus `sh scripts/test-macos-capture.sh` on macOS. It does not check/package Tauri or run native browser playback probes. Native extraction and codec tests use synthetic sample buffers/frames, not actual screen recording.
