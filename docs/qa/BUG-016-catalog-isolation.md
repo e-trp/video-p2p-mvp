@@ -2,6 +2,8 @@
 
 2026-11-18, base `a5a7575`, untagged `0.1.0`, macOS 27.2 (26B123) arm64; Rust 1.100.0, Node 26.13.1. The tested implementation changes only the native metadata catalog and its Rust diagnostic labels. ScreenCaptureKit stream startup, stop/drop, timeout, ownership, encoding, signaling and viewer playback are unchanged.
 
+Fixing commit: `5a25fa3`. BUG-016 is CLOSED after the before/after regression, repeated desktop acceptance, mandatory checks and cleanup recorded below. This final status/reference update changes no tested code or configuration.
+
 ## Controlled Reproduction and Repair
 
 A minimal Objective-C executable links the production capture bridge. One process captures the controlled tone window, stops/restarts that source, switches to a silent window, and restores the original. A second process only calls `vpp_sck_catalog` every 200 ms. It starts after the first host capture receives samples and stays alive during restart. Both sources are the existing signed, LaunchServices-launched fixtures. Captured media is discarded after counting samples.
