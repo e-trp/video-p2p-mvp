@@ -1,0 +1,1200 @@
+{
+  "base_commit": "a5a7575",
+  "version": "0.1.0",
+  "minimal": {
+    "before": {
+      "binary_sha256": "9830368f6fc40e01c2fe8ba8daf42ca89eccad931402a3fb18a8f6b509a46659",
+      "runs": [
+        {
+          "mode": "alone",
+          "host_exit": 0,
+          "host_pid": 89826,
+          "catalog_pid": null,
+          "host_log": [
+            "phase=0 source=5359 video=15 audio=25 error=0",
+            "phase=1 source=5359 video=15 audio=23 error=0",
+            "phase=2 source=5365 video=15 audio=24 error=0",
+            "phase=3 source=5359 video=15 audio=24 error=0"
+          ],
+          "successful_catalog_queries": 0,
+          "catalog_errors": []
+        },
+        {
+          "mode": "shared",
+          "host_exit": 1,
+          "host_pid": 90127,
+          "catalog_pid": 90194,
+          "host_log": [
+            "phase=0 source=5359 video=15 audio=26 error=0",
+            "error=ScreenCaptureKit startup timed out",
+            "phase=1 source=5359 video=0 audio=0 error=1"
+          ],
+          "successful_catalog_queries": 5,
+          "catalog_errors": [
+            "catalog=1 ScreenCaptureKit catalog timed out",
+            "catalog=1 ScreenCaptureKit catalog timed out"
+          ]
+        },
+        {
+          "mode": "separate",
+          "host_exit": 0,
+          "host_pid": 90498,
+          "catalog_pid": 90533,
+          "host_log": [
+            "phase=0 source=5359 video=15 audio=29 error=0",
+            "phase=1 source=5359 video=15 audio=26 error=0",
+            "phase=2 source=5365 video=15 audio=24 error=0",
+            "phase=3 source=5359 video=15 audio=24 error=0"
+          ],
+          "successful_catalog_queries": 16,
+          "catalog_errors": []
+        }
+      ]
+    },
+    "after": {
+      "binary_sha256": "ac30f8953b9d9cb815af36ebaf1b708de308cd69af2d59a5a52d318152171e83",
+      "runs": [
+        {
+          "mode": "alone",
+          "host_exit": 0,
+          "host_pid": 95014,
+          "catalog_pid": null,
+          "host_log": [
+            "phase=0 source=5423 video=15 audio=28 error=0",
+            "phase=1 source=5423 video=15 audio=26 error=0",
+            "phase=2 source=5429 video=15 audio=25 error=0",
+            "phase=3 source=5423 video=15 audio=25 error=0"
+          ],
+          "successful_catalog_queries": 0,
+          "catalog_errors": []
+        },
+        {
+          "mode": "shared",
+          "host_exit": 0,
+          "host_pid": 95045,
+          "catalog_pid": 95046,
+          "host_log": [
+            "phase=0 source=5423 video=15 audio=25 error=0",
+            "phase=1 source=5423 video=15 audio=24 error=0",
+            "phase=2 source=5429 video=15 audio=26 error=0",
+            "phase=3 source=5423 video=15 audio=26 error=0"
+          ],
+          "successful_catalog_queries": 21,
+          "catalog_errors": []
+        },
+        {
+          "mode": "separate",
+          "host_exit": 0,
+          "host_pid": 95080,
+          "catalog_pid": 95081,
+          "host_log": [
+            "phase=0 source=5423 video=15 audio=25 error=0",
+            "phase=1 source=5423 video=15 audio=26 error=0",
+            "phase=2 source=5429 video=15 audio=25 error=0",
+            "phase=3 source=5423 video=15 audio=26 error=0"
+          ],
+          "successful_catalog_queries": 20,
+          "catalog_errors": []
+        }
+      ]
+    }
+  },
+  "desktop": [
+    {
+      "success": true,
+      "results": [
+        {
+          "audio": true,
+          "source": "macos-window-5464",
+          "success": true,
+          "host_exit": 0,
+          "viewer_exit": 0
+        }
+      ],
+      "binary": "/Users/evgeniytoropchin/video-p2p-mvp/apps/desktop/src-tauri/target/debug/desktop-app",
+      "os": "ProductName:\t\tmacOS\nProductVersion:\t\t27.2\nBuildVersion:\t\t26B123\n",
+      "clients": {
+        "host": {
+          "path": "/Users/evgeniytoropchin/video-p2p-mvp/apps/desktop/src-tauri/target/debug/desktop-app",
+          "sha256": "987405382eadb257ed2ec8d98949b89625fd5f5d62a03fd152f049b60ed1c5ea",
+          "bundle": null,
+          "launch": "direct"
+        },
+        "viewer": {
+          "path": "/Users/evgeniytoropchin/video-p2p-mvp/apps/desktop/src-tauri/target/debug/desktop-app",
+          "sha256": "987405382eadb257ed2ec8d98949b89625fd5f5d62a03fd152f049b60ed1c5ea",
+          "bundle": null,
+          "launch": "direct"
+        }
+      },
+      "binary_sha256": "987405382eadb257ed2ec8d98949b89625fd5f5d62a03fd152f049b60ed1c5ea",
+      "directory": "/private/tmp/video-p2p-bug016-nov18-desktop-after",
+      "processes": {
+        "host": {
+          "pid": 95558,
+          "binary": "/Users/evgeniytoropchin/video-p2p-mvp/apps/desktop/src-tauri/target/debug/desktop-app"
+        },
+        "viewer": {
+          "pid": 95586,
+          "binary": "/Users/evgeniytoropchin/video-p2p-mvp/apps/desktop/src-tauri/target/debug/desktop-app"
+        }
+      },
+      "checks": {
+        "host": [
+          {
+            "name": "Runtime and complete initial render",
+            "result": "PASS",
+            "details": {
+              "permission": "granted",
+              "origin": "runtime",
+              "width": 1120,
+              "height": 728
+            }
+          },
+          {
+            "name": "Native host ready",
+            "result": "PASS",
+            "details": {
+              "selected_source_id": "macos-window-5464",
+              "selected_source_audio": true,
+              "capture_backend": "CoreGraphics runtime catalog",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "running",
+              "encoded_video_frame_count": 0,
+              "encoded_audio_packet_count": 0,
+              "viewer_generation": null,
+              "viewer_playback_state": "not_started",
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            }
+          },
+          {
+            "name": "Native publication runs without host diagnostic polling",
+            "result": "PASS",
+            "details": {
+              "before": {
+                "selected_source_id": "macos-window-5464",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "running",
+                "encoded_video_frame_count": 5,
+                "encoded_audio_packet_count": 16,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              },
+              "after": {
+                "selected_source_id": "macos-window-5464",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "running",
+                "encoded_video_frame_count": 71,
+                "encoded_audio_packet_count": 130,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              }
+            }
+          },
+          {
+            "name": "Source change stops capture before starting silent alternate",
+            "result": "PASS",
+            "details": {
+              "stopped": {
+                "selected_source_id": "macos-window-5470",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 92,
+                "encoded_audio_packet_count": 166,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              },
+              "running": {
+                "selected_source_id": "macos-window-5470",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "running",
+                "encoded_video_frame_count": 100,
+                "encoded_audio_packet_count": 178,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              }
+            }
+          },
+          {
+            "name": "Source change stops capture before starting original tone",
+            "result": "PASS",
+            "details": {
+              "stopped": {
+                "selected_source_id": "macos-window-5464",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 186,
+                "encoded_audio_packet_count": 325,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              },
+              "running": {
+                "selected_source_id": "macos-window-5464",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "running",
+                "encoded_video_frame_count": 193,
+                "encoded_audio_packet_count": 337,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              }
+            }
+          },
+          {
+            "name": "Closing the captured source and refreshing stops publication",
+            "result": "PASS",
+            "details": {
+              "before": {
+                "selected_source_id": "macos-window-5476",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 282,
+                "encoded_audio_packet_count": 490,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              },
+              "after": {
+                "selected_source_id": "macos-window-5476",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 282,
+                "encoded_audio_packet_count": 490,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              }
+            }
+          },
+          {
+            "name": "Native host Stop releases capture and publication",
+            "result": "PASS",
+            "details": {
+              "selected_source_id": "macos-window-5476",
+              "selected_source_audio": true,
+              "capture_backend": "CoreGraphics runtime catalog",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 282,
+              "encoded_audio_packet_count": 490,
+              "viewer_generation": null,
+              "viewer_playback_state": "not_started",
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            }
+          },
+          {
+            "name": "No unhandled frontend errors",
+            "result": "PASS",
+            "details": {}
+          }
+        ],
+        "viewer": [
+          {
+            "name": "Runtime and complete initial render",
+            "result": "PASS",
+            "details": {
+              "permission": "granted",
+              "origin": "runtime",
+              "width": 1120,
+              "height": 728
+            }
+          },
+          {
+            "name": "Native window pixels decode in the desktop viewer",
+            "result": "PASS",
+            "details": {
+              "width": 1144,
+              "height": 720,
+              "pixel": [
+                176,
+                73,
+                45,
+                255
+              ],
+              "state": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "waiting",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              }
+            }
+          },
+          {
+            "name": "Native audio reaches decoded PCM with viewer polling disabled",
+            "result": "PASS",
+            "details": {
+              "peak": 0.05126953125,
+              "rms": 0.035734609674304293,
+              "audioContext": "running",
+              "outputGain": 0,
+              "before": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "waiting",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              },
+              "after": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 84,
+                "received_audio_sample_count": 146400
+              }
+            }
+          },
+          {
+            "name": "Viewer decodes the silent alternate source",
+            "result": "PASS",
+            "details": {
+              "pixel": [
+                39,
+                62,
+                184,
+                255
+              ],
+              "rms": 0,
+              "maxRms": 0,
+              "before": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 96,
+                "received_audio_sample_count": 245760
+              },
+              "after": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 147,
+                "received_audio_sample_count": 346080
+              }
+            }
+          },
+          {
+            "name": "Viewer resumes original pixels and PCM without reconnect",
+            "result": "PASS",
+            "details": {
+              "pixel": [
+                176,
+                73,
+                45,
+                255
+              ],
+              "rms": 0.03526259968758303,
+              "maxRms": 0.035713046031223064,
+              "before": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 186,
+                "received_audio_sample_count": 445920
+              },
+              "after": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 242,
+                "received_audio_sample_count": 595200
+              }
+            }
+          },
+          {
+            "name": "Source closure stops new decoded media without replacing the viewer",
+            "result": "PASS",
+            "details": {
+              "rms": 0,
+              "before": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 282,
+                "received_audio_sample_count": 793440
+              },
+              "after": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 282,
+                "received_audio_sample_count": 843840
+              }
+            }
+          },
+          {
+            "name": "Native viewer sound controls preserve mute state",
+            "result": "PASS",
+            "details": {
+              "gesture": "programmatic DOM clicks; audible output is not certified"
+            }
+          },
+          {
+            "name": "Native viewer Stop ends tracks and prevents revival",
+            "result": "PASS",
+            "details": {
+              "tracks": [
+                {
+                  "kind": "video",
+                  "state": "ended"
+                },
+                {
+                  "kind": "audio",
+                  "state": "ended"
+                }
+              ]
+            }
+          },
+          {
+            "name": "No unhandled frontend errors",
+            "result": "PASS",
+            "details": {}
+          }
+        ]
+      }
+    },
+    {
+      "success": true,
+      "results": [
+        {
+          "audio": true,
+          "source": "macos-window-5503",
+          "success": true,
+          "host_exit": 0,
+          "viewer_exit": 0
+        }
+      ],
+      "binary": "/Users/evgeniytoropchin/video-p2p-mvp/apps/desktop/src-tauri/target/debug/desktop-app",
+      "os": "ProductName:\t\tmacOS\nProductVersion:\t\t27.2\nBuildVersion:\t\t26B123\n",
+      "clients": {
+        "host": {
+          "path": "/Users/evgeniytoropchin/video-p2p-mvp/apps/desktop/src-tauri/target/debug/desktop-app",
+          "sha256": "987405382eadb257ed2ec8d98949b89625fd5f5d62a03fd152f049b60ed1c5ea",
+          "bundle": null,
+          "launch": "direct"
+        },
+        "viewer": {
+          "path": "/Users/evgeniytoropchin/video-p2p-mvp/apps/desktop/src-tauri/target/debug/desktop-app",
+          "sha256": "987405382eadb257ed2ec8d98949b89625fd5f5d62a03fd152f049b60ed1c5ea",
+          "bundle": null,
+          "launch": "direct"
+        }
+      },
+      "binary_sha256": "987405382eadb257ed2ec8d98949b89625fd5f5d62a03fd152f049b60ed1c5ea",
+      "directory": "/private/tmp/video-p2p-bug016-nov18-desktop-repeat",
+      "processes": {
+        "host": {
+          "pid": 96173,
+          "binary": "/Users/evgeniytoropchin/video-p2p-mvp/apps/desktop/src-tauri/target/debug/desktop-app"
+        },
+        "viewer": {
+          "pid": 96188,
+          "binary": "/Users/evgeniytoropchin/video-p2p-mvp/apps/desktop/src-tauri/target/debug/desktop-app"
+        }
+      },
+      "checks": {
+        "host": [
+          {
+            "name": "Runtime and complete initial render",
+            "result": "PASS",
+            "details": {
+              "permission": "granted",
+              "origin": "runtime",
+              "width": 1120,
+              "height": 728
+            }
+          },
+          {
+            "name": "Native host ready",
+            "result": "PASS",
+            "details": {
+              "selected_source_id": "macos-window-5503",
+              "selected_source_audio": true,
+              "capture_backend": "CoreGraphics runtime catalog",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "running",
+              "encoded_video_frame_count": 0,
+              "encoded_audio_packet_count": 0,
+              "viewer_generation": null,
+              "viewer_playback_state": "not_started",
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            }
+          },
+          {
+            "name": "Native publication runs without host diagnostic polling",
+            "result": "PASS",
+            "details": {
+              "before": {
+                "selected_source_id": "macos-window-5503",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "running",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 1,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              },
+              "after": {
+                "selected_source_id": "macos-window-5503",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "running",
+                "encoded_video_frame_count": 64,
+                "encoded_audio_packet_count": 115,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              }
+            }
+          },
+          {
+            "name": "Source change stops capture before starting silent alternate",
+            "result": "PASS",
+            "details": {
+              "stopped": {
+                "selected_source_id": "macos-window-5509",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 90,
+                "encoded_audio_packet_count": 161,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              },
+              "running": {
+                "selected_source_id": "macos-window-5509",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "running",
+                "encoded_video_frame_count": 98,
+                "encoded_audio_packet_count": 173,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              }
+            }
+          },
+          {
+            "name": "Source change stops capture before starting original tone",
+            "result": "PASS",
+            "details": {
+              "stopped": {
+                "selected_source_id": "macos-window-5503",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 188,
+                "encoded_audio_packet_count": 326,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              },
+              "running": {
+                "selected_source_id": "macos-window-5503",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "running",
+                "encoded_video_frame_count": 195,
+                "encoded_audio_packet_count": 337,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              }
+            }
+          },
+          {
+            "name": "Closing the captured source and refreshing stops publication",
+            "result": "PASS",
+            "details": {
+              "before": {
+                "selected_source_id": "macos-window-5515",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 285,
+                "encoded_audio_packet_count": 493,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              },
+              "after": {
+                "selected_source_id": "macos-window-5515",
+                "selected_source_audio": true,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 285,
+                "encoded_audio_packet_count": 493,
+                "viewer_generation": null,
+                "viewer_playback_state": "not_started",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              }
+            }
+          },
+          {
+            "name": "Native host Stop releases capture and publication",
+            "result": "PASS",
+            "details": {
+              "selected_source_id": "macos-window-5515",
+              "selected_source_audio": true,
+              "capture_backend": "CoreGraphics runtime catalog",
+              "capture_permission_state": "granted",
+              "capture_runtime_status": "not_started",
+              "encoded_video_frame_count": 285,
+              "encoded_audio_packet_count": 493,
+              "viewer_generation": null,
+              "viewer_playback_state": "not_started",
+              "decoded_video_frame_count": 0,
+              "received_audio_sample_count": 0
+            }
+          },
+          {
+            "name": "No unhandled frontend errors",
+            "result": "PASS",
+            "details": {}
+          }
+        ],
+        "viewer": [
+          {
+            "name": "Runtime and complete initial render",
+            "result": "PASS",
+            "details": {
+              "permission": "granted",
+              "origin": "runtime",
+              "width": 1120,
+              "height": 728
+            }
+          },
+          {
+            "name": "Native window pixels decode in the desktop viewer",
+            "result": "PASS",
+            "details": {
+              "width": 1144,
+              "height": 720,
+              "pixel": [
+                176,
+                73,
+                45,
+                255
+              ],
+              "state": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "waiting",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              }
+            }
+          },
+          {
+            "name": "Native audio reaches decoded PCM with viewer polling disabled",
+            "result": "PASS",
+            "details": {
+              "peak": 0.050323486328125,
+              "rms": 0.03525122667429798,
+              "audioContext": "running",
+              "outputGain": 0,
+              "before": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "waiting",
+                "decoded_video_frame_count": 0,
+                "received_audio_sample_count": 0
+              },
+              "after": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 83,
+                "received_audio_sample_count": 143040
+              }
+            }
+          },
+          {
+            "name": "Viewer decodes the silent alternate source",
+            "result": "PASS",
+            "details": {
+              "pixel": [
+                39,
+                62,
+                184,
+                255
+              ],
+              "rms": 0,
+              "maxRms": 0,
+              "before": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 95,
+                "received_audio_sample_count": 241920
+              },
+              "after": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 146,
+                "received_audio_sample_count": 342720
+              }
+            }
+          },
+          {
+            "name": "Viewer resumes original pixels and PCM without reconnect",
+            "result": "PASS",
+            "details": {
+              "pixel": [
+                176,
+                73,
+                45,
+                255
+              ],
+              "rms": 0.0352831189399068,
+              "maxRms": 0.03584288513599382,
+              "before": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 188,
+                "received_audio_sample_count": 443040
+              },
+              "after": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 244,
+                "received_audio_sample_count": 594240
+              }
+            }
+          },
+          {
+            "name": "Source closure stops new decoded media without replacing the viewer",
+            "result": "PASS",
+            "details": {
+              "rms": 0,
+              "before": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 285,
+                "received_audio_sample_count": 791520
+              },
+              "after": {
+                "selected_source_id": null,
+                "selected_source_audio": false,
+                "capture_backend": "CoreGraphics runtime catalog",
+                "capture_permission_state": "granted",
+                "capture_runtime_status": "not_started",
+                "encoded_video_frame_count": 0,
+                "encoded_audio_packet_count": 0,
+                "viewer_generation": 1,
+                "viewer_playback_state": "playing",
+                "decoded_video_frame_count": 285,
+                "received_audio_sample_count": 843360
+              }
+            }
+          },
+          {
+            "name": "Native viewer sound controls preserve mute state",
+            "result": "PASS",
+            "details": {
+              "gesture": "programmatic DOM clicks; audible output is not certified"
+            }
+          },
+          {
+            "name": "Native viewer Stop ends tracks and prevents revival",
+            "result": "PASS",
+            "details": {
+              "tracks": [
+                {
+                  "kind": "video",
+                  "state": "ended"
+                },
+                {
+                  "kind": "audio",
+                  "state": "ended"
+                }
+              ]
+            }
+          },
+          {
+            "name": "No unhandled frontend errors",
+            "result": "PASS",
+            "details": {}
+          }
+        ]
+      }
+    }
+  ],
+  "native_source_types": [
+    {
+      "name": "window-required",
+      "result": "PASS",
+      "expected_exit": 0,
+      "command": [
+        "/Users/evgeniytoropchin/video-p2p-mvp/target/debug/examples/capture_probe",
+        "macos-window-5542",
+        "--require-audio"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "window-include",
+      "result": "PASS",
+      "expected_exit": 0,
+      "command": [
+        "/Users/evgeniytoropchin/video-p2p-mvp/target/debug/examples/capture_probe",
+        "macos-window-5554",
+        "--include-audio"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "window-opt-out",
+      "result": "PASS",
+      "expected_exit": 0,
+      "command": [
+        "/Users/evgeniytoropchin/video-p2p-mvp/target/debug/examples/capture_probe",
+        "macos-window-5561"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "application-required",
+      "result": "PASS",
+      "expected_exit": 0,
+      "command": [
+        "/Users/evgeniytoropchin/video-p2p-mvp/target/debug/examples/capture_probe",
+        "macos-application-96562-1",
+        "--require-audio"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "display-opt-out",
+      "result": "PASS",
+      "expected_exit": 0,
+      "command": [
+        "/Users/evgeniytoropchin/video-p2p-mvp/target/debug/examples/capture_probe",
+        "macos-display-1"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "silent-required",
+      "result": "PASS",
+      "expected_exit": 1,
+      "command": [
+        "/Users/evgeniytoropchin/video-p2p-mvp/target/debug/examples/capture_probe",
+        "macos-window-5574",
+        "--require-audio"
+      ],
+      "exit": 1
+    },
+    {
+      "name": "silent-diagnostic",
+      "result": "PASS",
+      "expected_exit": 0,
+      "command": [
+        "/Users/evgeniytoropchin/video-p2p-mvp/target/debug/examples/capture_probe",
+        "macos-window-5578",
+        "--include-audio"
+      ],
+      "exit": 0
+    }
+  ],
+  "automated_checks": [
+    {
+      "command": "cargo fmt --all",
+      "exit": 0,
+      "seconds": 1.1
+    },
+    {
+      "command": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml",
+      "exit": 0,
+      "seconds": 0.13
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit": 0,
+      "seconds": 0.15
+    },
+    {
+      "command": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check",
+      "exit": 0,
+      "seconds": 0.07
+    },
+    {
+      "command": "cargo clippy --all-targets --all-features -- -D warnings",
+      "exit": 0,
+      "seconds": 4.43
+    },
+    {
+      "command": "cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings",
+      "exit": 0,
+      "seconds": 28.44
+    },
+    {
+      "command": "cargo test --all --all-features",
+      "exit": 0,
+      "seconds": 14.91
+    },
+    {
+      "command": "cargo test -p app-core --example playback_probe --all-features",
+      "exit": 0,
+      "seconds": 1.16
+    },
+    {
+      "command": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --all-features",
+      "exit": 0,
+      "seconds": 3.13
+    },
+    {
+      "command": "node --test apps/desktop/tests/viewer-player.test.mjs",
+      "exit": 0,
+      "seconds": 2.65
+    },
+    {
+      "command": "node --test scripts/probe-cleanup.test.mjs",
+      "exit": 0,
+      "seconds": 1.1
+    },
+    {
+      "command": "python3 -B -m unittest discover -s scripts -p test_native_desktop_runner.py",
+      "exit": 0,
+      "seconds": 0.35
+    },
+    {
+      "command": "sh scripts/test-macos-capture.sh",
+      "exit": 0,
+      "seconds": 3.26
+    },
+    {
+      "command": "cargo build -p signaling-server",
+      "exit": 0,
+      "seconds": 2.26
+    },
+    {
+      "command": "cargo build -p app-core --example playback_probe",
+      "exit": 0,
+      "seconds": 0.13
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs",
+      "exit": 0,
+      "seconds": 5.66
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs --keyframe-recovery",
+      "exit": 0,
+      "seconds": 4.0
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs --chrome",
+      "exit": 0,
+      "seconds": 5.09
+    },
+    {
+      "command": "node scripts/test-viewer-playback.mjs --chrome --keyframe-recovery",
+      "exit": 0,
+      "seconds": 3.83
+    }
+  ],
+  "source_picker": [
+    {
+      "name": "Runtime and complete initial render",
+      "result": "PASS"
+    },
+    {
+      "name": "Focused source options survive Auto Refresh",
+      "result": "PASS"
+    },
+    {
+      "name": "Source change survives an older refresh response",
+      "result": "PASS"
+    },
+    {
+      "name": "Selected source and audio opt-out survive focused refresh and blur",
+      "result": "PASS"
+    },
+    {
+      "name": "Unavailable source is rejected without selecting a different source",
+      "result": "PASS"
+    },
+    {
+      "name": "Failed catalog/session refresh preserves confirmed source controls",
+      "result": "PASS"
+    },
+    {
+      "name": "Window commands remain responsive while a session command waits",
+      "result": "PASS"
+    },
+    {
+      "name": "No unhandled frontend errors",
+      "result": "PASS"
+    }
+  ],
+  "cleanup": {
+    "root": {
+      "exit": 0,
+      "files_removed": 11438,
+      "size": "2.2 GiB"
+    },
+    "desktop": {
+      "exit": 0,
+      "files_removed": 11406,
+      "size": "2.8 GiB"
+    },
+    "target_override": null,
+    "remaining_qa_build_processes": []
+  }
+}

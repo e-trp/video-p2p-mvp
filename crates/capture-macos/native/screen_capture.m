@@ -14,74 +14,112 @@
 @implementation VPPPacket
 @end
 
-@interface VPPContentResult : NSObject
-@property(nonatomic, strong) NSCondition *condition;
-@property(nonatomic, strong) SCShareableContent *content;
-@property(nonatomic, strong) NSError *error;
-@property BOOL done;
-@end
-@implementation VPPContentResult
-@end
-
 static void write_error(char *buffer, size_t size, NSString *message) {
     if (size) snprintf(buffer, size, "%s", message.UTF8String);
 }
 
+typedef struct {
+    CGDirectDisplayID identifier;
+    CGRect bounds;
+} VPPDisplay;
+
+static BOOL catalog_window(NSDictionary *window, CGRect *bounds) {
+    NSNumber *identifier = window[(__bridge NSString *)kCGWindowNumber];
+    NSNumber *owner = window[(__bridge NSString *)kCGWindowOwnerPID];
+    NSNumber *layer = window[(__bridge NSString *)kCGWindowLayer];
+    NSDictionary *rectangle = window[(__bridge NSString *)kCGWindowBounds];
+    if (![identifier isKindOfClass:NSNumber.class] || identifier.longLongValue <= 0 ||
+        identifier.unsignedLongLongValue > UINT32_MAX ||
+        ![owner isKindOfClass:NSNumber.class] || owner.longLongValue <= 0 ||
+        owner.unsignedLongLongValue > INT32_MAX ||
+        ![layer isKindOfClass:NSNumber.class] || layer.integerValue != 0 ||
+        ![rectangle isKindOfClass:NSDictionary.class] ||
+        !CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)rectangle, bounds)) return NO;
+    return isfinite(bounds->origin.x) && isfinite(bounds->origin.y) &&
+        isfinite(bounds->size.width) && isfinite(bounds->size.height) &&
+        bounds->size.width >= 1 && bounds->size.height >= 1;
+}
+
+static NSString *catalog_string(NSDictionary *window, CFStringRef key) {
+    id value = window[(__bridge NSString *)key];
+    return [value isKindOfClass:NSString.class] ? value : @"";
+}
+
+// Metadata queries must not create an SCShareableContent client in a viewer process:
+// two standalone processes at the same path can interrupt each other's SCK connection.
+// Native IDs are resolved against fresh SCShareableContent only when capture starts.
+static void emit_catalog(NSArray *windows, const VPPDisplay *displays, uint32_t count,
+                         VPPSourceCallback callback, void *context) {
+    BOOL audio = NO;
+    if (@available(macOS 13.0, *)) audio = YES;
+    NSMutableArray<NSDictionary *> *visible = [NSMutableArray new];
+    for (id value in windows) {
+        CGRect bounds;
+        if (![value isKindOfClass:NSDictionary.class] || !catalog_window(value, &bounds)) continue;
+        NSDictionary *window = value;
+        [visible addObject:window];
+        NSString *app = catalog_string(window, kCGWindowOwnerName);
+        NSString *title = catalog_string(window, kCGWindowName);
+        NSString *label = title.length ? title : (app.length ? app : @"Untitled window");
+        NSString *identifier = [NSString stringWithFormat:@"macos-window-%u",
+            [window[(__bridge NSString *)kCGWindowNumber] unsignedIntValue]];
+        callback(context, 0, identifier.UTF8String, label.UTF8String, app.UTF8String, audio);
+    }
+    for (uint32_t i = 0; i < count; i++) {
+        NSString *identifier = [NSString stringWithFormat:@"macos-display-%u", displays[i].identifier];
+        NSString *label = [NSString stringWithFormat:@"Display %u", displays[i].identifier];
+        callback(context, 2, identifier.UTF8String, label.UTF8String, "", audio);
+        NSMutableSet<NSNumber *> *owners = [NSMutableSet new];
+        for (NSDictionary *window in visible) {
+            CGRect bounds;
+            if (!catalog_window(window, &bounds) || !CGRectIntersectsRect(bounds, displays[i].bounds)) continue;
+            NSNumber *owner = window[(__bridge NSString *)kCGWindowOwnerPID];
+            if ([owners containsObject:owner]) continue;
+            [owners addObject:owner];
+            NSString *app = catalog_string(window, kCGWindowOwnerName);
+            identifier = [NSString stringWithFormat:@"macos-application-%d-%u", owner.intValue, displays[i].identifier];
+            label = [NSString stringWithFormat:@"All windows on display %u", displays[i].identifier];
+            callback(context, 1, identifier.UTF8String, label.UTF8String, app.UTF8String, audio);
+        }
+    }
+}
+
 int vpp_sck_catalog(VPPSourceCallback callback, void *context, char *error, size_t size) {
     @autoreleasepool {
-        // Passive refresh must never open a permission dialog.
+        // Passive refresh must never open a permission dialog, even though some CG metadata
+        // is available without authorization. Preserve the capture permission contract.
         if (!CGPreflightScreenCaptureAccess()) {
             write_error(error, size, @"Screen Recording permission is required");
             return 1;
         }
-        VPPContentResult *result = [VPPContentResult new];
-        result.condition = [NSCondition new];
-        [SCShareableContent getShareableContentExcludingDesktopWindows:YES onScreenWindowsOnly:YES
-            completionHandler:^(SCShareableContent *content, NSError *failure) {
-                [result.condition lock];
-                result.content = content;
-                result.error = failure;
-                result.done = YES;
-                [result.condition signal];
-                [result.condition unlock];
-            }];
-        [result.condition lock];
-        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:3];
-        while (!result.done && [result.condition waitUntilDate:deadline]) {}
-        SCShareableContent *content = result.content;
-        NSError *failure = result.error;
-        BOOL done = result.done;
-        [result.condition unlock];
-        if (!done || !content || failure) {
-            write_error(error, size, failure.localizedDescription ?: @"ScreenCaptureKit catalog timed out");
+        NSArray *windows = CFBridgingRelease(CGWindowListCopyWindowInfo(
+            kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID));
+        if (!windows) {
+            write_error(error, size, @"CoreGraphics window catalog unavailable");
             return 1;
         }
-        BOOL audio = NO;
-        if (@available(macOS 13.0, *)) audio = YES;
-        for (SCWindow *window in content.windows) {
-            if (window.windowLayer != 0 || window.frame.size.width < 1 || window.frame.size.height < 1)
-                continue;
-            NSString *app = window.owningApplication.applicationName ?: @"";
-            NSString *label = window.title.length ? window.title : (app.length ? app : @"Untitled window");
-            NSString *identifier = [NSString stringWithFormat:@"macos-window-%u", window.windowID];
-            callback(context, 0, identifier.UTF8String, label.UTF8String, app.UTF8String, audio);
+        uint32_t capacity = 0, count = 0;
+        if (CGGetActiveDisplayList(0, NULL, &capacity) != kCGErrorSuccess || !capacity) {
+            write_error(error, size, @"CoreGraphics active display list unavailable");
+            return 1;
         }
-        for (SCDisplay *display in content.displays) {
-            NSString *identifier = [NSString stringWithFormat:@"macos-display-%u", display.displayID];
-            NSString *label = [NSString stringWithFormat:@"Display %u", display.displayID];
-            callback(context, 2, identifier.UTF8String, label.UTF8String, "", audio);
-            for (SCRunningApplication *app in content.applications) {
-                BOOL visible = NO;
-                for (SCWindow *window in content.windows) {
-                    if (window.owningApplication.processID == app.processID && window.windowLayer == 0 &&
-                        CGRectIntersectsRect(window.frame, display.frame)) { visible = YES; break; }
-                }
-                if (!visible) continue;
-                identifier = [NSString stringWithFormat:@"macos-application-%d-%u", app.processID, display.displayID];
-                label = [NSString stringWithFormat:@"All windows on display %u", display.displayID];
-                callback(context, 1, identifier.UTF8String, label.UTF8String, app.applicationName.UTF8String, audio);
-            }
+        CGDirectDisplayID *identifiers = calloc(capacity, sizeof(*identifiers));
+        VPPDisplay *displays = calloc(capacity, sizeof(*displays));
+        if (!identifiers || !displays) {
+            free(identifiers); free(displays);
+            write_error(error, size, @"Cannot allocate active display catalog");
+            return 1;
         }
+        CGError result = CGGetActiveDisplayList(capacity, identifiers, &count);
+        if (result != kCGErrorSuccess || !count || count > capacity) {
+            free(identifiers); free(displays);
+            write_error(error, size, @"CoreGraphics active display query failed");
+            return 1;
+        }
+        for (uint32_t i = 0; i < count; i++)
+            displays[i] = (VPPDisplay){identifiers[i], CGDisplayBounds(identifiers[i])};
+        emit_catalog(windows, displays, count, callback, context);
+        free(identifiers); free(displays);
         return 0;
     }
 }

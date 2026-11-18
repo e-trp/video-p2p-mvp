@@ -71,8 +71,72 @@ static void check_packet(void *context, uint32_t kind, const uint8_t *bytes, siz
     }
 }
 
+static NSMutableDictionary *window_info(uint32_t identifier, int pid, CGRect bounds) {
+    return [@{(__bridge NSString *)kCGWindowNumber: @(identifier),
+              (__bridge NSString *)kCGWindowOwnerPID: @(pid),
+              (__bridge NSString *)kCGWindowLayer: @0,
+              (__bridge NSString *)kCGWindowBounds: CFBridgingRelease(CGRectCreateDictionaryRepresentation(bounds)),
+              (__bridge NSString *)kCGWindowOwnerName: @"Fixture",
+              (__bridge NSString *)kCGWindowName: @"A title"} mutableCopy];
+}
+
+static void collect_source(void *context, uint32_t kind, const char *identifier,
+                           const char *label, const char *app, bool audio) {
+    NSMutableArray *sources = (__bridge NSMutableArray *)context;
+    [sources addObject:@{@"kind": @(kind), @"id": @(identifier), @"label": @(label),
+                         @"app": @(app), @"audio": @(audio)}];
+}
+
+static void test_catalog_metadata(void) {
+    VPPDisplay displays[] = {{7, CGRectMake(0, 0, 100, 100)}, {9, CGRectMake(-100, 0, 100, 100)}};
+    NSMutableDictionary *first = window_info(UINT32_MAX, 42, CGRectMake(-10, 0, 20, 20));
+    NSMutableDictionary *second = window_info(2, 42, CGRectMake(10, 10, 20, 20));
+    [second removeObjectForKey:(__bridge NSString *)kCGWindowName];
+    NSMutableDictionary *untitled = window_info(3, 43, CGRectMake(20, 20, 1, 1));
+    [untitled removeObjectForKey:(__bridge NSString *)kCGWindowName];
+    untitled[(__bridge NSString *)kCGWindowOwnerName] = @7;
+    NSMutableArray *windows = [@[first, second, untitled] mutableCopy];
+    for (NSDictionary *override in @[
+        @{(__bridge NSString *)kCGWindowNumber: @0},
+        @{(__bridge NSString *)kCGWindowNumber: @(-1)},
+        @{(__bridge NSString *)kCGWindowNumber: @((uint64_t)UINT32_MAX + 1)},
+        @{(__bridge NSString *)kCGWindowOwnerPID: @0},
+        @{(__bridge NSString *)kCGWindowOwnerPID: @((uint64_t)INT32_MAX + 1)},
+        @{(__bridge NSString *)kCGWindowLayer: @1},
+        @{(__bridge NSString *)kCGWindowBounds: @{}},
+        @{(__bridge NSString *)kCGWindowBounds: @"invalid"},
+    ]) {
+        NSMutableDictionary *invalid = [first mutableCopy];
+        [invalid addEntriesFromDictionary:override];
+        [windows addObject:invalid];
+    }
+    [windows addObject:window_info(4, 44, CGRectMake(0, 0, 0, 10))];
+    [windows addObject:window_info(5, 44, CGRectMake(NAN, 0, 10, 10))];
+    [windows addObject:@"not a dictionary"];
+    NSMutableArray *sources = [NSMutableArray new];
+    emit_catalog(windows, displays, 2, collect_source, (__bridge void *)sources);
+    assert(([[sources valueForKey:@"id"] isEqual:@[@"macos-window-4294967295", @"macos-window-2",
+        @"macos-window-3", @"macos-display-7", @"macos-application-42-7",
+        @"macos-application-43-7", @"macos-display-9", @"macos-application-42-9"]]));
+    assert([sources[0][@"label"] isEqual:@"A title"]);
+    assert([sources[1][@"label"] isEqual:@"Fixture"]);
+    assert([sources[2][@"label"] isEqual:@"Untitled window"]);
+    assert([sources[4][@"app"] isEqual:@"Fixture"]);
+    for (NSDictionary *source in sources) {
+        if (@available(macOS 13.0, *)) assert([source[@"audio"] boolValue]);
+        else assert(![source[@"audio"] boolValue]);
+    }
+    [sources removeAllObjects];
+    emit_catalog(@[], displays, 2, collect_source, (__bridge void *)sources);
+    assert(([[sources valueForKey:@"id"] isEqual:@[@"macos-display-7", @"macos-display-9"]]));
+    [sources removeAllObjects];
+    emit_catalog(@[], NULL, 0, collect_source, (__bridge void *)sources);
+    assert(sources.count == 0);
+}
+
 int main(void) {
     @autoreleasepool {
+        test_catalog_metadata();
         VPPCapture *capture = [VPPCapture new];
         capture.queue = dispatch_queue_create("dev.videop2p.capture.test", DISPATCH_QUEUE_SERIAL);
         capture.packets = [NSMutableArray new];
@@ -100,7 +164,7 @@ int main(void) {
         assert(capture.packets.count == 0);
         CFRelease(video); free(pixels);
         CFRelease(planar); CFRelease(interleaved);
-        puts("ScreenCaptureKit buffer extraction, timing, backpressure, and stop tests passed");
+        puts("CoreGraphics catalog and ScreenCaptureKit extraction, timing, backpressure, and stop tests passed");
     }
     return 0;
 }

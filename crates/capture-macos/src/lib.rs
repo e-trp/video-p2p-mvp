@@ -146,10 +146,10 @@ pub fn blueprint() -> MacCaptureBlueprint {
                 has_audio: true,
             },
         ],
-        sources_api: "ScreenCaptureKit",
+        sources_api: "CoreGraphics",
         media_bridge: "Swift/Objective-C bridge feeding Rust-owned transport",
         notes: vec![
-            "enumerate windows through SCShareableContent",
+            "enumerate native source metadata through CoreGraphics",
             "request Screen Recording permission on first capture",
             "stream screen frames and audio buffers into Rust",
             "surface selected sources to the Tauri GUI",
@@ -172,7 +172,7 @@ pub fn current_catalog() -> MacCaptureCatalog {
                 permission_state,
                 notes: vec![
                     format!(
-                        "runtime catalog enumerated {} sources through ScreenCaptureKit SCShareableContent",
+                        "runtime catalog enumerated {} sources through CoreGraphics window/display metadata",
                         sources.len()
                     ),
                     format!(

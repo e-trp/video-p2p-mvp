@@ -8,7 +8,7 @@ The root Rust workspace contains the core, capture, codec, transport, signaling,
 | --- | --- |
 | `app-core` | Signaling protocol/client, session lifecycle, source selection, preferences, capture worker, browser viewer bridge |
 | `capture-core` | Shared source/permission types, raw BGRA/PCM, runtime config/status/events |
-| `capture-macos` | Objective-C/C ABI ScreenCaptureKit catalog and raw sample delivery |
+| `capture-macos` | Objective-C/C ABI CoreGraphics source catalog and ScreenCaptureKit raw samples |
 | `capture-linux` | Best-effort `wmctrl` catalog and planned runtime; no Portal/PipeWire or X11 media capture |
 | `media-codec` | macOS VideoToolbox H.264 and vendored Opus encoders |
 | `transport-webrtc` | Rust host and CLI diagnostic peers, encoded publication, RTCP feedback, stats |
@@ -44,7 +44,7 @@ The viewer signaling pump runs independently of diagnostic Auto Refresh. Host ne
 
 ## Capture And Worker Lifecycle
 
-The macOS catalog uses SCShareableContent native IDs, with example-source fallback when enumeration is unavailable. Linux discovers X11 metadata through `wmctrl` when possible. A fallback catalog or Linux permission/status scaffold does not imply working capture. After successful discovery, a failed refresh retains the last runtime source identities as `cachedruntime` with current permission/error diagnostics. It does not replace the selection with an example source. Lost/unknown permission stops capture; successful discovery that confirms source removal stops/rebinds the selection.
+The macOS catalog reads CoreGraphics window/display metadata without initializing a ScreenCaptureKit client, with example-source fallback when enumeration is unavailable. Capture startup resolves native IDs through SCShareableContent. Linux discovers X11 metadata through `wmctrl` when possible. A fallback catalog or Linux permission/status scaffold does not imply working capture. After successful discovery, a failed refresh retains the last runtime source identities as `cachedruntime` with current permission/error diagnostics. It does not replace the selection with an example source. Lost/unknown permission stops capture; successful discovery that confirms source removal stops/rebinds the selection.
 
 The session manager owns a background capture worker. The worker validates source/audio selection, drains raw samples, encodes only with a connected peer, and publishes with a bounded write timeout. Native queues retain the newest video and at most 32 audio buffers. GUI polling receives only the latest raw samples for diagnostics.
 
